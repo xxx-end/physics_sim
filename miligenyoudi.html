@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验35 密立根油滴实验 · 3D交互仿真</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2d3646;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#f5b32e; --accent2:#4da3ff;
+    --ok:#3fb96f; --warn:#e5534b; --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column;}
+  header{height:52px; flex:none; display:flex; align-items:center; gap:14px; padding:0 16px; background:var(--panel); border-bottom:1px solid var(--line);}
+  header h1{font-size:16px; font-weight:600;}
+  header h1 span{color:var(--accent);}
+  #hint{font-size:12px; color:var(--muted); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hdr-btn{flex:none; background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer;}
+  .hdr-btn:hover{border-color:var(--accent); color:var(--accent);}
+  main{flex:1; display:flex; min-height:0;}
+  #sceneWrap{flex:1; position:relative; min-width:0;}
+  #scene{width:100%; height:100%; display:block; cursor:grab;}
+  #scene:active{cursor:grabbing;}
+  /* ---------- 监视器浮窗 ---------- */
+  #monFloat{position:absolute; right:14px; top:14px; width:290px; background:rgba(13,17,23,.9);
+    border:1px solid var(--line); border-radius:var(--radius); padding:10px; backdrop-filter:blur(4px);
+    display:flex; flex-direction:column; gap:8px;}
+  #monFloat h3{font-size:12px; color:var(--muted); font-weight:500; display:flex; justify-content:space-between; align-items:center;}
+  #monCanvas{width:100%; border-radius:8px; background:#000; border:1px solid var(--line);}
+  #monFloat.fullscreen{position:fixed; inset:0; width:auto; height:auto; z-index:50;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,.96);}
+  #monFloat.fullscreen #monCanvas{width:auto; height:min(90vh,90vw);}
+  .mon-bottom{display:flex; justify-content:space-between; align-items:center; font-size:12px;}
+  #timerShow{font-family:Consolas,monospace; font-size:20px; color:var(--accent); letter-spacing:1px;}
+  .statusTag{display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; border:1px solid var(--line); color:var(--muted);}
+  .statusTag.on{color:var(--ok); border-color:var(--ok); background:rgba(63,185,111,.12);}
+  .statusTag.up{color:var(--accent2); border-color:var(--accent2); background:rgba(77,163,255,.12);}
+  /* ---------- 右侧面板 ---------- */
+  aside{width:420px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0;}
+  .tabs{display:flex; border-bottom:1px solid var(--line); flex:none;}
+  .tab{flex:1; text-align:center; padding:10px 0; font-size:13px; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; user-select:none;}
+  .tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+  .tabBody{flex:1; overflow-y:auto; padding:14px; display:none;}
+  .tabBody.active{display:block;}
+  .tabBody::-webkit-scrollbar{width:8px;}
+  .tabBody::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+  section{background:var(--panel2); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:12px;}
+  section h4{font-size:13px; color:var(--accent2); margin-bottom:10px;}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px;}
+  .row label{width:100px; flex:none; color:var(--muted);}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{width:80px; flex:none; text-align:right; font-variant-numeric:tabular-nums;}
+  button.b{background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer; transition:.15s;}
+  button.b:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+  button.b:disabled{opacity:.4; cursor:not-allowed;}
+  button.b.primary{background:var(--accent); color:#111; border:none; font-weight:600;}
+  button.b.primary:hover:not(:disabled){filter:brightness(1.1); color:#111;}
+  button.b.on{border-color:var(--accent2); color:var(--accent2); background:rgba(77,163,255,.1);}
+  .btnRow{display:flex; gap:6px; flex-wrap:wrap;}
+  .step{display:flex; align-items:flex-start; gap:8px; padding:7px 8px; border-radius:8px; margin-bottom:6px; font-size:12px; line-height:1.5;}
+  .step .dot{width:18px; height:18px; flex:none; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); margin-top:1px;}
+  .step.done .dot{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .step.done{color:var(--muted); text-decoration:line-through;}
+  .step.current{background:rgba(245,179,46,.08); outline:1px solid rgba(245,179,46,.35);}
+  .step.current .dot{border-color:var(--accent); color:var(--accent);}
+  table{width:100%; border-collapse:collapse; font-size:11.5px; font-variant-numeric:tabular-nums;}
+  th,td{border:1px solid var(--line); padding:4px 5px; text-align:center; white-space:nowrap;}
+  th{background:var(--panel); color:var(--muted); font-weight:500;}
+  td.dim{color:var(--muted);}
+  .formula{background:#0b0f14; border:1px dashed var(--line); border-radius:8px; padding:10px; font-size:12px; line-height:2; text-align:center; margin:8px 0;}
+  .formula b{color:var(--accent);}
+  .kv{display:flex; justify-content:space-between; font-size:12px; padding:4px 0;}
+  .kv span:first-child{color:var(--muted);}
+  .kv .num{font-variant-numeric:tabular-nums;}
+  #resultBox{font-size:14px; text-align:center; padding:10px; border-radius:8px; background:rgba(63,185,111,.1); border:1px solid rgba(63,185,111,.4); margin-top:8px; display:none; line-height:1.8;}
+  #toast{position:fixed; left:50%; top:70px; transform:translateX(-50%); z-index:99; background:rgba(28,35,48,.95);
+    border:1px solid var(--accent); color:var(--text); padding:9px 18px; border-radius:10px; font-size:13px;
+    opacity:0; pointer-events:none; transition:.25s; max-width:70vw;}
+  #toast.show{opacity:1;}
+  #toast.warn{border-color:var(--warn);}
+  #infoCard{position:absolute; left:14px; top:14px; width:260px; background:rgba(13,17,23,.92); border:1px solid var(--accent2);
+    border-radius:var(--radius); padding:12px; font-size:12px; line-height:1.6; display:none; z-index:20;}
+  #infoCard h5{color:var(--accent2); margin-bottom:6px; font-size:13px;}
+  #infoCard .close{position:absolute; right:8px; top:6px; cursor:pointer; color:var(--muted);}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; font-size:11px; font-family:inherit;}
+  .note{font-size:12px; color:var(--muted); line-height:1.8;}
+</style>
+</head>
+<body>
+<header>
+  <h1>实验35 · <span>密立根油滴实验（静态平衡法）</span></h1>
+  <div id="hint">鼠标拖动旋转视角，滚轮缩放；点击仪器部件查看说明。按右侧引导步骤操作。</div>
+  <button class="hdr-btn" id="btnMonFull">监视器全屏</button>
+  <button class="hdr-btn" id="btnReset">重置实验</button>
+</header>
+<main>
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="infoCard"><span class="close" id="infoClose">✕</span><h5 id="infoTitle"></h5><div id="infoDesc"></div></div>
+    <!-- 监视器浮窗 -->
+    <div id="monFloat">
+      <h3><span>CCD 监视器（视场 2mm / 8格×0.25mm）</span><span id="balTag" class="statusTag">未平衡</span></h3>
+      <canvas id="monCanvas" width="320" height="560"></canvas>
+      <div class="mon-bottom">
+        <span>计时 <b id="timerShow">0.00</b> s</span>
+        <span style="color:var(--muted)">电压 <b id="uShow" class="num" style="color:var(--accent)">0</b> V</span>
+      </div>
+    </div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="measure">测量</div>
+      <div class="tab" data-tab="data">数据与处理</div>
+      <div class="tab" data-tab="principle">原理</div>
+    </div>
+
+    <!-- 操作引导 -->
+    <div class="tabBody active" id="tab-guide">
+      <section>
+        <h4>实验步骤（完成后自动打勾）</h4>
+        <div class="step" id="st1"><div class="dot">1</div><div>调节三颗调平螺丝，使水准仪气泡居中<button class="b" id="btnLevel" style="margin-left:8px">调节调平螺丝</button></div></div>
+        <div class="step" id="st2"><div class="dot">2</div><div>打开实验仪和监视器电源<button class="b" id="btnPower" style="margin-left:8px">打开电源</button></div></div>
+        <div class="step" id="st3"><div class="dot">3</div><div>喷雾器喷入油雾，并调焦使油滴清晰<button class="b" id="btnSpray" style="margin-left:8px">喷油</button></div></div>
+        <div class="step" id="st4"><div class="dot">4</div><div>选择合适油滴，调电压使其平衡（静止）</div></div>
+        <div class="step" id="st5"><div class="dot">5</div><div>测量：每油滴测 5 次，共 3 个油滴（切到"测量"页）</div></div>
+      </section>
+      <section>
+        <h4>仪器控制（模拟面板按键）</h4>
+        <div class="row"><label>电压调节旋钮</label><input type="range" id="sVolt" min="0" max="500" value="0" step="1"><span class="val" id="vVolt">0 V</span></div>
+        <div class="row"><label>平衡 / 提升</label>
+          <button class="b on" id="btnMode">当前：平衡</button>
+          <span class="note">切换油滴的运动状态</span>
+        </div>
+        <div class="row"><label>0V / 工作</label>
+          <button class="b on" id="btnZero">当前：工作</button>
+          <span class="note">"0V"= 极板短路，油滴自由下落</span>
+        </div>
+        <div class="row"><label>物镜调焦</label><input type="range" id="sFocus" min="0" max="100" value="10" step="1"><span class="val" id="vFocus">10</span></div>
+        <div class="row"><label>时间倍率</label>
+          <button class="b" id="btnSpeed">×1</button>
+          <span class="note">教学加速，不影响物理结果</span>
+        </div>
+      </section>
+      <section>
+        <h4>注意事项</h4>
+        <div class="note">· 仪器内有高压，避免用手接触电极；<br>
+        · 喷油后推上油雾孔挡片，避免外界气流干扰；<br>
+        · 选择平衡电压 150~400 V、下落 1.6 mm 用时 20 s 左右的明亮油滴；<br>
+        · 测量中油滴消失（跑出视场）需重新喷油选择。</div>
+      </section>
+    </div>
+
+    <!-- 测量 -->
+    <div class="tabBody" id="tab-measure">
+      <section>
+        <h4>平衡油滴</h4>
+        <div class="note">"平衡/提升"置于<b style="color:var(--accent2)">平衡</b>、"0V/工作"置于<b style="color:var(--accent2)">工作</b>，
+        调节电压使选定的油滴悬停不动（监视器右上出现"已平衡"），记录此时平衡电压 U。</div>
+      </section>
+      <section>
+        <h4>测量下落时间 t<sub>g</sub></h4>
+        <div class="btnRow">
+          <button class="b primary" id="btnTimer">计时开始 / 结束</button>
+          <button class="b primary" id="btnConfirm">确认（记录数据）</button>
+        </div>
+        <div class="kv" style="margin-top:8px"><span>操作流程</span></div>
+        <div class="note">① 平衡后切"0V"，油滴开始下落；<br>
+        ② 油滴经过<b style="color:var(--accent)">"0"标线</b>时按"计时开始"；<br>
+        ③ 下落到 1.6 mm 标线（6.4 格）时再按一次（或切回"工作"自动停止）；<br>
+        ④ 按"确认"写入表格。同一油滴重复 5 次。</div>
+        <div class="kv" style="margin-top:8px"><span>当前油滴进度</span><span class="num" id="progShow">0 / 5 次</span></div>
+        <div class="kv"><span>已测量油滴数</span><span class="num" id="dropShow">0 / 3 个</span></div>
+      </section>
+      <section>
+        <h4>辅助操作</h4>
+        <div class="btnRow">
+          <button class="b" id="btnSpray2">再次喷油</button>
+          <button class="b" id="btnSample">示例数据一键填充</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- 数据与处理 -->
+    <div class="tabBody" id="tab-data">
+      <section>
+        <h4>表 2.35.1　密立根油滴实验测量数据表</h4>
+        <div style="overflow-x:auto">
+        <table id="dataTable">
+          <thead><tr><th>油滴</th><th>次</th><th>U / V</th><th>t<sub>g</sub> / s</th><th>Ū / V</th><th>t̄<sub>g</sub> / s</th><th>q /(10⁻¹⁹C)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </section>
+      <section>
+        <h4>静态平衡法计算电荷</h4>
+        <div class="formula">
+          a = (9ηv<sub>g</sub> / 2ρg)<sup>1/2</sup> ， η' = η / (1 + b/(pa))<br>
+          q = (18πd / √(2ρg)) · [η' l / t<sub>g</sub>]<sup>3/2</sup> · (1/U)<br>
+          <b>q = 各油滴电荷的最大公约数 = 电子电荷 e</b>
+        </div>
+        <div class="btnRow"><button class="b primary" id="btnCalc">计算电子电荷 e</button></div>
+        <div id="calcDetail" style="font-size:12px; line-height:1.9; margin-top:8px"></div>
+        <div id="resultBox"></div>
+      </section>
+      <section>
+        <h4>仪器参数（教材值）</h4>
+        <div class="kv"><span>极板间距 d</span><span class="num">5.00×10⁻³ m</span></div>
+        <div class="kv"><span>空气黏度 η</span><span class="num">1.83×10⁻⁵ kg/(m·s)</span></div>
+        <div class="kv"><span>下落距离 l</span><span class="num">1.6 mm</span></div>
+        <div class="kv"><span>油密度 ρ₁ (20℃)</span><span class="num">981 kg/m³</span></div>
+        <div class="kv"><span>空气密度 ρ₂</span><span class="num">1.2928 kg/m³</span></div>
+        <div class="kv"><span>重力加速度 g（重庆）</span><span class="num">9.792 m/s²</span></div>
+        <div class="kv"><span>修正常数 b</span><span class="num">0.00823 N/m</span></div>
+        <div class="kv"><span>标准大气压强 p</span><span class="num">1.01×10⁵ N/m²</span></div>
+        <div class="kv"><span>电子电荷理论值</span><span class="num">e = 1.602×10⁻¹⁹ C</span></div>
+      </section>
+    </div>
+
+    <!-- 原理 -->
+    <div class="tabBody" id="tab-principle">
+      <section>
+        <h4>实验原理（静态平衡法）</h4>
+        <div class="note">
+          质量为 m、带电量为 q 的油滴喷入极板间。不加电压时，油滴受重力与斯托克斯黏性阻力
+          f=6πηav 作用，很快达到匀速下落 v<sub>g</sub>；极板加电压 U 后，电荷受电场力 qE，
+          调节 U 使油滴静止（平衡），此时 qE = mg，E = U/d。
+        </div>
+        <div class="formula">
+          6πηa·v<sub>g</sub> = mg ， m = (4/3)πa³ρ<br>
+          ⇒ a = (9ηv<sub>g</sub> / 2ρg)<sup>1/2</sup><br>
+          ⇒ q = mgd/U = (18πd/√(2ρg))·[η'l/t<sub>g</sub>]<sup>3/2</sup>·(1/U)
+        </div>
+        <div class="note">
+          油滴很小，空气不能再看作连续介质，黏度需修正：η' = η/(1+b/(pa))，其中 a 用未修正值代入。
+          分别测出多个油滴的电荷 q，其最大公约数即为电子电荷 e——证明电荷的量子化。
+        </div>
+      </section>
+      <section>
+        <h4>历史背景</h4>
+        <div class="note">密立根从 1907 年开始测量电子电荷，历时 11 年精确测得 e 值，证实电荷的量子化；
+        1916 年又用光电效应实验验证了爱因斯坦方程，并首次由光电效应测定了普朗克常量。</div>
+      </section>
+      <section>
+        <h4>装置部件说明（3D 场景中点击查看）</h4>
+        <div class="note">主机 · CCD成像系统 · 油滴盒(上/下极板、油雾杯、落油孔) · 照明二极管 ·
+        水准仪与调平螺丝 · 喷雾器 · 监视器</div>
+      </section>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================= 仪器物理常数（教材值，SI 单位） ================= */
+const PHY = {
+  d: 5.00e-3,        // 极板间距 m
+  eta: 1.83e-5,      // 空气黏度 kg/(m·s)
+  l: 1.6e-3,         // 下落距离 m
+  rho1: 981,         // 油密度 kg/m³
+  rho2: 1.2928,      // 空气密度 kg/m³
+  g: 9.792,          // 重力加速度 m/s²（重庆）
+  b: 0.00823,        // 修正常数 N/m
+  p: 1.01e5,         // 大气压 Pa
+  e: 1.602e-19,      // 电子电荷 C
+};
+const VIEW_MM = 2.0;          // 监视器垂直视场 2mm
+const GRID_N = 8;             // 8 格，每格 0.25mm
+const Y0 = 0.25;              // "0"标线距视场顶部 mm（0.25mm = 1 格）
+const FALL_MM = 1.6;          // 下落测量距离
+
+/* ================= 全局状态 ================= */
+const CFG = {
+  powered:false, leveled:false, sprayed:false,
+  volt:0, mode:'balance', zero:false,      // mode: balance|lift ; zero: 0V状态
+  focus:10, speed:1,
+  balanced:false, balU:null, curDrop:null,
+  timer:{running:false, t0:0, show:0, last:null},
+  simTime:0,
+  drops:[], nextDropId:1,
+  records:[],                 // {drop, U, t}
+  steps:[false,false,false,false,false],
+};
+const $ = id => document.getElementById(id);
+const fmt = (v,n=2) => Number(v).toFixed(n);
+let toastTimer;
+function toast(msg, warn=false){
+  const t=$('toast'); t.textContent=msg; t.className='show'+(warn?' warn':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='',3000);
+}
+
+/* ================= 油滴物理 ================= */
+// 由目标下落时间生成油滴（半径、电荷）
+function makeDrop(){
+  const t_g = 14 + Math.random()*12;                    // 目标下落时间 14~26 s
+  const dr = PHY.rho1 - PHY.rho2;
+  const v_g = PHY.l/t_g;
+  // 反解真实半径 a：v_g = m g / (6π η'(a) a)（运动端阻力含黏度修正，物理自洽）
+  let a = 8e-7;
+  for(let k=0;k<60;k++){
+    const eta2 = PHY.eta/(1+PHY.b/(PHY.p*a));
+    const m = 4/3*Math.PI*a**3*dr;
+    const v = m*PHY.g/(6*Math.PI*eta2*a);
+    a *= Math.sqrt(v_g/v);
+  }
+  const m = 4/3*Math.PI*a**3*dr;
+  // 平衡电压落在 150~400V 的电荷 n·e
+  const Utarget = 180 + Math.random()*180;
+  const n = Math.max(1, Math.min(8, Math.round(m*PHY.g*PHY.d/(PHY.e*Utarget))));
+  return { id:CFG.nextDropId++, a, q:n*PHY.e, n,
+           x:(Math.random()-0.5)*0.5, y:0.15+Math.random()*1.7, alive:true };
+}
+// 端速度（m/s，正值向上）：E=0 时为自由下落
+function dropVelocity(drop){
+  const m = 4/3*Math.PI*drop.a**3*(PHY.rho1-PHY.rho2);
+  const eta2 = PHY.eta/(1+PHY.b/(PHY.p*drop.a));        // 小油滴空气黏度修正（坎宁安修正）
+  const k = 6*Math.PI*eta2*drop.a;
+  let E = 0;
+  if(!CFG.zero){
+    const U = CFG.mode==='lift' ? CFG.volt+200 : CFG.volt;   // 提升态附加电压，快速上移
+    E = U/PHY.d;
+  }
+  return (drop.q*E - m*PHY.g)/k;     // m/s，向上为正
+}
+function updateDrops(dt){
+  let anyBal=false;
+  for(const d of CFG.drops){
+    if(!d.alive) continue;
+    const v = dropVelocity(d);                         // m/s
+    d.y -= v*dt*1000;                                  // mm（向上减小 y）
+    d.x += Math.sin(CFG.simTime*0.7+d.id*3.7)*0.0004;  // 轻微布朗漂移
+    if(d.y<0.04 || d.y>VIEW_MM-0.02) d.alive=false;    // 跑出视场
+    // 平衡判定：平衡态 + 工作状态 + 几乎静止
+    if(CFG.mode==='balance' && !CFG.zero && CFG.volt>0 && Math.abs(v)<2e-4){
+      anyBal=true;
+      if(CFG.curDrop!==d.id){ CFG.curDrop=d.id; CFG.balU=CFG.volt; toast(`油滴 #${d.id} 已平衡，平衡电压 U = ${CFG.volt} V`); }
+      else CFG.balU=CFG.volt;
+    }
+  }
+  CFG.balanced = anyBal;
+  CFG.drops = CFG.drops.filter(d=>d.alive);
+  // 当前跟踪的油滴若跑出视场，清除平衡状态
+  if(CFG.curDrop!==null && !CFG.drops.some(d=>d.id===CFG.curDrop)){
+    CFG.curDrop=null; CFG.balU=null; CFG.balanced=false;
+    toast('所选油滴已跑出视场，请重新喷油选择', true);
+  }
+  // 平衡中的油滴若电压被调走，取消当前油滴
+  if(!anyBal && CFG.curDrop!==null){
+    const cd = CFG.drops.find(x=>x.id===CFG.curDrop);
+    if(cd){
+      const v=dropVelocity(cd);
+      if(Math.abs(v)>3e-4){ CFG.curDrop=null; CFG.balU=null; }
+    }
+  }
+}
+
+/* ================= 监视器渲染 ================= */
+const mon = $('monCanvas'), mctx = mon.getContext('2d');
+const MON_W = mon.width, MON_H = mon.height;
+const PXMM = 250;                        // 像素/mm（2mm→500px）
+const MON_X0 = (MON_W-160)/2;            // 油滴活动区居中
+function drawMonitor(){
+  mctx.fillStyle='#020704'; mctx.fillRect(0,0,MON_W,MON_H);
+  // 刻度：8 格
+  mctx.strokeStyle='rgba(120,255,180,.55)'; mctx.lineWidth=1;
+  mctx.font='10px monospace';
+  for(let i=0;i<=GRID_N;i++){
+    const y = 30 + i*0.25*PXMM;
+    mctx.beginPath(); mctx.moveTo(20,y); mctx.lineTo(70,y);
+    mctx.moveTo(MON_W-70,y); mctx.lineTo(MON_W-20,y); mctx.stroke();
+    mctx.fillStyle='rgba(120,255,180,.5)';
+    mctx.fillText((i*0.25).toFixed(2), 24, y-3);
+  }
+  mctx.strokeStyle='rgba(120,255,180,.3)';
+  for(let i=0;i<=GRID_N;i++){
+    const y=30+i*0.25*PXMM;
+    mctx.beginPath(); mctx.moveTo(70,y); mctx.lineTo(MON_W-70,y); mctx.stroke();
+  }
+  // "0" 标线 与 1.6mm 落距标线
+  const y0=30+Y0*PXMM, y1=30+(Y0+FALL_MM)*PXMM;
+  mctx.strokeStyle='rgba(245,179,46,.85)'; mctx.lineWidth=1.5;
+  mctx.beginPath(); mctx.moveTo(10,y0); mctx.lineTo(MON_W-10,y0); mctx.stroke();
+  mctx.setLineDash([6,4]);
+  mctx.beginPath(); mctx.moveTo(10,y1); mctx.lineTo(MON_W-10,y1); mctx.stroke();
+  mctx.setLineDash([]);
+  mctx.fillStyle='#f5b32e';
+  mctx.fillText('"0"标线', 78, y0-4);
+  mctx.fillText('1.6mm', 78, y1-4);
+  // 电源未开提示
+  if(!CFG.powered){
+    mctx.fillStyle='#39424e'; mctx.font='14px sans-serif';
+    mctx.fillText('— 请打开仪器电源 —', MON_W/2-70, MON_H/2);
+    return;
+  }
+  // 油滴（发光亮点，大小随半径）
+  for(const d of CFG.drops){
+    const px = MON_X0+80 + d.x*PXMM;
+    const py = 30 + d.y*PXMM;
+    const r = 3 + (d.a-6e-7)*6e6*1.6;
+    const g = mctx.createRadialGradient(px,py,0,px,py,r*3);
+    g.addColorStop(0,'rgba(220,255,240,.95)');
+    g.addColorStop(.4,'rgba(150,255,210,.5)');
+    g.addColorStop(1,'rgba(150,255,210,0)');
+    mctx.fillStyle=g;
+    mctx.beginPath(); mctx.arc(px,py,r*3,0,7); mctx.fill();
+    mctx.fillStyle='#eafff5';
+    mctx.beginPath(); mctx.arc(px,py,r,0,7); mctx.fill();
+    if(d.id===CFG.curDrop){
+      mctx.strokeStyle='rgba(245,179,46,.9)';
+      mctx.strokeRect(px-8,py-8,16,16);
+    }
+  }
+  // 失焦模糊 + 计时叠加
+  mon.style.filter = `blur(${Math.abs(CFG.focus-50)*0.07}px)`;
+  if(CFG.timer.running || CFG.timer.last!==null){
+    mctx.fillStyle='#f5b32e'; mctx.font='16px Consolas,monospace';
+    mctx.fillText(fmt(CFG.timer.running?(CFG.simTime-CFG.timer.t0):CFG.timer.show)+' s', 20, 24);
+  }
+}
+
+/* ================= 计时 ================= */
+function pressTimer(){
+  if(!CFG.steps[3]){ toast('请先完成喷油、调焦并平衡油滴', true); return; }
+  if(!CFG.zero){ toast('请先将"0V/工作"切到 0V，让油滴自由下落', true); return; }
+  if(!CFG.timer.running){
+    CFG.timer.running=true; CFG.timer.t0=CFG.simTime;
+    toast('计时开始！油滴下落到 1.6mm 标线时再按一次（或切回"工作"自动停止）');
+  } else {
+    CFG.timer.running=false;
+    CFG.timer.show=CFG.simTime-CFG.timer.t0;
+    CFG.timer.last=CFG.timer.show;
+    toast(`下落时间 t_g = ${fmt(CFG.timer.show)} s，按"确认"记录数据`);
+  }
+}
+// 切回"工作"时自动停止计时（模拟电子分划自动停止）
+function autoStopTimer(){
+  if(CFG.timer.running){
+    CFG.timer.running=false;
+    CFG.timer.show=CFG.simTime-CFG.timer.t0;
+    CFG.timer.last=CFG.timer.show;
+    toast(`油滴停止移动，计时自动停止：t_g = ${fmt(CFG.timer.show)} s`);
+  }
+}
+
+/* ================= 数据记录与处理 ================= */
+function confirmRecord(){
+  if(CFG.balU===null || CFG.curDrop===null){ toast('请先将油滴调平衡（记录平衡电压）', true); return; }
+  if(CFG.timer.last===null){ toast('请先完成一次下落计时', true); return; }
+  CFG.records.push({drop:CFG.curDrop, U:CFG.balU, t:CFG.timer.last});
+  CFG.timer.last=null;
+  const n=CFG.records.length;
+  $('progShow').textContent = `${(n-1)%5+1} / 5 次`;
+  $('dropShow').textContent = `${Math.min(3, Math.ceil(n/5))} / 3 个`;
+  renderTable();
+  if(n===15) toast('3 个油滴 × 5 次测量完成！可到"数据与处理"页计算电子电荷 e');
+  else if(n%5===0) toast(`第 ${Math.ceil(n/5)} 个油滴测量完成，请喷油选择下一个油滴`);
+  else toast('已记录。重复：平衡 → 0V 计时 → 确认');
+}
+// 静态平衡法计算油滴电荷（SI）
+function chargeOf(U, t){
+  const v_g = PHY.l/t;                                   // m/s
+  const dr = PHY.rho1-PHY.rho2;
+  const a = Math.sqrt(9*PHY.eta*v_g/(2*dr*PHY.g));       // 未修正半径
+  const eta2 = PHY.eta/(1+PHY.b/(PHY.p*a));              // 黏度修正
+  return (18*Math.PI*PHY.d/Math.sqrt(2*dr*PHY.g)) * Math.pow(eta2*PHY.l/t, 1.5) / U;
+}
+// 由若干电荷值估计最大公约数（电子电荷）：以最小值为基准尝试整除
+function estimateE(qs){
+  const qmin = Math.min(...qs);
+  let best=null;
+  for(let n=1;n<=8;n++){
+    const e=qmin/n; let err=0, ok=true;
+    for(const q of qs){
+      const k=Math.round(q/e);
+      if(k<1){ ok=false; break; }
+      err += Math.abs(q-k*e);
+    }
+    if(ok && (!best || err<best.err)) best={e, err:err/qs.length};
+  }
+  return best;
+}
+function computeE(){
+  const detail=$('calcDetail'), box=$('resultBox');
+  // 按油滴分组求均值
+  const groups={};
+  for(const r of CFG.records){
+    (groups[r.drop]=groups[r.drop]||[]).push(r);
+  }
+  const keys=Object.keys(groups);
+  if(keys.length<1){ detail.innerHTML='<span style="color:var(--warn)">暂无数据，请先测量或填入示例数据。</span>'; box.style.display='none'; return; }
+  let html='<b>各油滴电荷（每组取 Ū、t̄_g）</b><br>';
+  const qs=[];
+  for(const k of keys){
+    const g=groups[k];
+    const U=g.reduce((s,r)=>s+r.U,0)/g.length;
+    const t=g.reduce((s,r)=>s+r.t,0)/g.length;
+    const q=chargeOf(U,t); qs.push(q);
+    html+=`油滴#${k}：Ū=${fmt(U,1)}V，t̄_g=${fmt(t)}s ⇒ q=${fmt(q/1e-19,3)}×10⁻¹⁹ C<br>`;
+  }
+  const est=estimateE(qs);
+  const rel=Math.abs(est.e-PHY.e)/PHY.e*100;
+  html+=`<br>最大公约数法 ⇒ e = ${fmt(est.e/1e-19,3)}×10⁻¹⁹ C（各油滴残差平均 ${fmt(est.err/1e-19,3)}×10⁻¹⁹ C）`;
+  html+='<br>各油滴电荷数 n：'+qs.map(q=>Math.round(q/est.e)).join('、');
+  detail.innerHTML=html;
+  box.style.display='block';
+  box.innerHTML=`e = ${fmt(est.e/1e-19,3)}×10⁻¹⁹ C ｜ 理论值 1.602×10⁻¹⁹ C<br>相对误差 E = ${fmt(rel,2)} %`;
+  toast('计算完成！');
+}
+function renderTable(){
+  const tb=$('dataTable').querySelector('tbody'); tb.innerHTML='';
+  const groups={};
+  for(const r of CFG.records) (groups[r.drop]=groups[r.drop]||[]).push(r);
+  const keys=Object.keys(groups);
+  const idx=['一','二','三'];
+  for(let di=0; di<3; di++){
+    const k=keys[di];
+    const g=k?groups[k]:[];
+    let Umean='—', tmean='—', q='—';
+    if(g.length){
+      Umean=fmt(g.reduce((s,r)=>s+r.U,0)/g.length,1);
+      tmean=fmt(g.reduce((s,r)=>s+r.t,0)/g.length);
+      q=fmt(chargeOf(parseFloat(Umean),parseFloat(tmean))/1e-19,3);
+    }
+    for(let j=0;j<5;j++){
+      const tr=document.createElement('tr');
+      const cells=[ di===0?'1':di===1?'2':'3', j+1,
+        g[j]?fmt(g[j].U,1):'—', g[j]?fmt(g[j].t):'—',
+        j===0?Umean:'', j===0?tmean:'', j===0?q:'' ];
+      if(j>0){ cells[4]=''; cells[5]=''; cells[6]=''; }
+      cells.forEach(c=>{
+        const td=document.createElement('td');
+        td.textContent=c; if(c==='—') td.className='dim';
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    }
+  }
+}
+function fillSample(){
+  CFG.records=[];
+  const nset=[3,5,2];
+  for(let di=0;di<3;di++){
+    const n=nset[di];
+    const t=16+Math.random()*8;
+    const dr=PHY.rho1-PHY.rho2;
+    const v=PHY.l/t, a=Math.sqrt(9*PHY.eta*v/(2*dr*PHY.g));
+    const m=4/3*Math.PI*a**3*dr;
+    const U0=m*PHY.g*PHY.d/(n*PHY.e);
+    for(let j=0;j<5;j++){
+      CFG.records.push({drop:100+di, U:U0+(Math.random()-.5)*2, t:t+(Math.random()-.5)*0.4});
+    }
+  }
+  renderTable();
+  toast('已填入示例数据（3 油滴 × 5 次），点"计算电子电荷 e"查看结果');
+}
+
+/* ================= Three.js 3D 场景 ================= */
+const canvas=$('scene');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0e14);
+scene.fog=new THREE.Fog(0x0a0e14,700,1800);
+const camera=new THREE.PerspectiveCamera(45,1,0.5,4000);
+camera.position.set(-220,170,300);
+const controls=new OrbitControls(camera,canvas);
+controls.target.set(0,60,0); controls.enableDamping=true;
+controls.minDistance=80; controls.maxDistance=1000;
+scene.add(new THREE.AmbientLight(0x8899bb,.55));
+const dl=new THREE.DirectionalLight(0xffffff,1.4); dl.position.set(-200,300,180); scene.add(dl);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), new THREE.MeshStandardMaterial({color:0x11161f,roughness:.95}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-14; scene.add(floor);
+const grid=new THREE.GridHelper(1200,60,0x1e2a3a,0x18212e); grid.position.y=-13.9; scene.add(grid);
+
+const clickable=[];
+function tag(mesh,t,d){ mesh.userData.title=t; mesh.userData.desc=d; clickable.push(mesh); }
+function M(color,o={}){ return new THREE.MeshStandardMaterial({color,roughness:.55,metalness:.35,...o}); }
+
+// 实验桌
+const desk=new THREE.Mesh(new THREE.BoxGeometry(420,14,220), M(0x3a2f26,{roughness:.85}));
+desk.position.set(0,-7,0); scene.add(desk);
+
+/* ---- 主机 ---- */
+const mainBox=new THREE.Mesh(new THREE.BoxGeometry(230,95,150), M(0x8a93a3,{roughness:.4,metalness:.3}));
+mainBox.position.set(-30,54,0); scene.add(mainBox);
+tag(mainBox,'主机（ZKY-MLG-6）','包含可控高压电源、计时装置、A/D采样与视频处理等单元模块；面板上有电压调节旋钮和各功能按键。');
+// 面板细节
+const panel=new THREE.Mesh(new THREE.BoxGeometry(200,34,4), M(0x2a3444,{roughness:.6}));
+panel.position.set(-30,32,76); scene.add(panel);
+const knob=new THREE.Mesh(new THREE.CylinderGeometry(9,9,6,24), M(0xc9a227,{metalness:.85,roughness:.3}));
+knob.rotation.x=Math.PI/2; knob.position.set(-105,32,79); scene.add(knob);
+tag(knob,'"电压调节"旋钮','调整极板间电压（0~500 V），控制油滴的平衡、下落及提升。');
+for(let i=0;i<4;i++){
+  const btn=new THREE.Mesh(new THREE.CylinderGeometry(5,5,4,20), M(0x444f63));
+  btn.rotation.x=Math.PI/2; btn.position.set(-55+i*32,32,78.5); scene.add(btn);
+  tag(btn,'功能按键','"计时开始/结束""0V/工作""平衡/提升""确认"按键，与右侧面板中的按钮功能一致。');
+}
+const lamp=new THREE.Mesh(new THREE.SphereGeometry(3,12,12),
+  new THREE.MeshBasicMaterial({color:0xe5534b}));
+lamp.position.set(-105,20,78); lamp.visible=false; scene.add(lamp);
+tag(lamp,'状态指示灯','"0V/工作"键切至"工作"时红灯亮。');
+
+/* ---- 油滴盒（主机上方） ---- */
+const chamber=new THREE.Mesh(new THREE.BoxGeometry(72,55,60), M(0x59677c,{roughness:.5,metalness:.4}));
+chamber.position.set(-58,128,0); scene.add(chamber);
+tag(chamber,'油滴盒','上、下极板通过胶木圆环支撑，圆环上开有显微镜观察孔和两个照明孔；油雾杯暂存油雾，落油孔由挡片控制。');
+const plateTop=new THREE.Mesh(new THREE.CylinderGeometry(24,24,3,32), M(0xd8b23a,{metalness:.9,roughness:.25}));
+plateTop.position.set(-58,148,0); scene.add(plateTop);
+tag(plateTop,'上极板','加高压的平行极板上板，与下极板间距 d = 5.00 mm；仪器内有高压，禁止用手接触电极！');
+const plateBot=new THREE.Mesh(new THREE.CylinderGeometry(24,24,3,32), M(0xd8b23a,{metalness:.9,roughness:.25}));
+plateBot.position.set(-58,105,0); scene.add(plateBot);
+tag(plateBot,'下极板','接地的平行极板下板，油滴在两板间电场中运动。');
+// 防风罩（半透明外壳示意）
+const shield=new THREE.Mesh(new THREE.BoxGeometry(80,62,66),
+  new THREE.MeshPhysicalMaterial({color:0x9db8d8,transparent:true,opacity:.12,roughness:.1}));
+shield.position.set(-58,128,0); scene.add(shield);
+tag(shield,'防风罩','避免外界空气流动对油滴测量造成影响；喷油后应推上油雾孔挡片。');
+// 照明二极管
+const led=new THREE.Mesh(new THREE.SphereGeometry(2.6,12,12),
+  new THREE.MeshBasicMaterial({color:0x66ffcc}));
+led.position.set(-58,128,26); led.visible=false; scene.add(led);
+tag(led,'照明装置','高亮发光二极管通过照明孔为油滴室提供照明，使油滴在 CCD 视场中明亮可见。');
+// 水准仪 + 三颗调平螺丝
+const bubble=new THREE.Mesh(new THREE.CylinderGeometry(7,7,3,20),
+  new THREE.MeshPhysicalMaterial({color:0xaef2c8,transparent:true,opacity:.5}));
+bubble.position.set(-30,103,0); scene.add(bubble);
+tag(bubble,'水准仪','调节仪器面板上的调平螺丝，使气泡处于中央圆环内，仪器水平、平衡电场沿竖直方向。');
+const bubbleDot=new THREE.Mesh(new THREE.SphereGeometry(2.4,12,12), new THREE.MeshBasicMaterial({color:0xeafff5}));
+bubbleDot.position.set(-24,103.2,4); scene.add(bubbleDot);      // 偏离中心的气泡
+for(let i=0;i<3;i++){
+  const a=i*Math.PI*2/3;
+  const scr=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,6,14), M(0xc9a227,{metalness:.9,roughness:.3}));
+  scr.position.set(-58+26*Math.cos(a),99,26*Math.sin(a)); scene.add(scr);
+  tag(scr,'调平螺丝','三颗调平螺丝调节油滴盒水平。');
+}
+
+/* ---- CCD 成像系统 ---- */
+const ccd=new THREE.Mesh(new THREE.BoxGeometry(30,26,26), M(0x2c3646,{roughness:.4,metalness:.5}));
+ccd.position.set(-6,128,0); scene.add(ccd);
+tag(ccd,'CCD 成像系统','CCD 传感器与光学成像部件；调节调焦旋钮改变物距，使油滴清晰成像。');
+const ccdLens=new THREE.Mesh(new THREE.CylinderGeometry(8,10,14,20), M(0x141a24,{metalness:.6,roughness:.3}));
+ccdLens.rotation.z=Math.PI/2; ccdLens.position.set(10,128,0); scene.add(ccdLens);
+tag(ccdLens,'镜头/调焦旋钮','测量显示电路产生电子分划刻度，与 CCD 扫描同步，在监视器上形成 2mm/8格 的测量刻度。');
+
+/* ---- 监视器 ---- */
+const monBody=new THREE.Mesh(new THREE.BoxGeometry(96,74,64), M(0x3b4557,{roughness:.5}));
+monBody.position.set(105,44,0); scene.add(monBody);
+tag(monBody,'监视器','视频信号输出设备，显示 CCD 采集的油滴图像与分划刻度（垂直视场 2mm，分 8 格，每格 0.25mm）。');
+const monTexCanvas=document.createElement('canvas'); monTexCanvas.width=160; monTexCanvas.height=280;
+const monTex=new THREE.CanvasTexture(monTexCanvas);
+const monScreen=new THREE.Mesh(new THREE.PlaneGeometry(80,58),
+  new THREE.MeshBasicMaterial({map:monTex}));
+monScreen.position.set(105,50,32.2); scene.add(monScreen);
+
+/* ---- 喷雾器 ---- */
+const sprayBody=new THREE.Mesh(new THREE.CylinderGeometry(10,12,34,20), M(0x46586e,{roughness:.6}));
+sprayBody.position.set(-150,17,40); scene.add(sprayBody);
+const sprayHead=new THREE.Mesh(new THREE.BoxGeometry(10,10,16), M(0x2c3646));
+sprayHead.position.set(-150,40,36); scene.add(sprayHead);
+tag(sprayBody,'喷雾器','钟表油倒入储油腔，挤压气囊将油雾从喷雾口喷入油雾室；竖起使用，油不要太多以免堵塞落油孔。');
+
+/* ---- 信息卡 ---- */
+const raycaster=new THREE.Raycaster(); let downXY=null;
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{
+  if(!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>5) return;
+  const rect=canvas.getBoundingClientRect();
+  const p=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+  raycaster.setFromCamera(p,camera);
+  const hits=raycaster.intersectObjects(clickable,true);
+  if(hits.length){
+    let o=hits[0].object; while(o&&!o.userData.title) o=o.parent;
+    if(o){ $('infoTitle').textContent=o.userData.title; $('infoDesc').textContent=o.userData.desc; $('infoCard').style.display='block'; }
+  }
+});
+$('infoClose').onclick=()=>$('infoCard').style.display='none';
+
+/* ================= 步骤控制 ================= */
+function checkSteps(){
+  CFG.steps[0]=CFG.leveled;
+  CFG.steps[1]=CFG.powered;
+  CFG.steps[2]=CFG.sprayed && Math.abs(CFG.focus-50)<=3;
+  CFG.steps[3]=CFG.steps[2] && CFG.balanced;
+  CFG.steps[4]=CFG.steps[3];
+  for(let i=0;i<5;i++){
+    const el=$('st'+(i+1));
+    el.classList.toggle('done',CFG.steps[i]);
+    el.classList.toggle('current',!CFG.steps[i]&&CFG.steps.slice(0,i).every(Boolean));
+  }
+}
+$('btnLevel').onclick=()=>{
+  const t0=performance.now();
+  (function anim(t){
+    const k=Math.min(1,(t-t0)/700);
+    bubbleDot.position.set(-30+6*(1-k),103.2,4*(1-k));
+    if(k<1) requestAnimationFrame(anim);
+    else { CFG.leveled=true; toast('水准仪气泡已居中，仪器调平完成'); checkSteps(); }
+  })(t0);
+};
+$('btnPower').onclick=()=>{
+  if(CFG.powered){ toast('电源已打开'); return; }
+  CFG.powered=true; led.visible=true;
+  toast('实验仪与监视器已通电，监视器出现参数设置界面→按"确认"进入实验界面');
+  // 喷油前的空视场
+  setTimeout(()=>{ toast('提示：按"喷油"喷入油雾，再调焦使油滴清晰'); },1500);
+  checkSteps();
+};
+function spray(){
+  if(!CFG.powered){ toast('请先打开电源', true); return; }
+  for(let i=0;i<12;i++) CFG.drops.push(makeDrop());
+  CFG.sprayed=true;
+  CFG.curDrop=null; CFG.balU=null;
+  toast('油雾已喷入，视场中出现大量运动油滴。调焦并选择明亮、上升缓慢的油滴');
+  checkSteps();
+}
+$('btnSpray').onclick=spray;
+$('btnSpray2').onclick=spray;
+
+/* ================= 面板控件 ================= */
+$('sVolt').oninput=e=>{
+  CFG.volt=+e.target.value; $('vVolt').textContent=CFG.volt+' V';
+  $('uShow').textContent=CFG.volt;
+  checkSteps();
+};
+$('btnMode').onclick=()=>{
+  CFG.mode = CFG.mode==='balance' ? 'lift' : 'balance';
+  $('btnMode').textContent='当前：'+(CFG.mode==='balance'?'平衡':'提升');
+  $('btnMode').classList.toggle('on', CFG.mode==='lift');
+  if(CFG.mode==='lift') toast('提升状态：油滴快速向上运动，用于将油滴移回测量区');
+  checkSteps();
+};
+$('btnZero').onclick=()=>{
+  CFG.zero=!CFG.zero;
+  $('btnZero').textContent='当前：'+(CFG.zero?'0 V':'工作');
+  $('btnZero').classList.toggle('on', CFG.zero);
+  lamp.visible=CFG.zero;
+  if(!CFG.zero){ autoStopTimer(); toast('已切换至"工作"，油滴停止移动'); }
+  else toast('"0V"：极板短路，油滴在重力下自由下落');
+  checkSteps();
+};
+$('sFocus').oninput=e=>{ CFG.focus=+e.target.value; $('vFocus').textContent=CFG.focus; checkSteps(); };
+$('btnSpeed').onclick=()=>{
+  CFG.speed = CFG.speed===1?3:CFG.speed===3?5:1;
+  $('btnSpeed').textContent='×'+CFG.speed;
+};
+$('btnTimer').onclick=pressTimer;
+$('btnConfirm').onclick=confirmRecord;
+$('btnCalc').onclick=computeE;
+$('btnSample').onclick=fillSample;
+$('btnReset').onclick=()=>location.reload();
+$('btnMonFull').onclick=()=>{
+  $('monFloat').classList.toggle('fullscreen');
+  $('btnMonFull').textContent=$('monFloat').classList.contains('fullscreen')?'退出全屏':'监视器全屏';
+};
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); $('tab-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+/* ================= 主循环 ================= */
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(canvas.width!==w||canvas.height!==h){
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+// 监视器纹理低频同步
+function updateMonTexture(){
+  const c=monTexCanvas.getContext('2d');
+  c.drawImage(mon,0,0,160,280);
+  monTex.needsUpdate=true;
+}
+let lastT=performance.now(), monTick=0;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now();
+  const dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  CFG.simTime += dt*CFG.speed;
+  if(CFG.powered) updateDrops(dt*CFG.speed);
+  // 计时显示
+  $('timerShow').textContent = fmt(CFG.timer.running?(CFG.simTime-CFG.timer.t0):(CFG.timer.show||0));
+  $('balTag').textContent = CFG.balanced?'已平衡':'未平衡';
+  $('balTag').className = 'statusTag'+(CFG.balanced?' on':'');
+  drawMonitor();
+  if(++monTick%20===0) updateMonTexture();
+  resize(); controls.update(); renderer.render(scene,camera);
+}
+checkSteps(); renderTable();
+loop();
+</script>
+</body>
+</html>
