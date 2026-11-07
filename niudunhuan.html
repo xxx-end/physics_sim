@@ -290,15 +290,9 @@
 </main>
 <div id="toast"></div>
 
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-}}
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
 
 /* ================= 全局状态 ================= */
 const CFG = {
@@ -610,8 +604,8 @@ scene.background = new THREE.Color(0x0a0e14);
 scene.fog = new THREE.Fog(0x0a0e14, 600, 1600);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 4000);
 camera.position.set(-190, 150, 260);
-const controls = new OrbitControls(camera, canvas);
-controls.target.set(0, 45, 0);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.target.set(0, 50, 8);
 controls.enableDamping = true;
 controls.maxDistance = 900; controls.minDistance = 60;
 
@@ -619,7 +613,7 @@ scene.add(new THREE.AmbientLight(0x8899bb, 0.55));
 const dir = new THREE.DirectionalLight(0xffffff, 1.4);
 dir.position.set(-200,300,180); scene.add(dir);
 const warm = new THREE.PointLight(0xffb347, 0, 400);   // 钠光，点亮后增强
-warm.position.set(-120,45,0); scene.add(warm);
+warm.position.set(0,40,8); scene.add(warm);
 
 // 地面
 const floor = new THREE.Mesh(
@@ -639,31 +633,31 @@ function M(color, opts={}){
   return new THREE.MeshStandardMaterial({color, roughness:.55, metalness:.35, ...opts});
 }
 
-/* ---- 底座与导轨 ---- */
-const base = new THREE.Mesh(new THREE.BoxGeometry(300,12,58), M(0x2a3444,{roughness:.7}));
-base.position.y=6; scene.add(base);
-tag(base,'底座','JCD3 型数码读数显微镜的底座，承载测量架与导轨。');
-const rail = new THREE.Mesh(new THREE.BoxGeometry(300,8,16), M(0x8b98a9,{metalness:.8,roughness:.3}));
-rail.position.set(0,16,-12); scene.add(rail);
+/* ---- 底座与导轨槽（同一中心线，导轨在显微镜正下方） ---- */
+const base = new THREE.Mesh(new THREE.BoxGeometry(320,14,80), M(0x2a3444,{roughness:.7}));
+base.position.y=7; scene.add(base);
+tag(base,'底座','JCD3 型数码读数显微镜的底座，内含导轨槽，承载测量架与载物台。');
+const rail = new THREE.Mesh(new THREE.BoxGeometry(320,10,18), M(0x8b98a9,{metalness:.8,roughness:.3}));
+rail.position.set(0,19,-15); scene.add(rail);
 tag(rail,'导轨槽','测微手轮转动丝杆，带动测量架及显微镜沿导轨槽左右移动。');
 
-/* ---- 工作台 + 台面玻璃 + 牛顿环装置 ---- */
-const stage = new THREE.Mesh(new THREE.BoxGeometry(120,8,70), M(0x313d50,{roughness:.8}));
-stage.position.set(0,20,14); scene.add(stage);
-tag(stage,'工作台','放置牛顿环装置的平台，上表面为台面玻璃。');
-const groundGlass = new THREE.Mesh(new THREE.BoxGeometry(60,2,60),
+/* ---- 工作台 + 台面玻璃 + 牛顿环装置（与镜筒同一轴线 z=8） ---- */
+const stage = new THREE.Mesh(new THREE.BoxGeometry(110,6,56), M(0x313d50,{roughness:.8}));
+stage.position.set(0,17,8); scene.add(stage);
+tag(stage,'工作台','固定在底座上，放置牛顿环装置，上表面为台面玻璃。');
+const groundGlass = new THREE.Mesh(new THREE.BoxGeometry(48,1.5,48),
   new THREE.MeshPhysicalMaterial({color:0xdfe8f0, roughness:.9, transparent:true, opacity:.5}));
-groundGlass.position.set(0,25,14); scene.add(groundGlass);
+groundGlass.position.set(0,20.75,8); scene.add(groundGlass);
 tag(groundGlass,'台面玻璃 / 毛玻璃','牛顿环装置置于其上，散射光使视场明亮均匀。');
 
-// 平板玻璃（牛顿环下半）
+// 平板玻璃（牛顿环下半），置于台面玻璃上
 const flatGlass = new THREE.Mesh(new THREE.BoxGeometry(46,3,46),
   new THREE.MeshPhysicalMaterial({color:0xbfd8e8, roughness:.05, metalness:0, transparent:true, opacity:.45}));
-flatGlass.position.set(0,31,0); scene.add(flatGlass);
+flatGlass.position.set(0,23.25,8); scene.add(flatGlass);
 tag(flatGlass,'平板玻璃','牛顿环装置的下半部分，上表面与平凸透镜凸面接触形成空气薄膜。');
 // 平凸透镜：LatheGeometry（上表面平坦，凸面朝下与平板玻璃接触）
 const R_LENS = 90;                        // 视觉夸大的曲率半径（实际 855mm 太平）
-const LENS_R = 20, Y_FLAT_TOP = 8.25, Y_BOTTOM = 6;
+const LENS_R = 20, Y_FLAT_TOP = 2.5, Y_BOTTOM = 0;
 const lensProfile = [new THREE.Vector2(0.001, Y_FLAT_TOP), new THREE.Vector2(LENS_R, Y_FLAT_TOP)];
 for(let i=0;i<=24;i++){
   const r = LENS_R*Math.cos(Math.PI*i/48);
@@ -673,58 +667,66 @@ for(let i=0;i<=24;i++){
 const lens = new THREE.Mesh(new THREE.LatheGeometry(lensProfile, 64),
   new THREE.MeshPhysicalMaterial({color:0xa8d4e8, roughness:.03, metalness:.05,
     transparent:true, opacity:.5, transmission:.4, side:THREE.DoubleSide}));
-lens.position.set(0, 26.5, 0);            // 使凸面最低点恰在平板玻璃上表面(32.5)处
+lens.position.set(0, 24.75, 8);           // 凸面最低点恰在平板玻璃上表面(24.75)处
 scene.add(lens);
 tag(lens,'平凸透镜','曲率半径 R 很大的平凸透镜，凸面朝下与平板玻璃接触；其曲率半径为待测量。');
 // 金属框 + 三颗螺钉
 const mount = new THREE.Mesh(new THREE.CylinderGeometry(25,25,4,48,1,true), M(0x5a6577,{metalness:.7,roughness:.35}));
-mount.position.set(0,32,0); scene.add(mount);
+mount.position.set(0,25.75,8); scene.add(mount);
 tag(mount,'牛顿环装置金属框','由三颗螺钉固定透镜与平板玻璃；拧得过紧会变形，过松则轻微震动会使条纹移动。');
 for(let i=0;i<3;i++){
   const a = i*Math.PI*2/3 + Math.PI/6;
   const screw = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,5,16), M(0xc9a227,{metalness:.9,roughness:.3}));
-  screw.position.set(25*Math.cos(a),32,25*Math.sin(a));
+  screw.position.set(25*Math.cos(a),25.75,8+25*Math.sin(a));
   scene.add(screw);
   tag(screw,'调平螺钉','轻旋三颗螺钉可使干涉条纹中心移到装置中央。');
 }
 
-/* ---- 钠光灯 ---- */
+/* ---- 钠光灯（带支座，水平照射，与半反射镜同高） ---- */
 const lampBody = new THREE.Mesh(new THREE.BoxGeometry(34,26,22), M(0x36445a));
-lampBody.position.set(-135,45,0); scene.add(lampBody);
+lampBody.position.set(-135,31,8); scene.add(lampBody);
 tag(lampBody,'钠光灯','发出波长 λ = 589.3 nm 的单色黄光，使用前需预热 2~3 min。');
+const lampStand = new THREE.Mesh(new THREE.CylinderGeometry(3,4,17,16), M(0x46536b));
+lampStand.position.set(-135,22.5,8); scene.add(lampStand);
+tag(lampStand,'钠光灯支座','支撑钠光灯，出光口与显微镜上的半反射镜等高。');
 const lampGlow = new THREE.Mesh(new THREE.SphereGeometry(9,24,24),
   new THREE.MeshBasicMaterial({color:0xffc247, transparent:true, opacity:0}));
-lampGlow.position.set(-114,45,0); scene.add(lampGlow);
-const lampBeam = new THREE.Mesh(new THREE.CylinderGeometry(3,6,80,16,1,true),
+lampGlow.position.set(-114,31,8); scene.add(lampGlow);
+// 主光束：钠光灯 → 45° 半反射镜（水平）
+const lampBeam = new THREE.Mesh(new THREE.CylinderGeometry(3,6,106,16,1,true),
   new THREE.MeshBasicMaterial({color:0xffca55, transparent:true, opacity:0, side:THREE.DoubleSide}));
-lampBeam.rotation.z=Math.PI/2; lampBeam.position.set(-72,45,0); scene.add(lampBeam);
+lampBeam.rotation.z=Math.PI/2; lampBeam.position.set(-60,31,8); scene.add(lampBeam);
 
-/* ---- 45° 半透半反射镜 ---- */
-const halfMirror = new THREE.Mesh(new THREE.BoxGeometry(1,26,26),
-  new THREE.MeshPhysicalMaterial({color:0xaad4ff, transparent:true, opacity:.32, roughness:.05, metalness:.1}));
-halfMirror.position.set(-46,45,0); halfMirror.rotation.y = -Math.PI/4;
-scene.add(halfMirror);
-tag(halfMirror,'45° 半透半反射镜','将钠光反射向下，照亮牛顿环装置；调节其位置使钠黄光充满整个目镜视场。');
-
-/* ---- JCD3 数码读数显微镜（随叉丝移动） ---- */
+/* ---- JCD3 数码读数显微镜（滑座坐在导轨上，立柱-横臂-镜筒连为一体，随叉丝移动） ---- */
 const micro = new THREE.Group(); scene.add(micro);
 const microM = M(0x46536b,{roughness:.5,metalness:.5});
-const column = new THREE.Mesh(new THREE.BoxGeometry(14,64,14), microM); column.position.set(0,44,-26); micro.add(column);
-tag(column,'方轴/旋钮','支撑测量架，与导轨槽配合移动。');
-const arm = new THREE.Mesh(new THREE.BoxGeometry(14,12,34), microM); arm.position.set(0,72,-14); micro.add(arm);
-const tube = new THREE.Mesh(new THREE.CylinderGeometry(7,7,58,24), microM); tube.position.set(0,46,0); micro.add(tube);
-tag(tube,'镜筒','由数码目镜和物镜组成，镜筒正面正对牛顿环装置中心。');
-const eyepiece = new THREE.Mesh(new THREE.BoxGeometry(16,12,16), M(0x1a2230)); eyepiece.position.set(0,80,0); micro.add(eyepiece);
+const slider = new THREE.Mesh(new THREE.BoxGeometry(26,8,20), M(0x55617a)); slider.position.set(0,24,-15); micro.add(slider);
+const column = new THREE.Mesh(new THREE.BoxGeometry(14,66,14), microM); column.position.set(0,57,-15); micro.add(column);
+tag(column,'立柱/方轴','固定在滑座上，与导轨槽配合沿 x 方向移动。');
+const arm = new THREE.Mesh(new THREE.BoxGeometry(14,12,42), microM); arm.position.set(0,82,-4); micro.add(arm);
+tag(arm,'横臂','连接立柱与镜筒，使镜筒悬于牛顿环装置正上方。');
+const tube = new THREE.Mesh(new THREE.CylinderGeometry(7,7,46,24), microM); tube.position.set(0,68,8); micro.add(tube);
+tag(tube,'镜筒','由数码目镜和物镜组成，竖直放置，物镜正对牛顿环装置中心。');
+const objective = new THREE.Mesh(new THREE.CylinderGeometry(4,2.6,8,20), M(0x9aa8bd,{metalness:.85,roughness:.25}));
+objective.position.set(0,41,8); micro.add(objective);
+tag(objective,'物镜','调焦手轮使镜筒自下而上移动，直至条纹清晰且无视差。');
+// 45° 半透半反射镜：装在物镜下方，将水平钠光反射向下（随显微镜一起移动）
+const halfMirror = new THREE.Mesh(new THREE.BoxGeometry(2,16,16),
+  new THREE.MeshPhysicalMaterial({color:0xaad4ff, transparent:true, opacity:.32, roughness:.05, metalness:.1}));
+halfMirror.rotation.z = Math.PI/4;        // 法线指向 (1,1,0)：+x 入射光被反射为竖直向下
+halfMirror.position.set(0,31,8); micro.add(halfMirror);
+tag(halfMirror,'45° 半透半反射镜','装在物镜下方，将钠光灯的水平光反射向下照亮牛顿环装置；调节其位置使钠黄光充满整个目镜视场。');
+// 反射光束：半反射镜 → 牛顿环装置（竖直向下，随显微镜移动）
+const beamDown = new THREE.Mesh(new THREE.CylinderGeometry(5,7,4,16,1,true),
+  new THREE.MeshBasicMaterial({color:0xffca55, transparent:true, opacity:0, side:THREE.DoubleSide}));
+beamDown.position.set(0,28.5,8); micro.add(beamDown);
+const eyepiece = new THREE.Mesh(new THREE.BoxGeometry(16,10,16), M(0x1a2230)); eyepiece.position.set(0,93,8); micro.add(eyepiece);
 tag(eyepiece,'数码目镜','内置测量软件，界面中的“十”字叉丝可作为测量参照。');
 const screen = new THREE.Mesh(new THREE.PlaneGeometry(13,9), new THREE.MeshBasicMaterial({color:0x0b2018}));
-screen.position.set(0,80,8.2); eyepiece.add(screen); micro.add(eyepiece);
-const objective = new THREE.Mesh(new THREE.CylinderGeometry(4,2.6,12,20), M(0x9aa8bd,{metalness:.85,roughness:.25}));
-objective.position.set(0,20,0); micro.add(objective);
-tag(objective,'物镜','调焦手轮使镜筒自下而上移动，直至条纹清晰且无视差。');
+screen.position.set(0,0,8.2); eyepiece.add(screen);
 const drum = new THREE.Mesh(new THREE.CylinderGeometry(6,6,10,24), M(0xc9a227,{metalness:.85,roughness:.3}));
-drum.rotation.z=Math.PI/2; drum.position.set(-11,30,-8); micro.add(drum);
+drum.rotation.z=Math.PI/2; drum.position.set(-11,68,8); micro.add(drum);
 tag(drum,'测微手轮','丝杆带动测量架移动；读数由标尺读数和测微手轮读数两部分组成（类似螺旋测微器）。转动应沿同一方向以免回程差。');
-const slider = new THREE.Mesh(new THREE.BoxGeometry(20,10,18), M(0x55617a)); slider.position.set(0,16,-12); micro.add(slider);
 
 /* ---- 信息卡（点击部件） ---- */
 const raycaster = new THREE.Raycaster();
@@ -767,7 +769,7 @@ function checkSteps(){
 }
 $('btnLamp').onclick=()=>{
   if(CFG.lampOn){ toast('钠光灯已点亮'); return; }
-  CFG.lampOn=true; lampGlow.material.opacity=.95; lampBeam.material.opacity=.28;
+  CFG.lampOn=true; lampGlow.material.opacity=.95; lampBeam.material.opacity=.28; beamDown.material.opacity=.28;
   warm.intensity=2.2; $('btnLamp').textContent='预热中…'; $('btnLamp').disabled=true;
   toast('钠光灯已点亮，预热中（2~3 min 模拟为 2 秒）…');
   setTimeout(()=>{ CFG.preheated=true; $('btnLamp').textContent='已点亮'; checkSteps(); }, 2000);
