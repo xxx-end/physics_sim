@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验7 迈克耳孙干涉仪的调整与使用 · 3D交互仿真</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2d3646;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#f5b32e; --accent2:#4da3ff;
+    --ok:#3fb96f; --warn:#e5534b; --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column;}
+  header{height:52px; flex:none; display:flex; align-items:center; gap:14px; padding:0 16px; background:var(--panel); border-bottom:1px solid var(--line);}
+  header h1{font-size:16px; font-weight:600;}
+  header h1 span{color:var(--accent);}
+  #hint{font-size:12px; color:var(--muted); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hdr-btn{flex:none; background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer;}
+  .hdr-btn:hover{border-color:var(--accent); color:var(--accent);}
+  main{flex:1; display:flex; min-height:0;}
+  #sceneWrap{flex:1; position:relative; min-width:0;}
+  #scene{width:100%; height:100%; display:block; cursor:grab;}
+  #scene:active{cursor:grabbing;}
+  /* ---------- 观察屏浮窗 ---------- */
+  #scrFloat{position:absolute; right:14px; top:14px; width:300px; background:rgba(13,17,23,.9);
+    border:1px solid var(--line); border-radius:var(--radius); padding:10px; backdrop-filter:blur(4px);
+    display:flex; flex-direction:column; gap:8px;}
+  #scrFloat h3{font-size:12px; color:var(--muted); font-weight:500; display:flex; justify-content:space-between;}
+  #scrCanvas{width:100%; border-radius:8px; background:#000; border:1px solid var(--line); cursor:ew-resize;}
+  #scrFloat.fullscreen{position:fixed; inset:0; width:auto; height:auto; z-index:50;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,.96);}
+  #scrFloat.fullscreen #scrCanvas{width:min(90vh,90vw); height:min(90vh,90vw);}
+  .scr-bottom{display:flex; justify-content:space-between; align-items:center; font-size:12px;}
+  #ringCount{font-family:Consolas,monospace; font-size:18px; color:var(--accent);}
+  .snapTag{display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px;
+    background:rgba(245,179,46,.15); color:var(--accent); border:1px solid rgba(245,179,46,.4);}
+  /* ---------- 右侧面板 ---------- */
+  aside{width:420px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0;}
+  .tabs{display:flex; border-bottom:1px solid var(--line); flex:none;}
+  .tab{flex:1; text-align:center; padding:10px 0; font-size:13px; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; user-select:none;}
+  .tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+  .tabBody{flex:1; overflow-y:auto; padding:14px; display:none;}
+  .tabBody.active{display:block;}
+  .tabBody::-webkit-scrollbar{width:8px;}
+  .tabBody::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+  section{background:var(--panel2); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:12px;}
+  section h4{font-size:13px; color:var(--accent2); margin-bottom:10px;}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px;}
+  .row label{width:104px; flex:none; color:var(--muted);}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{width:86px; flex:none; text-align:right; font-variant-numeric:tabular-nums;}
+  button.b{background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer; transition:.15s;}
+  button.b:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+  button.b:disabled{opacity:.4; cursor:not-allowed;}
+  button.b.primary{background:var(--accent); color:#111; border:none; font-weight:600;}
+  button.b.primary:hover:not(:disabled){filter:brightness(1.1); color:#111;}
+  .btnRow{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .step{display:flex; align-items:flex-start; gap:8px; padding:7px 8px; border-radius:8px; margin-bottom:6px; font-size:12px; line-height:1.5;}
+  .step .dot{width:18px; height:18px; flex:none; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); margin-top:1px;}
+  .step.done .dot{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .step.done{color:var(--muted); text-decoration:line-through;}
+  .step.current{background:rgba(245,179,46,.08); outline:1px solid rgba(245,179,46,.35);}
+  .step.current .dot{border-color:var(--accent); color:var(--accent);}
+  table{width:100%; border-collapse:collapse; font-size:11.5px; font-variant-numeric:tabular-nums;}
+  th,td{border:1px solid var(--line); padding:4px 5px; text-align:center; white-space:nowrap;}
+  th{background:var(--panel); color:var(--muted); font-weight:500;}
+  td.dim{color:var(--muted);}
+  .formula{background:#0b0f14; border:1px dashed var(--line); border-radius:8px; padding:10px; font-size:12px; line-height:2; text-align:center; margin:8px 0;}
+  .formula b{color:var(--accent);}
+  .kv{display:flex; justify-content:space-between; font-size:12px; padding:4px 0;}
+  .kv span:first-child{color:var(--muted);}
+  .kv .num{font-variant-numeric:tabular-nums;}
+  #resultBox{font-size:14px; text-align:center; padding:10px; border-radius:8px; background:rgba(63,185,111,.1); border:1px solid rgba(63,185,111,.4); margin-top:8px; display:none; line-height:1.8;}
+  #toast{position:fixed; left:50%; top:70px; transform:translateX(-50%); z-index:99; background:rgba(28,35,48,.95);
+    border:1px solid var(--accent); color:var(--text); padding:9px 18px; border-radius:10px; font-size:13px;
+    opacity:0; pointer-events:none; transition:.25s; max-width:70vw;}
+  #toast.show{opacity:1;}
+  #toast.warn{border-color:var(--warn);}
+  #infoCard{position:absolute; left:14px; top:14px; width:260px; background:rgba(13,17,23,.92); border:1px solid var(--accent2);
+    border-radius:var(--radius); padding:12px; font-size:12px; line-height:1.6; display:none; z-index:20;}
+  #infoCard h5{color:var(--accent2); margin-bottom:6px; font-size:13px;}
+  #infoCard .close{position:absolute; right:8px; top:6px; cursor:pointer; color:var(--muted);}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; font-size:11px; font-family:inherit;}
+  .note{font-size:12px; color:var(--muted); line-height:1.8;}
+</style>
+</head>
+<body>
+<header>
+  <h1>实验7 · <span>迈克耳孙干涉仪的调整与使用</span></h1>
+  <div id="hint">鼠标拖动旋转视角，滚轮缩放；点击仪器部件查看说明。禁止直视激光！</div>
+  <button class="hdr-btn" id="btnScrFull">观察屏全屏</button>
+  <button class="hdr-btn" id="btnReset">重置实验</button>
+</header>
+<main>
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="infoCard"><span class="close" id="infoClose">✕</span><h5 id="infoTitle"></h5><div id="infoDesc"></div></div>
+    <!-- 观察屏浮窗 -->
+    <div id="scrFloat">
+      <h3><span>观察屏（毛玻璃）</span><span id="scrMode" class="snapTag">未开激光</span></h3>
+      <canvas id="scrCanvas" width="520" height="520"></canvas>
+      <div class="scr-bottom">
+        <span>环数计数 <b id="ringCount">0</b></span>
+        <span style="color:var(--muted)">精调读数 <b id="fineShow" class="num" style="color:var(--accent)">10.000</b> mm</span>
+      </div>
+    </div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="measure">测量</div>
+      <div class="tab" data-tab="data">数据与处理</div>
+      <div class="tab" data-tab="principle">原理</div>
+    </div>
+
+    <!-- 操作引导 -->
+    <div class="tabBody active" id="tab-guide">
+      <section>
+        <h4>实验步骤（完成后自动打勾）</h4>
+        <div class="step" id="st1"><div class="dot">1</div><div>打开激光器电源，转动粗调测微头使 M₁、M₂ 到分光板 G₁ 距离大致相等<button class="b" id="btnLaser" style="margin-left:8px">打开激光器</button></div></div>
+        <div class="step" id="st2"><div class="dot">2</div><div>屏上出现两排激光光点，调节 M₂ 后两颗倾角螺钉，使最亮两点重合</div></div>
+        <div class="step" id="st3"><div class="dot">3</div><div>放入扩束镜，屏上出现干涉条纹<button class="b" id="btnBeam" style="margin-left:8px">放入扩束镜</button></div></div>
+        <div class="step" id="st4"><div class="dot">4</div><div>微调倾角螺钉与粗调测微头，使圆环稀疏清晰、中心位于视场中央</div></div>
+        <div class="step" id="st5"><div class="dot">5</div><div>测量：计数"冒出/陷入"50 环，记录 x₁、x₂，重复 3 次（切到"测量"页）</div></div>
+      </section>
+      <section>
+        <h4>M₂ 倾角调节螺钉</h4>
+        <div class="row"><label>水平方向螺钉</label><input type="range" id="sTiltX" min="-5" max="5" value="3.2" step="0.05"><span class="val" id="vTiltX">3.20 mrad</span></div>
+        <div class="row"><label>竖直方向螺钉</label><input type="range" id="sTiltY" min="-5" max="5" value="-2.4" step="0.05"><span class="val" id="vTiltY">-2.40 mrad</span></div>
+        <div class="btnRow"><button class="b" id="btnHint">光点重合提示</button></div>
+      </section>
+      <section>
+        <h4>测微头（读数经杠杆放大 25 倍传给 M₂）</h4>
+        <div class="row"><label>粗调测微头</label><input type="range" id="sCoarse" min="4.5" max="6.5" value="5.5" step="0.01"><span class="val" id="vCoarse">5.500 mm</span></div>
+        <div class="row"><label>精调 ±0.5 mm</label>
+          <button class="b drum" data-step="-0.5">◀</button><button class="b drum" data-step="0.5">▶</button></div>
+        <div class="row"><label>精调 ±0.1 mm</label>
+          <button class="b drum" data-step="-0.1">◀</button><button class="b drum" data-step="0.1">▶</button></div>
+        <div class="row"><label>精调 ±0.01 mm</label>
+          <button class="b drum" data-step="-0.01">◀</button><button class="b drum" data-step="0.01">▶</button></div>
+        <div class="row"><label>或用键盘</label><span class="note"><kbd>←</kbd> <kbd>→</kbd> 移动 0.01 mm（按住连动）</span></div>
+        <div class="row"><label>回程差模拟</label>
+          <button class="b" id="btnBacklash">回程差：关</button></div>
+        <div class="note">· 单次测量应沿<b style="color:var(--accent)">同一方向</b>转动精调测微头，中途不能倒转；<br>
+        · 粗调建议在 4.500~6.500 mm 区间，精调建议在 10.000~15.000 mm 区间调节。</div>
+      </section>
+    </div>
+
+    <!-- 测量 -->
+    <div class="tabBody" id="tab-measure">
+      <section>
+        <h4>测量激光波长（N = 50 环）</h4>
+        <div class="note">沿同一方向缓慢转动精调测微头：每"冒出"（或"陷入"）一个圆环，环数计数加 1。</div>
+        <div class="btnRow" style="margin-top:8px">
+          <button class="b primary" id="btnX1">记录 x₁（清零计数）</button>
+          <button class="b primary" id="btnX2">记录 x₂（N = 50 环）</button>
+        </div>
+        <div class="kv" style="margin-top:8px"><span>当前计数 N</span><span class="num" id="cntShow">0</span></div>
+        <div class="kv"><span>当前组 x₁</span><span class="num" id="curX1">—</span></div>
+        <div class="kv"><span>已完成测量组数</span><span class="num" id="grpShow">0 / 3</span></div>
+      </section>
+      <section>
+        <h4>注意事项</h4>
+        <div class="note">· 禁止直视激光，以防损伤视网膜；<br>
+        · 禁止用手或其他东西触摸光学镜头或光学表面；<br>
+        · 注意 M₁ 和 M₂ 后方倾角调节螺钉的行程，不可将螺钉旋出螺孔；<br>
+        · 单次测量沿同一方向转动精调测微头，避免回程差。</div>
+      </section>
+      <section>
+        <h4>辅助操作</h4>
+        <div class="btnRow"><button class="b" id="btnSample">示例数据一键填充</button></div>
+      </section>
+    </div>
+
+    <!-- 数据与处理 -->
+    <div class="tabBody" id="tab-data">
+      <section>
+        <h4>表 2.7.1　测量激光波长</h4>
+        <div style="overflow-x:auto">
+        <table id="dataTable">
+          <thead><tr><th>次数</th><th>x₁ / mm</th><th>x₂ / mm</th><th>Δd / mm</th><th>Δd̄ / mm</th><th>λ / nm</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </section>
+      <section>
+        <h4>波长计算</h4>
+        <div class="formula">
+          Δd = N·λ/2 （每"冒出/陷入"一环，d 改变 λ/2）<br>
+          <b>λ = 2Δd / N</b> ，　Δd = |x₂ − x₁| / 25（杠杆放大 25 倍）
+        </div>
+        <div class="btnRow"><button class="b primary" id="btnCalc">计算激光波长 λ</button></div>
+        <div id="calcDetail" style="font-size:12px; line-height:1.9; margin-top:8px"></div>
+        <div id="resultBox"></div>
+      </section>
+      <section>
+        <h4>参考值</h4>
+        <div class="kv"><span>氦氖激光标准波长 λ₀</span><span class="num">632.8 nm</span></div>
+        <div class="kv"><span>杠杆放大倍数</span><span class="num">25</span></div>
+        <div class="kv"><span>计数环数 N</span><span class="num">50</span></div>
+      </section>
+    </div>
+
+    <!-- 原理 -->
+    <div class="tabBody" id="tab-principle">
+      <section>
+        <h4>光路组成</h4>
+        <div class="note">
+          G₁ 为分光板（A 面半透半反射），G₂ 为补偿板（材料、厚度与 G₁ 完全相同）。
+          光束①两次穿过分光板，光束②没有穿过，故加入 G₂ 补偿光束①两次穿过分光板形成的附加光程差，
+          使两束光的光程差与波长无关（这对白光干涉尤为重要）。
+          M₁' 是 M₁ 经 G₁ 所成的虚像，干涉等效于 M₂ 与 M₁' 间厚度为 d 的空气薄膜干涉。
+        </div>
+      </section>
+      <section>
+        <h4>等倾干涉</h4>
+        <div class="formula">
+          δ = 2d·cosθ<br>
+          明环：δ = kλ ， 暗环：δ = (2k+1)λ/2<br>
+          中心处 θ=0，δ = 2d 最大，级数 k 最高
+        </div>
+        <div class="note">
+          当 M₂ 与 M₁ 严格垂直时，观察到一系列明暗相间、内疏外密的同心圆环。
+          d 减小时中心级数减小，圆环逐个"陷入"中心；d 增大时圆环从中心"冒出"。
+          d 越大，相邻条纹间距越小，条纹越密。
+        </div>
+      </section>
+      <section>
+        <h4>测量激光波长</h4>
+        <div class="formula">
+          每从中心"冒出"或"陷入"一个圆环，d 就增/减 λ/2<br>
+          Δd = N·λ/2 ⇒ <b>λ = 2Δd / N</b><br>
+          M₂ 实际移动 Δd = |x₂ − x₁| / 25（杠杆放大）
+        </div>
+        <div class="note">
+          记录 M₂ 初位置 x₁，单向转动精调测微头计数 50 环后记录末位置 x₂，即可求出波长。
+        </div>
+      </section>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+
+/* ================= 物理常数 ================= */
+const LAMBDA = 632.8e-6;        // 氦氖激光真实波长 mm（待测）
+const LEVER = 25;               // 杠杆放大倍数
+const N_RING = 50;              // 计数环数
+const D0 = 2.2;                 // 基准臂差 mm
+const F_LENS = 300;             // 扩束镜到屏等效焦距 mm（决定环半径）
+const SCR_MM = 60;              // 观察屏显示范围 mm
+
+/* ================= 全局状态 ================= */
+const CFG = {
+  powered:false, aligned:false, expanded:false,
+  tiltX:3.2, tiltY:-2.4,         // M2 倾角 mrad（螺钉）
+  coarse:5.5, fine:10.0,
+  backlash:false, lastDir:0, pending:0,
+  steps:[false,false,false,false,false],
+  tunedAfterExpand:false,          // 放入扩束镜后是否进行过微调（第4步要求该动作）
+  counting:false, count:0, x1:null,
+  records:[],                    // {x1,x2}
+};
+const $ = id => document.getElementById(id);
+const fmt = (v,n=3) => Number(v).toFixed(n);
+let toastTimer;
+function toast(msg, warn=false){
+  const t=$('toast'); t.textContent=msg; t.className='show'+(warn?' warn':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='',3000);
+}
+
+/* ================= 物理计算 ================= */
+// M2 与 M1' 之间的等效空气膜厚度 d（mm）
+function armDiff(){
+  return D0 + (CFG.coarse-5.5)/LEVER + (CFG.fine-10.0)/LEVER;
+}
+function tiltRad(){ return [CFG.tiltX*1e-3, CFG.tiltY*1e-3]; }
+// 中心条纹级数 2d/λ
+function centerOrder(){ return 2*armDiff()/LAMBDA; }
+
+/* ================= 观察屏渲染 ================= */
+const scr = $('scrCanvas'), sctx = scr.getContext('2d');
+const NS = 260, half = NS/2;
+const offc = document.createElement('canvas'); offc.width=offc.height=NS;
+const octx = offc.getContext('2d');
+const img = octx.createImageData(NS,NS);
+
+function renderScreen(){
+  const S=520;
+  sctx.clearRect(0,0,S,S);
+  sctx.fillStyle='#050505'; sctx.fillRect(0,0,S,S);
+  const mode = screenMode();
+  $('scrMode').textContent = mode.tag;
+  if(mode.type==='off'){
+    sctx.fillStyle='#3a424c'; sctx.font='15px sans-serif';
+    sctx.fillText('— 请打开激光器电源 —', 170, 260);
+    return;
+  }
+  if(mode.type==='spots'){ drawSpots(sctx,S); return; }
+  // ---- 等倾干涉圆环（逐像素） ----
+  const pxmm = NS/SCR_MM;
+  const d = armDiff();
+  const [ax,ay] = tiltRad();
+  const cx = half + F_LENS*ax*pxmm;          // 失调使环心偏移
+  const cy = half - F_LENS*ay*pxmm;
+  const vis = Math.exp(-((Math.hypot(ax,ay)/0.004)**2));   // 失调衬度下降
+  const data = img.data;
+  for(let y=0;y<NS;y++){
+    for(let x=0;x<NS;x++){
+      const i=(y*NS+x)*4;
+      const sx=(x-half)/pxmm, sy=(y-half)/pxmm;
+      const r2=(sx*sx+sy*sy)/(F_LENS*F_LENS);
+      const cosT = 1/Math.sqrt(1+r2);
+      const phase = 4*Math.PI*d*cosT/LAMBDA;
+      const I = (1+Math.cos(phase))/2 * vis;
+      const c = Math.round(I*210);
+      data[i]=Math.round(c*1.0); data[i+1]=Math.round(c*0.25); data[i+2]=Math.round(c*0.22);
+      data[i+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+  sctx.imageSmoothingEnabled=true;
+  sctx.drawImage(offc,0,0,S,S);
+}
+// 屏幕当前显示模式
+function screenMode(){
+  if(!CFG.powered) return {type:'off', tag:'未开激光'};
+  if(!CFG.expanded){
+    return {type:'spots', tag: CFG.aligned?'光点已重合':'两排激光光点'};
+  }
+  return {type:'rings', tag: CFG.aligned?'等倾干涉圆环':'未校准(条纹模糊偏心)'};
+}
+// 两排激光光点（两排基准位置重合，偏移完全由 M₂ 倾角决定）
+function drawSpots(c,S){
+  const [ax,ay]=tiltRad();
+  const L=200;                              // M2 到屏的等效距离
+  const dx = 2*ax*L, dy = 2*ay*L;           // mrad→mm：2αL
+  const K = 20;                             // 偏移可视放大系数 px/mm
+  const c0=S/2;
+  c.font='11px sans-serif';
+  // M1 光点排（固定基准）
+  for(let k=-2;k<=2;k++){
+    const b = k===0?1:0.5*Math.exp(-Math.abs(k)/1.5);
+    const x=c0+k*38, y=c0;
+    c.fillStyle=`rgba(255,70,60,${b})`;
+    c.beginPath(); c.arc(x,y,4+b*3,0,7); c.fill();
+    if(k===0){ c.strokeStyle='rgba(255,255,255,.7)'; c.strokeRect(x-9,y-9,18,18); }
+  }
+  // M2 光点排（随倾角螺钉移动，对准时与 M₁ 排完全重合）
+  for(let k=-2;k<=2;k++){
+    const b = k===0?1:0.5*Math.exp(-Math.abs(k)/1.5);
+    const x=c0+k*38+dx*K, y=c0-dy*K;
+    c.fillStyle=`rgba(255,70,60,${b})`;
+    c.beginPath(); c.arc(x,y,4+b*3,0,7); c.fill();
+    if(k===0){
+      c.strokeStyle='rgba(255,255,255,.7)'; c.strokeRect(x-9,y-9,18,18);
+      c.fillStyle='#e6edf3'; c.fillText('M₂ 最亮点', x+14, y+4);
+    }
+  }
+  c.fillStyle='rgba(255,70,60,.8)'; c.fillText('M₁ 最亮点', c0+14, c0-16);
+  if(Math.hypot(dx,dy)<0.8){
+    c.fillStyle='#3fb96f'; c.font='14px sans-serif';
+    c.fillText('✓ 最亮两点已重合', S/2-70, 30);
+  }
+}
+
+/* ================= 环数计数 ================= */
+let lastOrder=null;
+function countRings(){
+  const k = centerOrder();
+  if(lastOrder!==null && CFG.steps[3] && CFG.counting){
+    CFG.count += Math.abs(k-lastOrder);
+  }
+  lastOrder=k;
+}
+
+/* ================= 测微头操作（含回程差） ================= */
+function moveFine(step){
+  if(!CFG.steps[3]){ toast('请先完成光路调节（步骤1~4）再转动精调测微头', true); return; }
+  CFG.fine += step;
+  if(CFG.backlash){
+    const dir=Math.sign(step);
+    if(CFG.lastDir!==0 && dir!==CFG.lastDir) CFG.pending=0.02*dir;
+    if(CFG.pending!==0 && Math.sign(CFG.pending)===dir){
+      const take=Math.min(Math.abs(CFG.pending), Math.abs(step));
+      CFG.pending-=take*dir;
+      if(Math.abs(CFG.pending)>1e-9){
+        toast('回程差：手轮反向转动存在空程，请沿同一方向转动', true);
+        CFG.lastDir=dir; updateFine(); return;
+      }
+    }
+  }
+  CFG.lastDir=Math.sign(step)||CFG.lastDir;
+  CFG.fine=Math.max(10.0,Math.min(15.0,CFG.fine));
+  countRings();
+  updateFine();
+}
+function updateFine(){
+  $('fineShow').textContent=fmt(CFG.fine);
+  $('vCoarse').textContent=fmt(CFG.coarse)+' mm'; $('sCoarse').value=CFG.coarse;
+  $('cntShow').textContent=Math.floor(CFG.count);
+  $('ringCount').textContent=Math.floor(CFG.count);
+  $('ringCount').style.color = CFG.count>=N_RING?'var(--ok)':'var(--accent)';
+}
+
+/* ================= 测量记录 ================= */
+function recordX1(){
+  if(!CFG.steps[3]){ toast('请先完成光路调节', true); return; }
+  CFG.count=0; CFG.counting=true; CFG.x1=CFG.fine;
+  $('curX1').textContent=fmt(CFG.x1)+' mm';
+  toast(`已记录初读数 x₁ = ${fmt(CFG.x1)} mm，请沿同一方向转动精调测微头计数 50 环`);
+}
+function recordX2(){
+  if(CFG.x1===null){ toast('请先按"记录 x₁"', true); return; }
+  if(CFG.count<N_RING-0.5){ toast(`当前仅 ${Math.floor(CFG.count)} 环，需计数满 ${N_RING} 环`, true); return; }
+  CFG.records.push({x1:CFG.x1, x2:CFG.fine});
+  CFG.counting=false; CFG.x1=null; CFG.count=0;
+  $('curX1').textContent='—';
+  $('grpShow').textContent=`${CFG.records.length} / 3`;
+  renderTable(); checkSteps();
+  toast(`第 ${CFG.records.length} 组已记录：Δd = ${fmt(ddOf(CFG.records[CFG.records.length-1]))} mm`);
+  if(CFG.records.length>=3) toast('3 组测量完成！到"数据与处理"页计算波长');
+}
+function ddOf(r){ return Math.abs(r.x2-r.x1)/LEVER; }
+function renderTable(){
+  const tb=$('dataTable').querySelector('tbody'); tb.innerHTML='';
+  const dds=CFG.records.map(ddOf);
+  const dbar=dds.length?dds.reduce((s,v)=>s+v,0)/dds.length:null;
+  for(let i=0;i<3;i++){
+    const tr=document.createElement('tr');
+    const r=CFG.records[i];
+    const cells=[i+1,
+      r?fmt(r.x1):'—', r?fmt(r.x2):'—',
+      r?fmt(ddOf(r)):'—',
+      i===0&&dbar!==null?fmt(dbar):'',
+      i===0&&dbar!==null?fmt(2*dbar/N_RING*1e6,1):''];
+    if(i>0){cells[4]='';cells[5]='';}
+    cells.forEach(c=>{
+      const td=document.createElement('td');
+      td.textContent=c; if(c==='—') td.className='dim';
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  }
+}
+function computeL(){
+  const detail=$('calcDetail'), box=$('resultBox');
+  if(CFG.records.length<1){ detail.innerHTML='<span style="color:var(--warn)">暂无数据，请先测量或填入示例数据。</span>'; box.style.display='none'; return; }
+  const dds=CFG.records.map(ddOf);
+  const dbar=dds.reduce((s,v)=>s+v,0)/dds.length;
+  const lam=2*dbar/N_RING*1e6;               // nm
+  const rel=Math.abs(lam-632.8)/632.8*100;
+  detail.innerHTML =
+    `各组 Δd：${dds.map(v=>fmt(v)).join('、')} mm<br>`+
+    `Δd̄ = ${fmt(dbar)} mm ， N = ${N_RING}<br>`+
+    `λ = 2×${fmt(dbar)} / ${N_RING} = ${fmt(2*dbar/N_RING*1e6,2)} nm`;
+  box.style.display='block';
+  box.innerHTML=`λ = ${fmt(lam,1)} nm ｜ 标准值 λ₀ = 632.8 nm<br>相对误差 E = ${fmt(rel,2)} %`;
+  toast('计算完成！');
+}
+function fillSample(){
+  CFG.records=[];
+  for(let i=0;i<3;i++){
+    const x1=10.1+i*0.9;
+    const dd=(N_RING*LAMBDA/2)*(1+(Math.random()-0.5)*0.006);  // 真实 Δd±0.3%
+    CFG.records.push({x1, x2:x1+dd*LEVER});
+  }
+  renderTable(); checkSteps();
+  toast('已填入示例数据（3 组），点"计算激光波长 λ"查看结果');
+}
+
+/* ================= Three.js 3D 场景 ================= */
+const canvas=$('scene');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0e14);
+scene.fog=new THREE.Fog(0x0a0e14,700,1800);
+const camera=new THREE.PerspectiveCamera(45,1,0.5,4000);
+camera.position.set(-200,190,320);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,55,-10); controls.enableDamping=true;
+controls.minDistance=80; controls.maxDistance=1100;
+scene.add(new THREE.AmbientLight(0x8899bb,.5));
+const dl=new THREE.DirectionalLight(0xffffff,1.4); dl.position.set(-200,300,180); scene.add(dl);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), new THREE.MeshStandardMaterial({color:0x11161f,roughness:.95}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-12; scene.add(floor);
+const grid=new THREE.GridHelper(1200,60,0x1e2a3a,0x18212e); grid.position.y=-11.9; scene.add(grid);
+const desk=new THREE.Mesh(new THREE.BoxGeometry(420,14,220), new THREE.MeshStandardMaterial({color:0x3a2f26,roughness:.85}));
+desk.position.set(0,-5,0); scene.add(desk);
+
+const clickable=[];
+function tag(m,t,d){ m.userData.title=t; m.userData.desc=d; clickable.push(m); }
+function M(c,o={}){ return new THREE.MeshStandardMaterial({color:c,roughness:.55,metalness:.35,...o}); }
+
+/* ---- 底座与导轨 ---- */
+const base=new THREE.Mesh(new THREE.BoxGeometry(300,14,200), M(0x2b3546,{roughness:.6}));
+base.position.set(0,7,0); scene.add(base);
+tag(base,'底座','WMG-1 型迈克耳孙干涉仪的铸铁底座，保证光路稳定。');
+const rail=new THREE.Mesh(new THREE.BoxGeometry(240,8,26), M(0x8b98a9,{metalness:.8,roughness:.3}));
+rail.position.set(30,17,-10); scene.add(rail);
+tag(rail,'导轨','可动反射镜 M₂ 沿导轨移动，改变干涉臂长度 d。');
+
+/* ---- 激光器（与光轴同高同轴，出射 +x 方向） ---- */
+const laserBody=new THREE.Mesh(new THREE.CylinderGeometry(11,11,110,24), M(0x772222,{roughness:.4}));
+laserBody.rotation.z=Math.PI/2; laserBody.position.set(-120,62,-10); scene.add(laserBody);
+tag(laserBody,'氦氖激光器（GY-11）','输出波长 632.8 nm 的红色激光。禁止直视激光，以防损伤视网膜！');
+const laserMount=new THREE.Mesh(new THREE.CylinderGeometry(4,5,48,12), M(0x46536b));
+laserMount.position.set(-120,38,-10); scene.add(laserMount);
+tag(laserMount,'激光器支座','支撑激光器，可通过俯仰角调节螺钉微调出射方向。');
+const laserGlow=new THREE.Mesh(new THREE.SphereGeometry(4,16,16), new THREE.MeshBasicMaterial({color:0xff4444}));
+laserGlow.position.set(-63,62,-10); laserGlow.visible=false; scene.add(laserGlow);
+
+/* ---- 分光板 G1 / 补偿板 G2（含支座） ---- */
+function makePlate(x,z,mat){
+  const g=new THREE.Group(); scene.add(g);
+  const p=new THREE.Mesh(new THREE.BoxGeometry(2,44,44), mat);
+  p.position.set(x,62,z); p.rotation.y=Math.PI/4; g.add(p);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(4,5,48,12), M(0x46536b));
+  post.position.set(x,38,z); g.add(post);
+  return p;
+}
+const G1=makePlate(-20,-10, new THREE.MeshPhysicalMaterial({color:0xaad4ff,transparent:true,opacity:.3,roughness:.05}));
+tag(G1,'分光板 G₁','A 面镀半透半反膜，将激光分成强度相等的两束：光束①射向 M₁，光束②射向 M₂。');
+const G2=makePlate(-20,20, new THREE.MeshPhysicalMaterial({color:0x9db8d8,transparent:true,opacity:.18,roughness:.05}));
+tag(G2,'补偿板 G₂','与 G₁ 材料、厚度完全相同且平行，放在 G₁ 与 M₁ 之间的光路中。光束①两次穿过 G₁ 而光束②没有，G₂ 补偿这一附加光程差。');
+
+/* ---- 固定反射镜 M1（镜面正对 +z 方向的入射光） ---- */
+const M1=new THREE.Mesh(new THREE.BoxGeometry(6,40,40), M(0xdfe8f0,{metalness:.95,roughness:.08}));
+M1.position.set(-20,62,60); M1.rotation.y=Math.PI/2; scene.add(M1);
+tag(M1,'固定反射镜 M₁','干涉臂一端的平面反射镜，其后方三颗倾角调节螺钉在实验中一般不调。');
+const m1Post=new THREE.Mesh(new THREE.CylinderGeometry(4,5,48,12), M(0x46536b));
+m1Post.position.set(-20,38,66); scene.add(m1Post);
+for(let i=0;i<3;i++){
+  const s=new THREE.Mesh(new THREE.CylinderGeometry(1.8,1.8,4,12), M(0xc9a227,{metalness:.9}));
+  s.position.set(-20+14*Math.cos(i*2.09),62+14*Math.sin(i*2.09),63.8); scene.add(s);
+}
+
+/* ---- 可动反射镜 M2（镜面正对 +x 方向的入射光，滑座坐在导轨上） ---- */
+const m2Group=new THREE.Group(); scene.add(m2Group);
+const M2=new THREE.Mesh(new THREE.BoxGeometry(6,40,40), M(0xdfe8f0,{metalness:.95,roughness:.08}));
+M2.position.set(0,62,-10); m2Group.add(M2);
+tag(M2,'可动反射镜 M₂','其后方有两颗倾角调节螺钉（校准光路用）；镜面可沿导轨移动改变臂差 d。');
+const screwA=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,5,12), M(0xc9a227,{metalness:.9}));
+screwA.rotation.z=Math.PI/2; screwA.position.set(-6,76,-10); m2Group.add(screwA);
+const screwB=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,5,12), M(0xc9a227,{metalness:.9}));
+screwB.rotation.z=Math.PI/2; screwB.position.set(-6,48,-10); m2Group.add(screwB);
+tag(screwA,'倾角调节螺钉（M₂ 后）','调节 M₂ 的倾角，使屏上两排光点中最亮两点重合；注意螺钉行程，不可旋出螺孔。');
+const slider=new THREE.Mesh(new THREE.BoxGeometry(24,38,22), M(0x46536b,{metalness:.5}));
+slider.position.set(0,43,-10); m2Group.add(slider);
+tag(slider,'滑座','与导轨槽配合，由丝杆带动沿 x 方向移动。');
+
+/* ---- 粗调/精调测微头 + 丝杆 + 杠杆（与 M₂ 同一轴线） ---- */
+const screwRod=new THREE.Mesh(new THREE.CylinderGeometry(1.8,1.8,100,12), M(0x8b98a9,{metalness:.85,roughness:.3}));
+screwRod.rotation.z=Math.PI/2; screwRod.position.set(65,21,-10); scene.add(screwRod);
+tag(screwRod,'传动丝杆','连接 M₂ 滑座与测微鼓轮，将手轮转动转化为 M₂ 的精确移动。');
+const lever=new THREE.Mesh(new THREE.BoxGeometry(46,4,8), M(0x5a6577,{metalness:.7}));
+lever.position.set(60,28,-10); scene.add(lever);
+tag(lever,'可移动杠杆','连接精调测微头与 M₂，将测微头读数放大 25 倍后传递给 M₂。');
+const drumCoarse=new THREE.Mesh(new THREE.CylinderGeometry(9,9,16,24), M(0x3b4557,{metalness:.6}));
+drumCoarse.rotation.z=Math.PI/2; drumCoarse.position.set(140,21,-10); scene.add(drumCoarse);
+tag(drumCoarse,'粗调测微头','带动 M₂ 沿导轨大范围移动，使 M₁、M₂ 到 G₁ 距离大致相等。建议在 4.500~6.500 mm 区间。');
+const drumFine=new THREE.Mesh(new THREE.CylinderGeometry(7,7,14,24), M(0xc9a227,{metalness:.85,roughness:.3}));
+drumFine.rotation.z=Math.PI/2; drumFine.position.set(122,21,-10); scene.add(drumFine);
+tag(drumFine,'精调测微头','读数经杠杆放大 25 倍传给 M₂；每"冒出/陷入"一环 M₂ 移动 λ/2。测量时沿同一方向转动。');
+
+/* ---- 扩束镜（置于激光器出口与 G₁ 之间的光路上） ---- */
+const beamExp=new THREE.Mesh(new THREE.CylinderGeometry(10,10,6,24), M(0x9db8d8,{metalness:.4,roughness:.1}));
+beamExp.rotation.z=Math.PI/2; beamExp.position.set(-45,62,-10); beamExp.visible=false; scene.add(beamExp);
+tag(beamExp,'扩束镜','将细激光束扩展成面光源；放入后屏上出现干涉条纹，可调节其高度与角度改善视场。');
+
+/* ---- 观察屏（位于 -z 输出端口，与光轴同高） ---- */
+const screen=new THREE.Mesh(new THREE.PlaneGeometry(70,70), new THREE.MeshStandardMaterial({color:0xd8dde4,roughness:.9,side:THREE.DoubleSide}));
+screen.position.set(-20,62,-72); scene.add(screen);
+const screenPost=new THREE.Mesh(new THREE.CylinderGeometry(2,2,50,12), M(0x46536b));
+screenPost.position.set(-20,37,-72); scene.add(screenPost);
+tag(screen,'观察屏（毛玻璃）','接收干涉图样；屏上刻度配合扩束镜观察等倾干涉同心圆环。');
+
+/* ---- 激光光束（可视化，全光路同轴） ---- */
+function beamMat(op){ return new THREE.MeshBasicMaterial({color:0xff5544,transparent:true,opacity:op}); }
+const beams=[];
+function addBeam(w,len,op){
+  const b=new THREE.Mesh(new THREE.CylinderGeometry(w,w,len,8,1,true), beamMat(op));
+  scene.add(b); beams.push(b); return b;
+}
+// 主光束：激光器出口→G1
+const b0=addBeam(.8,43,.5); b0.rotation.z=Math.PI/2; b0.position.set(-41.5,62,-10);
+// G1→M1（穿过补偿板 G2）
+const b1=addBeam(.8,70,.4); b1.rotation.x=Math.PI/2; b1.position.set(-20,62,25);
+// G1→M2
+const b2=addBeam(.8,22,.4); b2.rotation.z=Math.PI/2; b2.position.set(-9,62,-10);
+// G1→屏（-z 输出端口）
+const b3=addBeam(.8,62,.4); b3.rotation.x=Math.PI/2; b3.position.set(-20,62,-41);
+function setBeams(on){
+  beams.forEach(b=>b.visible=on);
+  laserGlow.visible=on;
+  beamExp.visible=on && CFG.expanded;
+}
+
+/* ---- 信息卡 ---- */
+const raycaster=new THREE.Raycaster(); let downXY=null;
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{
+  if(!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>5) return;
+  const rect=canvas.getBoundingClientRect();
+  const p=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
+  raycaster.setFromCamera(p,camera);
+  const hits=raycaster.intersectObjects(clickable,true);
+  if(hits.length){
+    let o=hits[0].object; while(o&&!o.userData.title) o=o.parent;
+    if(o){ $('infoTitle').textContent=o.userData.title; $('infoDesc').textContent=o.userData.desc; $('infoCard').style.display='block'; }
+  }
+});
+$('infoClose').onclick=()=>$('infoCard').style.display='none';
+
+/* ================= 步骤控制 ================= */
+function checkSteps(){
+  CFG.steps[0]=CFG.powered && Math.abs(CFG.coarse-5.5)<=0.3;
+  CFG.steps[1]=CFG.powered && Math.hypot(CFG.tiltX,CFG.tiltY)<=0.8;   // mrad
+  CFG.steps[2]=CFG.steps[1] && CFG.expanded;
+  CFG.steps[3]=CFG.steps[2] && CFG.tunedAfterExpand && Math.hypot(CFG.tiltX,CFG.tiltY)<=0.4;
+  CFG.steps[4]=CFG.records.length>=3;                  // 第5步：完成3组测量记录
+  CFG.aligned = CFG.steps[1];
+  for(let i=0;i<5;i++){
+    const el=$('st'+(i+1));
+    el.classList.toggle('done',CFG.steps[i]);
+    el.classList.toggle('current',!CFG.steps[i]&&CFG.steps.slice(0,i).every(Boolean));
+  }
+  if(CFG.steps[4]&&!$('st5').dataset.t){ $('st5').dataset.t='1'; }
+}
+$('btnLaser').onclick=()=>{
+  if(CFG.powered){ toast('激光器已开启'); return; }
+  CFG.powered=true; setBeams(true);
+  toast('激光器已开启：观察屏上出现两排激光光点（未放扩束镜）。转动粗调测微头至 5.5 附近');
+  checkSteps();
+};
+$('btnBeam').onclick=()=>{
+  if(!CFG.steps[1]){ toast('请先调节倾角螺钉使最亮两点重合，再放入扩束镜', true); return; }
+  CFG.expanded=!CFG.expanded;
+  $('btnBeam').textContent=CFG.expanded?'移出扩束镜':'放入扩束镜';
+  setBeams(true);
+  if(CFG.expanded) toast('扩束镜已放入：屏上出现干涉圆环。微调倾角螺钉使圆环清晰居中');
+  checkSteps();
+};
+$('btnHint').onclick=()=>toast(`当前失配量：水平 ${fmt(CFG.tiltX,2)} mrad、竖直 ${fmt(CFG.tiltY,2)} mrad，均需调到 ±0.8 mrad 以内`, true);
+
+/* ================= 控件绑定 ================= */
+$('sTiltX').oninput=e=>{ CFG.tiltX=+e.target.value; if(CFG.expanded) CFG.tunedAfterExpand=true; $('vTiltX').textContent=fmt(CFG.tiltX,2)+' mrad'; checkSteps(); };
+$('sTiltY').oninput=e=>{ CFG.tiltY=+e.target.value; if(CFG.expanded) CFG.tunedAfterExpand=true; $('vTiltY').textContent=fmt(CFG.tiltY,2)+' mrad'; checkSteps(); };
+$('sCoarse').oninput=e=>{
+  CFG.coarse=+e.target.value; if(CFG.expanded) CFG.tunedAfterExpand=true; countRings(); updateFine(); checkSteps();
+};
+$('btnBacklash').onclick=()=>{
+  CFG.backlash=!CFG.backlash;
+  $('btnBacklash').textContent='回程差：'+(CFG.backlash?'开':'关');
+  if(CFG.backlash) toast('已开启回程差模拟：精调手轮反向转动需先空程');
+};
+document.querySelectorAll('.drum').forEach(b=>{
+  let iv=null;
+  const step=()=>moveFine(parseFloat(b.dataset.step));
+  b.addEventListener('pointerdown',()=>{ step(); iv=setInterval(step,110); });
+  ['pointerup','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>clearInterval(iv)));
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'){ moveFine(-0.01); e.preventDefault(); }
+  if(e.key==='ArrowRight'){ moveFine(0.01); e.preventDefault(); }
+});
+// 观察屏上左右拖动微调精调手轮
+(function(){
+  let drag=false,lastX=0;
+  scr.addEventListener('pointerdown',e=>{ drag=true; lastX=e.clientX; scr.setPointerCapture(e.pointerId); });
+  scr.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const dmm=(e.clientX-lastX)/4;             // 4px = 0.01mm
+    if(Math.abs(dmm)>1e-6){ moveFine(dmm); lastX=e.clientX; }
+  });
+  ['pointerup','pointercancel'].forEach(ev=>scr.addEventListener(ev,()=>drag=false));
+})();
+$('btnX1').onclick=recordX1;
+$('btnX2').onclick=recordX2;
+$('btnCalc').onclick=computeL;
+$('btnSample').onclick=fillSample;
+$('btnReset').onclick=()=>location.reload();
+$('btnScrFull').onclick=()=>{
+  $('scrFloat').classList.toggle('fullscreen');
+  $('btnScrFull').textContent=$('scrFloat').classList.contains('fullscreen')?'退出全屏':'观察屏全屏';
+};
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); $('tab-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+/* ================= 主循环 ================= */
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(canvas.width!==w||canvas.height!==h){
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+// M2 组随精调读数沿导轨移动（1mm读数 = 1/25 mm 实际，视觉放大）
+let scrTick=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  m2Group.position.x = (CFG.fine-10)/25*40 + (CFG.coarse-5.5)*3;
+  lever.rotation.y = (CFG.fine-10)*0.02;
+  if(++scrTick%2===0){ renderScreen(); }
+  updateFine();
+  controls.update(); renderer.render(scene,camera);
+}
+checkSteps(); renderTable(); updateFine();
+loop();
+</script>
+</body>
+</html>
