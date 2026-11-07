@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>气垫导轨上弹簧振子的简谐振动研究</title>
+<style>
+  :root {
+    --bg: #070b12; --panel: #0d1420; --line: #1e2c40;
+    --cyan: #35e0ff; --cyan-dim: #1b7f94;
+    --red: #ff4d5e; --blue: #4d8dff; --orange: #ff9f43;
+    --text: #cfe3f5; --muted: #6f8aa6; --sidebar-w: 340px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: var(--text); display: flex; }
+  #sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); height: 100vh; background: linear-gradient(180deg, #0a111c 0%, #0d1420 60%, #0a1018 100%); border-right: 1px solid var(--line); padding: 16px 16px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; z-index: 20; }
+  #sidebar::-webkit-scrollbar { width: 6px; }
+  #sidebar::-webkit-scrollbar-thumb { background: #1d3049; border-radius: 3px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan), 0 0 22px rgba(53,224,255,.55); animation: pulse 2.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.65;transform:scale(.9)} 50%{opacity:1;transform:scale(1.15)} }
+  .brand h1 { font-size: 15px; margin: 0; letter-spacing: .5px; color: #e7f6ff; font-weight: 600; }
+  .brand small { display: block; font-size: 10.5px; color: var(--muted); letter-spacing: 1.5px; margin-top: 2px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; position: relative; overflow: hidden; }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; width: 3px; height: 100%; background: linear-gradient(180deg, var(--cyan), transparent 80%); opacity: .7; }
+  .card h2 { font-size: 11px; letter-spacing: 2px; color: var(--cyan); margin: 0 0 10px; text-transform: uppercase; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .card h2::before { content: ""; width: 6px; height: 6px; background: var(--cyan); transform: rotate(45deg); }
+  .kv { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; font-size: 12.5px; border-bottom: 1px dashed rgba(30,44,64,.65); }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-family: "Consolas", "SFMono-Regular", monospace; color: #eaf7ff; font-size: 13px; }
+  .kv .v.red { color: var(--red); } .kv .v.blue { color: var(--blue); }
+  .kv .v.orange { color: var(--orange); } .kv .v.cyan { color: var(--cyan); }
+  .slider-row { margin-bottom: 12px; } .slider-row:last-child { margin-bottom: 0; }
+  .slider-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+  .slider-head .lbl { color: var(--muted); } .slider-head .val { font-family: "Consolas", monospace; color: var(--cyan); }
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #16283e; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--cyan); cursor: pointer; box-shadow: 0 0 8px rgba(53,224,255,.8); border: 2px solid #06202a; }
+  input[type="range"]:disabled { opacity: .4; } input[type="range"]:disabled::-webkit-slider-thumb { background: #4c647e; box-shadow: none; cursor: not-allowed; }
+  .principle p { font-size: 11.5px; line-height: 1.7; color: #9db7cf; margin: 0 0 6px; }
+  .principle code { font-family: "Consolas", monospace; color: #8fe8ff; background: rgba(53,224,255,.08); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+  .principle .note { color: #7a94ad; font-size: 11px; font-style: italic; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; }
+  #main { flex: 1; position: relative; height: 100vh; overflow: hidden; }
+  #view { position: absolute; inset: 0; } #view canvas { display: block; }
+  #chartWrap { position: absolute; top: 14px; right: 14px; width: 380px; height: 210px; background: rgba(7,11,18,.78); border: 1px solid rgba(53,224,255,.28); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(0,0,0,.55), inset 0 0 40px rgba(53,224,255,.04); z-index: 15; overflow: hidden; }
+  #chartCanvas { width: 100%; height: 100%; display: block; }
+  #recDot { position: absolute; top: 18px; right: 404px; display: flex; align-items: center; gap: 7px; font-size: 11px; letter-spacing: 1.5px; color: #ff6b78; z-index: 16; opacity: 0; transition: opacity .25s; background: rgba(7,11,18,.7); padding: 5px 10px; border-radius: 20px; border: 1px solid rgba(255,77,94,.35); }
+  #recDot.on { opacity: 1; }
+  #recDot i { width: 9px; height: 9px; border-radius: 50%; background: #ff4d5e; display: inline-block; box-shadow: 0 0 10px #ff4d5e; animation: recBreath 1.1s ease-in-out infinite; }
+  @keyframes recBreath { 0%,100%{opacity:.25;transform:scale(.75)} 50%{opacity:1;transform:scale(1.2)} }
+  #controls { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(10,17,28,.86); border: 1px solid rgba(53,224,255,.22); border-radius: 14px; padding: 9px 14px; backdrop-filter: blur(8px); box-shadow: 0 10px 36px rgba(0,0,0,.6); z-index: 18; white-space: nowrap; }
+  .btn { background: #122134; color: #cfe3f5; border: 1px solid #22344c; border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; transition: all .18s; font-family: inherit; display: inline-flex; align-items: center; gap: 5px; }
+  .btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 12px rgba(53,224,255,.25); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.primary { background: linear-gradient(135deg, #0f4a5c, #0b2d3a); border-color: var(--cyan-dim); color: #d8fbff; }
+  .btn.rec { border-color: rgba(255,77,94,.4); color: #ff8b96; }
+  .btn.rec:hover:not(:disabled) { border-color: #ff4d5e; color: #ff4d5e; box-shadow: 0 0 12px rgba(255,77,94,.3); }
+  .btn.active { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 10px rgba(53,224,255,.3); }
+  #timeSlider { width: 190px; }
+  .divider { width: 1px; height: 22px; background: var(--line); }
+  .phase-group { display: flex; gap: 5px; } .phase-group .btn { padding: 5px 8px; font-size: 11px; }
+  #timeLabel { font-family: "Consolas", monospace; font-size: 12px; color: var(--cyan); min-width: 96px; text-align: center; }
+  .hint { position: absolute; left: 16px; bottom: 18px; z-index: 14; font-size: 11px; color: #5f7a92; letter-spacing: .4px; background: rgba(7,11,18,.6); padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(30,44,64,.6); }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <div><h1>简谐振动研究</h1><small>SPRING OSCILLATOR · AIR TRACK</small></div>
+  </div>
+  <div class="card">
+    <h2>实时参数</h2>
+    <div class="kv"><span class="k">位移 x</span><span class="v red" id="v-x">0.000 m</span></div>
+    <div class="kv"><span class="k">速度 v</span><span class="v blue" id="v-v">0.000 m/s</span></div>
+    <div class="kv"><span class="k">加速度 a</span><span class="v orange" id="v-a">0.000 m/s²</span></div>
+    <div class="kv"><span class="k">弹性力 F</span><span class="v orange" id="v-f">0.00 N</span></div>
+    <div class="kv"><span class="k">角频率 ω</span><span class="v" id="v-w">0.000 rad/s</span></div>
+    <div class="kv"><span class="k">周期 T</span><span class="v cyan" id="v-T">0.000 s</span></div>
+    <div class="kv"><span class="k">相位 ωt/2π</span><span class="v" id="v-phase">0.000</span></div>
+    <div class="kv"><span class="k">有效质量 M</span><span class="v" id="v-M">0.000 kg</span></div>
+    <div class="kv"><span class="k">弹簧有效质量 m₀</span><span class="v" id="v-m0">0.000 kg</span></div>
+  </div>
+  <div class="card">
+    <h2>参数调节</h2>
+    <div class="slider-row"><div class="slider-head"><span class="lbl">振幅 A</span><span class="val" id="s-A-val">0.30 m</span></div><input type="range" id="s-A" min="0.05" max="0.45" step="0.01" value="0.30" /></div>
+    <div class="slider-row"><div class="slider-head"><span class="lbl">滑块质量 m</span><span class="val" id="s-m-val">0.40 kg</span></div><input type="range" id="s-m" min="0.10" max="1.20" step="0.01" value="0.40" /></div>
+    <div class="slider-row"><div class="slider-head"><span class="lbl">弹簧刚度 k</span><span class="val" id="s-k-val">6.00 N/m</span></div><input type="range" id="s-k" min="1" max="20" step="0.5" value="6" /></div>
+  </div>
+  <div class="card principle">
+    <h2>实验原理</h2>
+    <p>简谐振动方程：<code>x = A·sin(ωt + φ₀)</code></p>
+    <p>弹簧振子周期：<code>T = 2π√(M / 2k)</code></p>
+    <p>有效质量：<code>M = m + m₀</code>，<code>m₀ = m_s / 3</code></p>
+    <p>回复力：<code>F = -2kx</code></p>
+    <p class="note">改变振子质量测周期，作 T²–m 图求刚度系数与弹簧有效质量。</p>
+  </div>
+</aside>
+
+<main id="main">
+  <div id="view"></div>
+  <div id="chartWrap"><canvas id="chartCanvas" width="760" height="420"></canvas></div>
+  <div id="recDot"><i></i>REC</div>
+  <div class="hint">拖拽旋转 · 滚轮缩放 · 右键平移</div>
+  <div id="controls">
+    <button class="btn primary" id="btnPlay">⏸ 暂停</button>
+    <div class="divider"></div>
+    <input type="range" id="timeSlider" min="0" max="1" step="0.001" value="0" />
+    <span id="timeLabel">0.000 / 0.000 s</span>
+    <div class="divider"></div>
+    <div class="phase-group">
+      <button class="btn" data-phase="0">0</button>
+      <button class="btn" data-phase="0.25">T/4</button>
+      <button class="btn" data-phase="0.5">T/2</button>
+      <button class="btn" data-phase="0.75">3T/4</button>
+    </div>
+    <div class="divider"></div>
+    <button class="btn rec" id="btnRec">● 录制 WebM</button>
+    <button class="btn" id="btnPng">⬇ 导出 PNG</button>
+  </div>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================== 物理常量 ============================== */
+const PHYS = { A: 0.30, m: 0.40, k: 6.0, ms: 0.06, phi0: 0 };
+function getM0() { return PHYS.ms / 3; }
+function getM() { return PHYS.m + getM0(); }
+function getOmega() { return Math.sqrt((2 * PHYS.k) / getM()); }
+function getT() { return (2 * Math.PI) / getOmega(); }
+function fnX(t) { return PHYS.A * Math.sin(getOmega() * t + PHYS.phi0); }
+function fnV(t) { return PHYS.A * getOmega() * Math.cos(getOmega() * t + PHYS.phi0); }
+function fnA(t) { return -PHYS.A * getOmega() * getOmega() * Math.sin(getOmega() * t + PHYS.phi0); }
+function fnF(t) { return -2 * PHYS.k * fnX(t); }
+
+const SPM = 6;
+const state = { t: 0, playing: true, recording: false, T: getT(), lastTime: performance.now(), draggingTime: false, recordStart: 0 };
+
+let scene, camera, renderer, controls, viewEl;
+let block, springLMesh, springRMesh, arrowV, arrowA, arrowF, eqLine, dispLine, photoGate, gateLight;
+const blockWidth = 0.5;
+const trackLen = 5.6;
+
+/* ============================== 弹簧几何 ============================== */
+function makeSpringGeometry(length, radius = 0.12, coils = 14, tubeR = 0.018) {
+  const pts = [];
+  const N = 120;
+  for (let i = 0; i <= N; i++) {
+    const u = i / N;
+    const angle = u * coils * Math.PI * 2;
+    pts.push(new THREE.Vector3(u * length, Math.cos(angle) * radius, Math.sin(angle) * radius));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 140, tubeR, 6, false);
+}
+
+/* ============================== 场景初始化 ============================== */
+function initScene() {
+  viewEl = document.getElementById('view');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070b12);
+  scene.fog = new THREE.Fog(0x070b12, 16, 34);
+
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+  camera.position.set(3.2, 3.4, 8.2);
+  camera.lookAt(0, 0.4, 0);
+
+  // preserveDrawingBuffer: 供 drawImage 与 toDataURL 使用
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  viewEl.appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0.35, 0);
+  controls.minDistance = 3;
+  controls.maxDistance = 22;
+  controls.maxPolarAngle = Math.PI * 0.52;
+  controls.update();
+
+  scene.add(new THREE.AmbientLight(0x5a7a9a, 0.9));
+  const keyLight = new THREE.DirectionalLight(0xaad4ff, 2.0);
+  keyLight.position.set(6, 10, 8);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.near = 1; keyLight.shadow.camera.far = 40;
+  keyLight.shadow.camera.left = -10; keyLight.shadow.camera.right = 10;
+  keyLight.shadow.camera.top = 10; keyLight.shadow.camera.bottom = -10;
+  scene.add(keyLight);
+  const rimLight = new THREE.DirectionalLight(0x2fd8ff, 0.9);
+  rimLight.position.set(-7, 4, -6); scene.add(rimLight);
+  const fill = new THREE.PointLight(0xff9f43, 0.6, 20);
+  fill.position.set(0, 2.4, 4); scene.add(fill);
+
+  const grid = new THREE.GridHelper(30, 60, 0x1a3a4f, 0x0f1e2b);
+  grid.position.y = -1.2; scene.add(grid);
+
+  buildApparatus();
+}
+
+/* ============================== 搭建装置 ============================== */
+function buildApparatus() {
+  // 底座
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x1a2a3c, metalness: 0.7, roughness: 0.4 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(trackLen * 2 + 1.6, 0.28, 1.6), baseMat);
+  base.position.set(0, -0.62, 0); base.castShadow = true; base.receiveShadow = true; scene.add(base);
+  const footMat = new THREE.MeshStandardMaterial({ color: 0x0e1822, metalness: 0.5, roughness: 0.6 });
+  [-1, 1].forEach(sx => { [-0.6, 0.6].forEach(sz => {
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.32, 16), footMat);
+    foot.position.set(sx * (trackLen - 0.4), -0.9, sz); foot.castShadow = true; scene.add(foot);
+  }); });
+
+  // 半透明导轨
+  const trackMat = new THREE.MeshPhysicalMaterial({ color: 0x2f5f7a, metalness: 0.2, roughness: 0.15, transmission: 0.55, transparent: true, opacity: 0.55, thickness: 0.4, clearcoat: 1.0 });
+  const track = new THREE.Mesh(new THREE.BoxGeometry(trackLen * 2, 0.22, 1.0), trackMat);
+  track.position.set(0, -0.28, 0); track.receiveShadow = true; scene.add(track);
+
+  // 出气孔
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.55 });
+  const holeGeo = new THREE.CircleGeometry(0.035, 8);
+  for (let i = -14; i <= 14; i++) {
+    const h = new THREE.Mesh(holeGeo, holeMat);
+    h.rotation.x = -Math.PI / 2; h.position.set(i * 0.19, -0.165, 0); scene.add(h);
+  }
+  // 边缘发光
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0.5 });
+  [-0.52, 0.52].forEach(z => {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(trackLen * 2, 0.02, 0.025), edgeMat);
+    edge.position.set(0, -0.16, z); scene.add(edge);
+  });
+  // 刻度
+  const tickMat = new THREE.LineBasicMaterial({ color: 0x3f7d96, transparent: true, opacity: 0.7 });
+  for (let i = -14; i <= 14; i++) {
+    const len = (i % 5 === 0) ? 0.18 : 0.09;
+    const pts = [new THREE.Vector3(i * 0.19, -0.14, 0.53), new THREE.Vector3(i * 0.19, -0.14 + len, 0.53)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), tickMat));
+  }
+
+  // 弹簧钩
+  const hookMat = new THREE.MeshStandardMaterial({ color: 0x8fb6d6, metalness: 0.9, roughness: 0.25 });
+  [-1, 1].forEach(sx => {
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.035, 10, 24, Math.PI * 1.4), hookMat);
+    hook.position.set(sx * (trackLen - 0.35), 0.1, 0);
+    hook.rotation.z = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+    hook.castShadow = true; scene.add(hook);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 12), hookMat);
+    post.position.set(sx * (trackLen - 0.35), -0.05, 0); post.castShadow = true; scene.add(post);
+  });
+
+  // 滑块
+  const blockMat = new THREE.MeshStandardMaterial({ color: 0x1a7fa8, metalness: 0.55, roughness: 0.3, emissive: 0x0a3a4a, emissiveIntensity: 0.6 });
+  block = new THREE.Mesh(new THREE.BoxGeometry(blockWidth, 0.42, 0.62), blockMat);
+  block.position.set(0, 0.06, 0); block.castShadow = true; block.receiveShadow = true; scene.add(block);
+  const blockEdge = new THREE.LineSegments(new THREE.EdgesGeometry(block.geometry), new THREE.LineBasicMaterial({ color: 0x5ff0ff }));
+  block.add(blockEdge);
+  // 挡光片
+  const flagMat = new THREE.MeshStandardMaterial({ color: 0xffc857, metalness: 0.3, roughness: 0.5, emissive: 0x553a00, emissiveIntensity: 0.8 });
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.3), flagMat);
+  flag.position.set(0, 0.36, 0); block.add(flag);
+
+  // 弹簧
+  const springMat = new THREE.MeshStandardMaterial({ color: 0x9fc9e8, metalness: 0.85, roughness: 0.3, emissive: 0x0a2a3a });
+  springLMesh = new THREE.Mesh(new THREE.BufferGeometry(), springMat);
+  springRMesh = new THREE.Mesh(new THREE.BufferGeometry(), springMat.clone());
+  scene.add(springLMesh, springRMesh);
+  updateSprings(0);
+
+  // 矢量箭头
+  arrowV = makeArrow(0xff4d5e, 0.75);
+  arrowA = makeArrow(0x4d8dff, 0.75);
+  arrowF = makeArrow(0xff9f43, 0.75);
+  scene.add(arrowV, arrowA, arrowF);
+
+  // 平衡位置虚线
+  eqLine = makeDashedLine([new THREE.Vector3(0, -0.12, -0.55), new THREE.Vector3(0, 1.1, -0.55)], 0xffffff, 0.55);
+  scene.add(eqLine);
+
+  // 位移标注线
+  dispLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]), new THREE.LineBasicMaterial({ color: 0xffe066 }));
+  scene.add(dispLine);
+
+  // 光电门
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x2a6a55, metalness: 0.6, roughness: 0.4, transparent: true, opacity: 0.65 });
+  photoGate = new THREE.Group();
+  const gateFrame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.9, 0.18), gateMat);
+  gateFrame.position.y = 0.45; photoGate.add(gateFrame);
+  const gateBase = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.34), gateMat);
+  gateBase.position.y = -0.02; photoGate.add(gateBase);
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0x66ff9f, transparent: true, opacity: 0.45 });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7, 6), beamMat);
+  beam.rotation.z = Math.PI / 2; beam.position.set(0, 0.45, 0); photoGate.add(beam);
+  gateLight = beam;
+  photoGate.position.set(0, 0, -0.65); scene.add(photoGate);
+}
+
+function makeArrow(color, shaftLen) {
+  const group = new THREE.Group();
+  const shaftMat = new THREE.MeshStandardMaterial({ color, metalness: 0.4, roughness: 0.4, emissive: color, emissiveIntensity: 0.55 });
+  const headMat = new THREE.MeshStandardMaterial({ color, metalness: 0.4, roughness: 0.35, emissive: color, emissiveIntensity: 0.8 });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, shaftLen, 10), shaftMat);
+  shaft.position.y = shaftLen / 2; group.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.22, 12), headMat);
+  head.position.y = shaftLen + 0.11; group.add(head);
+  group.userData.base = shaftLen;
+  return group;
+}
+
+function makeDashedLine(points, color, opacity) {
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const mat = new THREE.LineDashedMaterial({ color, dashSize: 0.1, gapSize: 0.08, transparent: true, opacity });
+  const line = new THREE.Line(geo, mat);
+  line.computeLineDistances();
+  return line;
+}
+
+function updateSprings(xMeters) {
+  if (!springLMesh || !springRMesh) return;
+  const xScene = xMeters * SPM;
+  const blockHalf = blockWidth / 2;
+  const leftHookX = -(trackLen - 0.35);
+  const rightHookX = (trackLen - 0.35);
+  const blockLeft = xScene - blockHalf;
+  const blockRight = xScene + blockHalf;
+  const leftLen = Math.max(0.25, blockLeft - leftHookX);
+  const rightLen = Math.max(0.25, rightHookX - blockRight);
+
+  springLMesh.geometry.dispose();
+  springLMesh.geometry = makeSpringGeometry(leftLen);
+  springLMesh.position.set(leftHookX, 0.06, 0);
+
+  springRMesh.geometry.dispose();
+  springRMesh.geometry = makeSpringGeometry(rightLen);
+  springRMesh.position.set(rightHookX, 0.06, 0);
+  springRMesh.rotation.y = Math.PI;
+}
+
+/* ============================== 3D 更新 ============================== */
+function updateScene3D(t) {
+  const xm = fnX(t), vm = fnV(t), am = fnA(t), Fm = fnF(t);
+  const xScene = xm * SPM;
+  if (block) block.position.x = xScene;
+  updateSprings(xm);
+
+  if (dispLine) {
+    const yMark = 0.75;
+    dispLine.geometry.dispose();
+    dispLine.geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, yMark, -0.55), new THREE.Vector3(xScene, yMark, -0.55)
+    ]);
+  }
+
+  // 速度矢量
+  if (arrowV) {
+    const vMax = PHYS.A * getOmega() || 1e-6;
+    const norm = Math.abs(vm) / vMax;
+    arrowV.position.set(xScene, 0.55, 0.38);
+    arrowV.scale.set(1, Math.max(0.05, norm * 0.95) / arrowV.userData.base, 1);
+    if (Math.abs(vm) > 1e-6) {
+      const dir = new THREE.Vector3(vm > 0 ? 1 : -1, 0, 0).normalize();
+      arrowV.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    }
+    arrowV.visible = norm > 0.01;
+  }
+  // 加速度矢量
+  if (arrowA) {
+    const aMax = PHYS.A * getOmega() * getOmega() || 1e-6;
+    const norm = Math.abs(am) / aMax;
+    arrowA.position.set(xScene, 0.55, -0.38);
+    arrowA.scale.set(1, Math.max(0.05, norm * 0.95) / arrowA.userData.base, 1);
+    if (Math.abs(am) > 1e-6) {
+      const dir = new THREE.Vector3(am > 0 ? 1 : -1, 0, 0).normalize();
+      arrowA.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    }
+    arrowA.visible = norm > 0.01;
+  }
+  // 弹性力矢量
+  if (arrowF) {
+    const FMax = 2 * PHYS.k * PHYS.A || 1e-6;
+    const norm = Math.abs(Fm) / FMax;
+    arrowF.position.set(xScene, 0.06, 0.55);
+    arrowF.scale.set(1, Math.max(0.05, norm * 0.95) / arrowF.userData.base, 1);
+    if (Math.abs(Fm) > 1e-6) {
+      const dir = new THREE.Vector3(Fm > 0 ? 1 : -1, 0, 0).normalize();
+      arrowF.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    }
+    arrowF.visible = norm > 0.01;
+  }
+  // 光电门闪烁
+  if (gateLight) {
+    const nearEq = Math.abs(xm) < PHYS.A * 0.06;
+    gateLight.material.opacity = nearEq ? 0.95 : 0.25;
+    gateLight.material.color.setHex(nearEq ? 0x66ff9f : 0x2f7a55);
+  }
+}
+
+/* ============================== HUD ============================== */
+function updateSidebarValues(t) {
+  const xm = fnX(t), vm = fnV(t), am = fnA(t), Fm = fnF(t);
+  const w = getOmega(), T = getT(), M = getM(), m0 = getM0();
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  set('v-x', xm.toFixed(3) + ' m');
+  set('v-v', vm.toFixed(3) + ' m/s');
+  set('v-a', am.toFixed(3) + ' m/s²');
+  set('v-f', Fm.toFixed(2) + ' N');
+  set('v-w', w.toFixed(3) + ' rad/s');
+  set('v-T', T.toFixed(3) + ' s');
+  let phase = (w * t) / (2 * Math.PI); phase -= Math.floor(phase);
+  set('v-phase', phase.toFixed(3));
+  set('v-M', M.toFixed(3) + ' kg');
+  set('v-m0', m0.toFixed(3) + ' kg');
+  const tl = document.getElementById('timeLabel');
+  if (tl) tl.textContent = t.toFixed(3) + ' / ' + T.toFixed(3) + ' s';
+  const slider = document.getElementById('timeSlider');
+  if (slider && !state.draggingTime) slider.value = (t / T).toString();
+}
+
+/* ============================== 曲线 ============================== */
+const chartCanvas = document.getElementById('chartCanvas');
+const chartCtx = chartCanvas.getContext('2d');
+
+function renderCurve(ctx, x, y, w, h, tNow, T, yMax, fn, color, label, opt = {}) {
+  const guardYMax = (yMax > 0 && isFinite(yMax)) ? yMax : 1;
+  const guardT = (T > 0 && isFinite(T)) ? T : 1;
+  ctx.save();
+  ctx.fillStyle = opt.bg || 'rgba(10,17,28,0.55)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(60,100,130,0.25)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 8; i++) { const gx = x + (w * i) / 8; ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke(); }
+  for (let j = 0; j <= 4; j++) { const gy = y + (h * j) / 4; ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke(); }
+  const zeroY = y + h / 2;
+  ctx.strokeStyle = 'rgba(160,200,230,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x, zeroY); ctx.lineTo(x + w, zeroY); ctx.stroke();
+  ctx.strokeStyle = 'rgba(53,224,255,0.35)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+  const samples = 320;
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i <= samples; i++) {
+    const tt = (i / samples) * guardT;
+    const val = fn(tt);
+    const px = x + (w * i) / samples;
+    const py = zeroY - (val / guardYMax) * (h / 2) * 0.88;
+    if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+  ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0;
+
+  const tx = x + (Math.min(tNow, guardT) / guardT) * w;
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(tx, y + 4); ctx.lineTo(tx, y + h - 4); ctx.stroke(); ctx.setLineDash([]);
+
+  const curY = zeroY - (fn(tNow) / guardYMax) * (h / 2) * 0.88;
+  ctx.beginPath(); ctx.arc(tx, curY, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff'; ctx.shadowColor = color; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = color; ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
+  ctx.fillText(label, x + 8, y + 15);
+  ctx.restore();
+}
+
+function drawDomChart(t) {
+  const w = chartCanvas.width, h = chartCanvas.height;
+  chartCtx.clearRect(0, 0, w, h);
+  chartCtx.fillStyle = '#cfe3f5'; chartCtx.font = 'bold 16px Consolas, monospace'; chartCtx.textAlign = 'left';
+  chartCtx.fillText('SIMPLE HARMONIC MOTION', 22, 28);
+  chartCtx.font = '11px Consolas, monospace'; chartCtx.fillStyle = '#5f7a92';
+  chartCtx.fillText('x(t) · v(t) · a(t)  实时波形', 22, 46);
+
+  const T = getT(), w0 = getOmega();
+  const padX = 22, innerW = w - padX * 2, boxH = 96, gap = 18, startY = 62;
+  renderCurve(chartCtx, padX, startY, innerW, boxH, t, T, PHYS.A || 1, fnX, '#ff4d5e', 'x(t)  [m]', { bg: 'rgba(255,77,94,0.04)' });
+  renderCurve(chartCtx, padX, startY + boxH + gap, innerW, boxH, t, T, (PHYS.A * w0) || 1, fnV, '#4d8dff', 'v(t)  [m/s]', { bg: 'rgba(77,141,255,0.04)' });
+  renderCurve(chartCtx, padX, startY + (boxH + gap) * 2, innerW, boxH, t, T, (PHYS.A * w0 * w0) || 1, fnA, '#ff9f43', 'a(t)  [m/s²]', { bg: 'rgba(255,159,67,0.04)' });
+
+  chartCtx.fillStyle = '#5f7a92'; chartCtx.font = '10px Consolas, monospace'; chartCtx.textAlign = 'center';
+  for (let i = 0; i <= 4; i++) {
+    chartCtx.fillText(((T * i) / 4).toFixed(2) + 's', padX + (innerW * i) / 4, h - 12);
+  }
+}
+
+/* ============================== 录制器（修复版） ============================== */
+class WebMRecorder {
+  constructor() {
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 1920;
+    this.canvas.height = 1080;
+    this.ctx = this.canvas.getContext('2d');
+    this.mediaRecorder = null;
+    this.chunks = [];
+    this.stream = null;
+    this.isRecording = false;
+  }
+
+  pickMime() {
+    const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    for (const c of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return 'video/webm';
+  }
+
+  start() {
+    if (this.isRecording) return;
+    if (!window.MediaRecorder) { alert('当前浏览器不支持 MediaRecorder，无法录制视频'); return; }
+    this.isRecording = true;
+    this.chunks = [];
+    this.stream = this.canvas.captureStream(60);
+    const mime = this.pickMime();
+    try {
+      this.mediaRecorder = new MediaRecorder(this.stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
+    } catch (e) {
+      try { this.mediaRecorder = new MediaRecorder(this.stream); }
+      catch (e2) { alert('MediaRecorder 初始化失败：' + e2.message); this.isRecording = false; return; }
+    }
+    this.mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) this.chunks.push(e.data);
+    };
+    this.mediaRecorder.onstop = () => {
+      // 关键修复：在 onstop 中停止轨道，确保数据完整
+      if (this.stream) { this.stream.getTracks().forEach(tr => tr.stop()); this.stream = null; }
+      const blob = new Blob(this.chunks, { type: 'video/webm' });
+      if (blob.size === 0) { console.warn('录制数据为空'); this.isRecording = false; return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shm_simulation_${Date.now()}.webm`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      this.isRecording = false;
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    };
+    // 关键修复：分片收集，避免 stop 时数据丢失
+    this.mediaRecorder.start(1000);
+  }
+
+  stop() {
+    // 关键修复：只调用 stop，不在此处停止 tracks
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
+    }
+  }
+
+  composeFrame(t, T) {
+    const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    ctx.fillStyle = '#070b12'; ctx.fillRect(0, 0, W, H);
+    const leftW = Math.floor(W * 0.70);
+    try { ctx.drawImage(renderer.domElement, 0, 0, leftW, H); }
+    catch (e) { console.warn('drawImage 失败', e); }
+    ctx.fillStyle = '#1e2c40'; ctx.fillRect(leftW - 2, 0, 4, H);
+
+    const hudX = leftW + 40, hudW = W - hudX - 40;
+    ctx.fillStyle = '#35e0ff'; ctx.font = 'bold 34px Consolas, monospace'; ctx.textAlign = 'left';
+    ctx.fillText('SHM', hudX, 70);
+    ctx.fillStyle = '#cfe3f5'; ctx.font = 'bold 22px Consolas, monospace';
+    ctx.fillText('简谐振动研究', hudX, 104);
+    ctx.fillStyle = '#5f7a92'; ctx.font = '16px Consolas, monospace';
+    ctx.fillText('气垫导轨弹簧振子', hudX, 132);
+
+    const lines = [
+      ['位移 x', fnX(t).toFixed(3) + ' m', '#ff4d5e'],
+      ['速度 v', fnV(t).toFixed(3) + ' m/s', '#4d8dff'],
+      ['加速度 a', fnA(t).toFixed(3) + ' m/s²', '#ff9f43'],
+      ['弹性力 F', fnF(t).toFixed(2) + ' N', '#ff9f43'],
+      ['角频率 ω', getOmega().toFixed(3) + ' rad/s', '#cfe3f5'],
+      ['周期 T', T.toFixed(3) + ' s', '#35e0ff'],
+      ['相位', ((getOmega() * t / (2 * Math.PI)) % 1).toFixed(3), '#cfe3f5'],
+      ['有效质量 M', getM().toFixed(3) + ' kg', '#cfe3f5']
+    ];
+    let ly = 190; ctx.font = '18px Consolas, monospace';
+    for (const [k, v, c] of lines) {
+      ctx.fillStyle = '#6f8aa6'; ctx.textAlign = 'left'; ctx.fillText(k, hudX, ly);
+      ctx.fillStyle = c; ctx.textAlign = 'right'; ctx.fillText(v, hudX + hudW, ly);
+      ly += 34;
+    }
+
+    const chartY = 500, chartH = 150, chartW = hudW;
+    renderCurve(ctx, hudX, chartY, chartW, chartH, t, T, PHYS.A || 1, fnX, '#ff4d5e', 'x(t)', { bg: 'rgba(255,77,94,0.04)' });
+    renderCurve(ctx, hudX, chartY + chartH + 24, chartW, chartH, t, T, (PHYS.A * getOmega()) || 1, fnV, '#4d8dff', 'v(t)', { bg: 'rgba(77,141,255,0.04)' });
+    renderCurve(ctx, hudX, chartY + (chartH + 24) * 2, chartW, chartH, t, T, (PHYS.A * getOmega() * getOmega()) || 1, fnA, '#ff9f43', 'a(t)', { bg: 'rgba(255,159,67,0.04)' });
+
+    ctx.fillStyle = '#5f7a92'; ctx.font = '15px Consolas, monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`t = ${t.toFixed(3)} s   /   T = ${T.toFixed(3)} s`, hudX, H - 30);
+    ctx.textAlign = 'right';
+    ctx.fillText('大学物理实验 · 简谐振动', W - 40, H - 30);
+    ctx.textAlign = 'left';
+  }
+
+  exportPNG(t, T) {
+    this.composeFrame(t, T);
+    try {
+      const dataURL = this.canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataURL; a.download = `shm_frame_${Date.now()}.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch (e) { console.warn('PNG 导出失败', e); }
+  }
+}
+
+const recorder = new WebMRecorder();
+
+/* ============================== 尺寸 ============================== */
+function onResize() {
+  let w = viewEl ? viewEl.clientWidth : 0;
+  let h = viewEl ? viewEl.clientHeight : 0;
+  if (!w) w = Math.max(320, window.innerWidth - 340);
+  if (!h) h = Math.max(240, window.innerHeight);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+/* ============================== UI ============================== */
+function bindUI() {
+  const btnPlay = document.getElementById('btnPlay');
+  btnPlay.addEventListener('click', () => {
+    state.playing = !state.playing;
+    btnPlay.textContent = state.playing ? '⏸ 暂停' : '▶ 播放';
+  });
+
+  const timeSlider = document.getElementById('timeSlider');
+  timeSlider.addEventListener('input', (e) => {
+    state.draggingTime = true;
+    state.t = parseFloat(e.target.value) * getT();
+  });
+  timeSlider.addEventListener('change', () => { state.draggingTime = false; });
+
+  document.querySelectorAll('[data-phase]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.recording) return;
+      state.t = parseFloat(btn.dataset.phase) * getT();
+      state.playing = false;
+      btnPlay.textContent = '▶ 播放';
+      updateTimeUI(state.t, getT());
+      drawDomChart(state.t);
+      updateSidebarValues(state.t);
+      updateScene3D(state.t);
+    });
+  });
+
+  const sA = document.getElementById('s-A');
+  const sM = document.getElementById('s-m');
+  const sK = document.getElementById('s-k');
+  const sAVal = document.getElementById('s-A-val');
+  const sMVal = document.getElementById('s-m-val');
+  const sKVal = document.getElementById('s-k-val');
+
+  function applyParams() {
+    PHYS.A = parseFloat(sA.value);
+    PHYS.m = parseFloat(sM.value);
+    PHYS.k = parseFloat(sK.value);
+    sAVal.textContent = PHYS.A.toFixed(2) + ' m';
+    sMVal.textContent = PHYS.m.toFixed(2) + ' kg';
+    sKVal.textContent = PHYS.k.toFixed(2) + ' N/m';
+    state.t = 0; state.T = getT();
+    updateTimeUI(0, state.T);
+    drawDomChart(0);
+    updateSidebarValues(0);
+    updateScene3D(0);
+    timeSlider.value = 0;
+  }
+  sA.addEventListener('input', applyParams);
+  sM.addEventListener('input', applyParams);
+  sK.addEventListener('input', applyParams);
+
+  document.getElementById('btnRec').addEventListener('click', () => {
+    if (state.recording) return;
+    startRecording();
+  });
+  document.getElementById('btnPng').addEventListener('click', () => {
+    recorder.exportPNG(state.t, getT());
+  });
+  window.addEventListener('resize', onResize);
+}
+
+/* ============================== 录制控制（修复版） ============================== */
+function startRecording() {
+  state.recording = true;
+  state.playing = true;
+  state.t = 0;
+  state.T = getT();
+
+  setUILocked(true);
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  document.getElementById('recDot').classList.add('on');
+  document.getElementById('btnRec').textContent = '● 录制中...';
+  document.getElementById('btnRec').classList.add('active');
+  controls.enabled = false;
+
+  updateTimeUI(0, state.T);
+  drawDomChart(0);
+  updateSidebarValues(0);
+  updateScene3D(0);
+  renderer.render(scene, camera);
+  // 关键修复：先合成第一帧，确保录制开头有效
+  recorder.composeFrame(0, state.T);
+
+  recorder.start();
+  state.recordStart = performance.now();
+}
+
+function stopRecording() {
+  recorder.stop();
+  state.recording = false;
+  state.t = 0;
+  state.playing = true;
+  state.T = getT();
+  state.lastTime = performance.now();
+  updateTimeUI(0, state.T);
+  drawDomChart(0);
+  updateSidebarValues(0);
+  updateScene3D(0);
+
+  setUILocked(false);
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  document.getElementById('recDot').classList.remove('on');
+  document.getElementById('btnRec').textContent = '● 录制 WebM';
+  document.getElementById('btnRec').classList.remove('active');
+  controls.enabled = true;
+
+  const ts = document.getElementById('timeSlider');
+  if (ts) ts.value = 0;
+}
+
+function setUILocked(locked) {
+  ['s-A', 's-m', 's-k', 'timeSlider', 'btnPng'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = locked;
+  });
+  document.querySelectorAll('[data-phase]').forEach(btn => btn.disabled = locked);
+}
+
+function updateTimeUI(t, T) {
+  const slider = document.getElementById('timeSlider');
+  if (slider && !state.draggingTime) slider.value = T > 0 ? Math.min(1, t / T) : 0;
+  const tl = document.getElementById('timeLabel');
+  if (tl) tl.textContent = t.toFixed(3) + ' / ' + (T || 0).toFixed(3) + ' s';
+}
+
+/* ============================== 主循环 ============================== */
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  let dt = (now - state.lastTime) / 1000;
+  state.lastTime = now;
+  if (dt > 0.1) dt = 0.1;
+
+  state.T = getT();
+
+  let reachedEnd = false;
+  if (state.recording) {
+    state.t = (now - state.recordStart) / 1000;
+    if (state.t >= state.T) { state.t = state.T; reachedEnd = true; }
+  } else {
+    if (state.playing && !state.draggingTime) {
+      state.t += dt;
+      if (state.t >= state.T) state.t -= state.T;
+    }
+  }
+
+  updateScene3D(state.t);
+  drawDomChart(state.t);
+  updateSidebarValues(state.t);
+  if (!state.recording) updateTimeUI(state.t, state.T);
+
+  controls.update();
+  // 关键修复：先渲染，再合成，确保读取的是当前帧
+  renderer.render(scene, camera);
+
+  if (state.recording) {
+    recorder.composeFrame(state.t, state.T);
+    if (reachedEnd) stopRecording();
+  }
+}
+
+/* ============================== 启动 ============================== */
+function init() {
+  state.lastTime = performance.now();
+  initScene();
+  bindUI();
+  onResize();
+
+  state.t = 0;
+  state.T = getT();
+  updateScene3D(0);
+  renderer.render(scene, camera);
+  drawDomChart(0);
+  updateSidebarValues(0);
+  updateTimeUI(0, state.T);
+
+  animate();
+}
+
+init();
+
+window.addEventListener('beforeunload', () => {
+  if (recorder.isRecording) recorder.stop();
+});
+</script>
+
+<!-- end of file -->
+</html>
