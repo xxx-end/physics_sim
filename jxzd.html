@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手榴弹质心的抛物线轨迹 · 物理仿真</title>
+    <style>
+        /* ===== 全局样式 ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #050a14;
+            font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+            overflow: hidden; color: #dbe6f5; height: 100vh; display: flex;
+        }
+        
+        /* ===== 左侧固定侧边栏 (340px) ===== */
+        #sidebar {
+            width: 340px; min-width: 340px; height: 100vh;
+            background: linear-gradient(180deg, #0a1222 0%, #0d1628 100%);
+            border-right: 1px solid rgba(70, 130, 220, 0.25);
+            display: flex; flex-direction: column; padding: 16px 14px;
+            overflow-y: auto; box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6); z-index: 10;
+        }
+        #sidebar::-webkit-scrollbar { width: 4px; }
+        #sidebar::-webkit-scrollbar-thumb { background: rgba(80, 140, 220, 0.4); border-radius: 2px; }
+        
+        .panel-title {
+            font-size: 13px; font-weight: 600; color: #6a8aaa;
+            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px;
+            border-bottom: 1px solid rgba(70, 130, 220, 0.2); padding-bottom: 6px;
+        }
+        
+        /* 参数展示板块 */
+        .param-display {
+            background: rgba(15, 25, 45, 0.7); border: 1px solid rgba(60, 120, 200, 0.2);
+            border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+        }
+        .param-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 5px 0; font-size: 13px; border-bottom: 1px solid rgba(60, 120, 200, 0.08);
+        }
+        .param-row:last-child { border-bottom: none; }
+        .param-label { color: #8fa8c8; }
+        .param-value { font-family: "Consolas", monospace; font-weight: 600; color: #4fa8ff; font-size: 14px; }
+        .param-value.highlight { color: #ffaa4a; }
+
+        /* 参数调节板块 */
+        .param-control {
+            background: rgba(15, 25, 45, 0.7); border: 1px solid rgba(60, 120, 200, 0.2);
+            border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+        }
+        .slider-group { margin-bottom: 10px; }
+        .slider-group:last-child { margin-bottom: 0; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 12px; color: #8fa8c8; margin-bottom: 4px; }
+        .slider-header .val { color: #4fa8ff; font-family: monospace; }
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 4px;
+            background: linear-gradient(90deg, #1a3a6a, #2a5a9a); border-radius: 2px; outline: none; cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+            background: #4fa8ff; border: 2px solid #0a1222; box-shadow: 0 0 8px rgba(79, 168, 255, 0.6);
+        }
+        
+        /* 实验原理卡片 */
+        .principle-card {
+            background: rgba(15, 25, 45, 0.7); border: 1px solid rgba(60, 120, 200, 0.2);
+            border-radius: 10px; padding: 12px 14px; font-size: 12px; line-height: 1.8;
+            color: #b0c8e0; margin-bottom: 14px; flex-shrink: 0;
+        }
+        .principle-card .eq {
+            font-family: "Consolas", monospace; color: #4fa8ff; font-size: 13px; text-align: center;
+            margin: 6px 0; background: rgba(20, 40, 70, 0.5); padding: 6px 8px; border-radius: 6px;
+        }
+        
+        /* ===== 右侧主区域 ===== */
+        #main-area { flex: 1; position: relative; background: #060a12; overflow: hidden; }
+        #view-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        
+        /* 右上角波形图 Canvas */
+        #chart-canvas {
+            position: absolute; top: 16px; right: 16px; width: 300px; height: 260px;
+            border-radius: 12px; background: rgba(10, 18, 32, 0.85);
+            border: 1px solid rgba(70, 130, 220, 0.3); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            pointer-events: none; z-index: 5; backdrop-filter: blur(4px);
+        }
+        
+        /* 右上角 REC 呼吸灯 */
+        #rec-indicator {
+            position: absolute; top: 16px; right: 332px; z-index: 6;
+            display: none; align-items: center; gap: 6px; font-size: 12px;
+            color: #ff4a4a; background: rgba(30, 10, 10, 0.8); padding: 4px 12px;
+            border-radius: 20px; border: 1px solid rgba(255, 70, 70, 0.5);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        #rec-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; box-shadow: 0 0 8px #ff4a4a; }
+        
+        /* 底部悬浮控制栏 */
+        #control-bar {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: calc(100% - 80px); max-width: 800px; background: rgba(12, 22, 40, 0.92);
+            border: 1px solid rgba(70, 130, 220, 0.3); border-radius: 14px; padding: 10px 18px;
+            display: flex; align-items: center; gap: 14px; backdrop-filter: blur(8px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7); z-index: 10; flex-wrap: wrap;
+        }
+        .ctrl-btn {
+            background: linear-gradient(180deg, rgba(60, 100, 170, 0.36), rgba(30, 55, 100, 0.36));
+            border: 1px solid rgba(100, 150, 230, 0.32); border-radius: 8px; color: #cfe2ff;
+            padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all 0.15s;
+            white-space: nowrap; font-family: inherit;
+        }
+        .ctrl-btn:hover:not(:disabled) { background: linear-gradient(180deg, rgba(80, 135, 220, 0.55), rgba(40, 75, 140, 0.55)); }
+        .ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .ctrl-btn.primary { background: linear-gradient(180deg, rgba(40, 140, 200, 0.5), rgba(20, 80, 140, 0.5)); border-color: rgba(60, 180, 255, 0.5); color: #aad4ff; }
+        .ctrl-btn.rec { border-color: rgba(255, 70, 70, 0.5); color: #ff6a6a; }
+        
+        .time-slider-group { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 150px; }
+        .time-label { font-family: monospace; font-size: 11px; color: #8fa8c8; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 左侧固定侧边栏 ===== -->
+    <aside id="sidebar">
+        <div class="panel-title">⚡ 实时参数</div>
+        <div class="param-display">
+            <div class="param-row"><span class="param-label">飞行时间 t</span><span class="param-value" id="val-t">0.00 s</span></div>
+            <div class="param-row"><span class="param-label">质心水平坐标 x</span><span class="param-value" id="val-x">0.00 m</span></div>
+            <div class="param-row"><span class="param-label">质心垂直坐标 y</span><span class="param-value" id="val-y">0.00 m</span></div>
+            <div class="param-row"><span class="param-label">质心速度 v</span><span class="param-value highlight" id="val-v">0.00 m/s</span></div>
+            <div class="param-row"><span class="param-label">单次飞行周期 T</span><span class="param-value" id="val-T">0.00 s</span></div>
+        </div>
+
+        <div class="panel-title">🎛️ 参数调节</div>
+        <div class="param-control">
+            <div class="slider-group">
+                <div class="slider-header"><span>重力加速度 g</span><span class="val" id="val-g">9.8 m/s²</span></div>
+                <input type="range" id="slider-g" min="1" max="20" step="0.1" value="9.8">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>水平初速度 v₀x</span><span class="val" id="val-v0x">4.0 m/s</span></div>
+                <input type="range" id="slider-v0x" min="1" max="15" step="0.1" value="4.0">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>竖直初速度 v₀y</span><span class="val" id="val-v0y">8.0 m/s</span></div>
+                <input type="range" id="slider-v0y" min="1" max="20" step="0.1" value="8.0">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>翻转角速度 ω</span><span class="val" id="val-omega">6.28 rad/s</span></div>
+                <input type="range" id="slider-omega" min="0" max="20" step="0.1" value="6.28">
+            </div>
+        </div>
+
+        <div class="panel-title">📖 实验原理</div>
+        <div class="principle-card">
+            <div style="font-weight:600;color:#4fa8ff;margin-bottom:6px;">质心运动定理</div>
+            <div class="eq">∑F<sub>外</sub> = m a<sub>c</sub></div>
+            <div style="margin-top:8px;font-size:11px;color:#7a96b8;">
+                手榴弹被抛出后，无论各点运动多么复杂，其<b>质心</b>在空中的轨迹始终是一条抛物线（仅受重力影响）。<br><br>
+                <span style="color:#ff5a5a;">红色光点</span>代表质心；<span style="color:#4fa8ff;">蓝色轨迹</span>为弹头/弹尾的复杂旋进轨迹。
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== 右侧主区域 ===== -->
+    <main id="main-area">
+        <div id="view-container"></div>
+        <canvas id="chart-canvas" width="600" height="520"></canvas>
+        <div id="rec-indicator"><span class="dot"></span><span>REC</span></div>
+
+        <div id="control-bar">
+            <button class="ctrl-btn primary" id="btn-play">⏸ 暂停</button>
+            <div class="time-slider-group">
+                <span class="time-label" id="time-label">0.00 / 2.50 s</span>
+                <input type="range" id="time-slider" min="0" max="1000" value="0">
+            </div>
+            <button class="ctrl-btn rec" id="btn-record">🎥 录制</button>
+            <button class="ctrl-btn" id="btn-png">🖼️ PNG</button>
+        </div>
+    </main>
+
+    <!-- 引入 Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        /* ============================================================
+         * 全局状态与物理常量
+         * ============================================================ */
+        const state = {
+            t: 0, playing: true, recording: false, recordStart: 0,
+            g: 9.8, v0x: 4.0, v0y: 8.0, omega: Math.PI * 2, y0: 0.5,
+            T: 0 // 飞行周期
+        };
+
+        // DOM 元素
+        const viewEl = document.getElementById('view-container');
+        const chartCanvas = document.getElementById('chart-canvas');
+        const chartCtx = chartCanvas.getContext('2d');
+        const recIndicator = document.getElementById('rec-indicator');
+        const btnPlay = document.getElementById('btn-play');
+        const btnRecord = document.getElementById('btn-record');
+        const btnPng = document.getElementById('btn-png');
+        const timeSlider = document.getElementById('time-slider');
+        const timeLabel = document.getElementById('time-label');
+
+        /* ============================================================
+         * 物理计算与状态更新
+         * ============================================================ */
+        function updatePhysicalState() {
+            // 计算新的飞行周期 (落地时间)
+            state.T = (state.v0y + Math.sqrt(state.v0y * state.v0y + 2 * state.g * state.y0)) / state.g;
+            document.getElementById('val-T').textContent = state.T.toFixed(2) + ' s';
+            document.getElementById('time-label').textContent = `0.00 / ${state.T.toFixed(2)} s`;
+            if (state.t > state.T) {
+                state.t = 0;
+                headHistory = []; tailHistory = [];
+            }
+        }
+
+        function calcX(t) { return state.v0x * t; }
+        function calcY(t) { return state.y0 + state.v0y * t - 0.5 * state.g * t * t; }
+        function calcVx(t) { return state.v0x; }
+        function calcVy(t) { return state.v0y - state.g * t; }
+
+        function updateSidebarValues(t) {
+            const x = calcX(t), y = Math.max(0, calcY(t));
+            const vx = calcVx(t), vy = calcVy(t);
+            const v = Math.sqrt(vx*vx + vy*vy);
+            document.getElementById('val-t').textContent = t.toFixed(2) + ' s';
+            document.getElementById('val-x').textContent = x.toFixed(2) + ' m';
+            document.getElementById('val-y').textContent = y.toFixed(2) + ' m';
+            document.getElementById('val-v').textContent = v.toFixed(2) + ' m/s';
+        }
+
+        /* ============================================================
+         * 2D 波形绘制
+         * ============================================================ */
+        function renderCurve(ctx, x, y, w, h, tNow, T, yMax, fn, color, label) {
+            if (!(yMax > 0 && isFinite(yMax))) yMax = 1; // 守卫
+            ctx.save(); ctx.translate(x, y);
+            
+            ctx.fillStyle = 'rgba(14, 22, 38, 0.85)';
+            ctx.beginPath(); ctx.roundRect(0, 0, w, h, 8); ctx.fill();
+            ctx.strokeStyle = 'rgba(90, 140, 220, 0.25)'; ctx.lineWidth = 1; ctx.stroke();
+
+            const padL = 30, padR = 10, padT = 18, padB = 14;
+            const pw = w - padL - padR, ph = h - padT - padB;
+            const X = tt => padL + (tt / T) * pw;
+            const Y = v => padT + ph - (v / yMax) * ph; // 抛物线0点在下
+
+            ctx.strokeStyle = 'rgba(120, 160, 220, 0.1)'; ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                ctx.beginPath(); ctx.moveTo(padL, padT + (ph / 4) * i); ctx.lineTo(padL + pw, padT + (ph / 4) * i); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(padL + (pw / 4) * i, padT); ctx.lineTo(padL + (pw / 4) * i, padT + ph); ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(150, 190, 240, 0.3)'; ctx.beginPath();
+            ctx.moveTo(padL, Y(0)); ctx.lineTo(padL + pw, Y(0)); ctx.stroke();
+
+            const samples = 320;
+            ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.18; ctx.lineWidth = 5; ctx.beginPath();
+            for (let i = 0; i <= samples; i++) {
+                const tt = (i / samples) * T;
+                i ? ctx.lineTo(X(tt), Y(fn(tt))) : ctx.moveTo(X(tt), Y(fn(tt)));
+            }
+            ctx.stroke();
+
+            ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.beginPath();
+            for (let i = 0; i <= samples; i++) {
+                const tt = (i / samples) * T;
+                i ? ctx.lineTo(X(tt), Y(fn(tt))) : ctx.moveTo(X(tt), Y(fn(tt)));
+            }
+            ctx.stroke();
+
+            const tClamped = Math.min(tNow, T);
+            const xn = X(tClamped), yn = Y(fn(tClamped));
+            ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(xn, padT); ctx.lineTo(xn, padT + ph); ctx.stroke(); ctx.setLineDash([]);
+
+            ctx.beginPath(); ctx.arc(xn, yn, 6, 0, Math.PI * 2); ctx.fillStyle = color; ctx.globalAlpha = 0.25; ctx.fill();
+            ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(xn, yn, 3.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+
+            ctx.fillStyle = '#8fa8c8'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+            ctx.fillText(label, padL, padT - 6);
+            ctx.restore();
+        }
+
+        function drawDomChart(t) {
+            const W = chartCanvas.width, H = chartCanvas.height;
+            chartCtx.clearRect(0, 0, W, H);
+            chartCtx.fillStyle = 'rgba(10, 18, 32, 0.7)';
+            chartCtx.beginPath(); chartCtx.roundRect(0, 0, W, H, 12); chartCtx.fill();
+            
+            const maxX = calcX(state.T) * 1.1 || 1;
+            const maxY = Math.max(...Array.from({length: 50}, (_, i) => calcY(i/50 * state.T))) * 1.1 || 1;
+
+            renderCurve(chartCtx, 12, 12, W - 24, (H - 36) / 2, t, state.T, maxX, calcX, '#4fa8ff', '水平位移 x(t)');
+            renderCurve(chartCtx, 12, (H - 36) / 2 + 24, W - 24, (H - 36) / 2, t, state.T, maxY, calcY, '#2fe08a', '垂直位移 y(t)');
+        }
+
+        /* ============================================================
+         * WebMRecorder 类（隐藏画布双画布合成）
+         * ============================================================ */
+        class WebMRecorder {
+            constructor(width, height, drawFrame, onStopCb) {
+                this.width = width; this.height = height;
+                this.canvas = document.createElement('canvas');
+                this.canvas.width = width; this.canvas.height = height;
+                this.ctx = this.canvas.getContext('2d');
+                this.drawFrame = drawFrame;
+                this.onStopCb = onStopCb;
+                this.recorder = null; this.chunks = []; this.recording = false;
+            }
+            get isRecording() { return this.recording; }
+            start() {
+                const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+                if (!mime) return alert('浏览器不支持 WebM 录制');
+                this.chunks = [];
+                const stream = this.canvas.captureStream(60);
+                this.recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+                this.recorder.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data); };
+                this.recorder.onstop = () => {
+                    const blob = new Blob(this.chunks, { type: mime });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `手榴弹质心轨迹_${Date.now()}.webm`;
+                    a.click();
+                    this.recording = false;
+                    if (this.onStopCb) this.onStopCb();
+                };
+                this.recorder.start();
+                this.recording = true;
+            }
+            captureFrame(t) { if (this.recording) this.drawFrame(this.ctx, this.width, this.height, t); }
+            stop() { if (this.recording && this.recorder.state !== 'inactive') this.recorder.stop(); }
+            exportPNG() {
+                const a = document.createElement('a');
+                a.href = this.canvas.toDataURL('image/png');
+                a.download = `截图_${Date.now()}.png`;
+                a.click();
+            }
+        }
+
+        /* ============================================================
+         * Three.js 3D 场景初始化
+         * ============================================================ */
+        let scene, camera, renderer, controls;
+        let grenadeGroup, cmTrailLine, headTrailPts, tailTrailPts;
+        let headHistory = [], tailHistory = [], maxHistory = 150;
+        const SCALE = 0.4; 
+
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050a14);
+
+            const w = viewEl.clientWidth || window.innerWidth - 340;
+            const h = viewEl.clientHeight || window.innerHeight;
+            camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+            camera.position.set(15 * SCALE, 10 * SCALE, 20 * SCALE);
+            camera.lookAt(8 * SCALE, 5 * SCALE, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            viewEl.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(8 * SCALE, 5 * SCALE, 0);
+
+            // 光照
+            scene.add(new THREE.AmbientLight(0x404060));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(10, 20, 14); scene.add(dirLight);
+
+            // 地面网格
+            const gridHelper = new THREE.GridHelper(50 * SCALE, 50, 0x3366aa, 0x1a3355);
+            gridHelper.rotation.x = Math.PI / 2; 
+            gridHelper.position.y = 0;
+            scene.add(gridHelper);
+
+            // 坐标轴
+            scene.add(new THREE.AxesHelper(10 * SCALE));
+
+            // ===== 手榴弹刚体 =====
+            grenadeGroup = new THREE.Group();
+            
+            const bodyGeom = new THREE.SphereGeometry(0.4, 16, 16);
+            bodyGeom.scale(1, 1.5, 1); 
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.6 });
+            grenadeGroup.add(new THREE.Mesh(bodyGeom, bodyMat));
+
+            const headGeom = new THREE.SphereGeometry(0.2, 16, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xaa3333, emissive: 0x330000 });
+            const headMarker = new THREE.Mesh(headGeom, headMat);
+            headMarker.position.y = 0.6; grenadeGroup.add(headMarker);
+
+            const tailGeom = new THREE.SphereGeometry(0.2, 16, 16);
+            const tailMat = new THREE.MeshStandardMaterial({ color: 0x3333aa, emissive: 0x000033 });
+            const tailMarker = new THREE.Mesh(tailGeom, tailMat);
+            tailMarker.position.y = -0.6; grenadeGroup.add(tailMarker);
+
+            const centerGeom = new THREE.SphereGeometry(0.1, 16, 16);
+            const centerMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            grenadeGroup.add(new THREE.Mesh(centerGeom, centerMat));
+
+            scene.add(grenadeGroup);
+
+            // ===== 轨迹绘制 =====
+            cmTrailLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xff3333, linewidth: 2 }));
+            scene.add(cmTrailLine);
+
+            const headGeomTrail = new THREE.BufferGeometry();
+            headGeomTrail.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxHistory * 3), 3));
+            headTrailPts = new THREE.Points(headGeomTrail, new THREE.PointsMaterial({ color: 0x4fa8ff, size: 0.1 }));
+            scene.add(headTrailPts);
+
+            const tailGeomTrail = new THREE.BufferGeometry();
+            tailGeomTrail.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxHistory * 3), 3));
+            tailTrailPts = new THREE.Points(tailGeomTrail, new THREE.PointsMaterial({ color: 0xaa44ff, size: 0.1 }));
+            scene.add(tailTrailPts);
+        }
+
+        // 更新 3D 场景
+        function updateScene3D(t) {
+            const x = calcX(t) * SCALE, y = Math.max(0, calcY(t)) * SCALE;
+            grenadeGroup.position.set(x, y, 0);
+
+            // 刚体姿态翻转
+            const angle = state.omega * t;
+            grenadeGroup.rotation.z = angle;
+
+            // 抛物线轨迹
+            const curvePoints = [];
+            for (let i = 0; i <= 100; i++) {
+                const tt = (i / 100) * state.T;
+                curvePoints.push(new THREE.Vector3(calcX(tt) * SCALE, Math.max(0, calcY(tt)) * SCALE, 0));
+            }
+            cmTrailLine.geometry.dispose();
+            cmTrailLine.geometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
+
+            // 弹头弹尾历史轨迹
+            if (t < state.T && state.playing && !state.recording) {
+                const headLocal = new THREE.Vector3(0, 0.6, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), angle).add(grenadeGroup.position);
+                const tailLocal = new THREE.Vector3(0, -0.6, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), angle).add(grenadeGroup.position);
+                headHistory.push(headLocal); tailHistory.push(tailLocal);
+                if (headHistory.length > maxHistory) headHistory.shift();
+                if (tailHistory.length > maxHistory) tailHistory.shift();
+            }
+
+            const hPos = headTrailPts.geometry.attributes.position;
+            const tPos = tailTrailPts.geometry.attributes.position;
+            for (let i = 0; i < maxHistory; i++) {
+                if (i < headHistory.length) {
+                    hPos.array[i*3] = headHistory[i].x; hPos.array[i*3+1] = headHistory[i].y; hPos.array[i*3+2] = headHistory[i].z;
+                    tPos.array[i*3] = tailHistory[i].x; tPos.array[i*3+1] = tailHistory[i].y; tPos.array[i*3+2] = tailHistory[i].z;
+                } else {
+                    hPos.array[i*3] = 0; hPos.array[i*3+1] = 0; hPos.array[i*3+2] = 0;
+                    tPos.array[i*3] = 0; tPos.array[i*3+1] = 0; tPos.array[i*3+2] = 0;
+                }
+            }
+            hPos.needsUpdate = true; tPos.needsUpdate = true;
+        }
+
+        /* ============================================================
+         * 主循环（严格符合要求，必须顶层）
+         * ============================================================ */
+        let lastTime = performance.now();
+        let recorder = null;
+
+        function animate() {
+            requestAnimationFrame(animate); // 首行约束
+
+            const now = performance.now();
+            let dt = (now - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; // 防跳变约束
+            lastTime = now;
+
+            if (state.recording) {
+                // 录制模式
+                state.t = Math.min((now - state.recordStart) / 1000, state.T);
+                if (state.t >= state.T) {
+                    state.t = state.T;
+                    if (recorder) recorder.stop();
+                }
+            } else if (state.playing) {
+                // 普通播放
+                state.t += dt;
+                if (state.t >= state.T) {
+                    state.t -= state.T; 
+                    headHistory = []; tailHistory = [];
+                }
+            }
+
+            // 更新各种状态
+            updateScene3D(state.t);
+            updateSidebarValues(state.t);
+            drawDomChart(state.t);
+
+            if (!state.recording) {
+                const p = state.t / state.T;
+                timeSlider.value = p * 1000;
+                timeLabel.textContent = `${state.t.toFixed(2)} / ${state.T.toFixed(2)} s`;
+            }
+
+            // 录制采集
+            if (state.recording && recorder) {
+                recorder.captureFrame(state.t);
+            }
+
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        /* ============================================================
+         * 初始化与 UI 事件绑定
+         * ============================================================ */
+        function init() {
+            updatePhysicalState();
+            initScene();
+
+            // 初始化录制器，包含左右画面合成逻辑
+            recorder = new WebMRecorder(1920, 1080, (ctx, w, h, t) => {
+                ctx.fillStyle = '#060a12'; ctx.fillRect(0, 0, w, h);
+                
+                // 左侧 70% 3D 画面
+                ctx.drawImage(renderer.domElement, 0, 0, w * 0.7, h);
+                
+                // 右侧 30% HUD
+                const panelW = w * 0.3, panelX = w * 0.7;
+                ctx.fillStyle = '#0b1321'; ctx.fillRect(panelX, 0, panelW, h);
+                ctx.fillStyle = 'rgba(90, 140, 220, 0.25)'; ctx.fillRect(panelX, 0, 2, h);
+                
+                ctx.fillStyle = '#dbe6f5'; ctx.font = 'bold 22px monospace';
+                ctx.fillText('质心运动定理', panelX + 40, 80);
+                ctx.font = '16px monospace';
+                
+                const x = calcX(t), y = Math.max(0, calcY(t));
+                const vx = calcVx(t), vy = calcVy(t);
+                const v = Math.sqrt(vx*vx + vy*vy);
+                
+                const lines = [
+                    { k: 't', v: t.toFixed(2) + ' s' },
+                    { k: 'x(t)', v: x.toFixed(2) + ' m' },
+                    { k: 'y(t)', v: y.toFixed(2) + ' m' },
+                    { k: 'v', v: v.toFixed(2) + ' m/s' },
+                ];
+                lines.forEach((ln, i) => {
+                    const yPos = 130 + i * 34;
+                    ctx.fillStyle = '#8fa8c8'; ctx.fillText(ln.k, panelX + 40, yPos);
+                    ctx.fillStyle = '#ffaa4a'; ctx.textAlign = 'right';
+                    ctx.fillText(ln.v, w - 40, yPos);
+                    ctx.textAlign = 'left';
+                });
+
+                const chartW = panelW - 60, chartH = 220;
+                const maxX = calcX(state.T) * 1.1 || 1;
+                const maxY = Math.max(...Array.from({length: 50}, (_, i) => calcY(i/50 * state.T))) * 1.1 || 1;
+                renderCurve(ctx, panelX + 30, 320, chartW, chartH, t, state.T, maxX, calcX, '#4fa8ff', '水平位移');
+                renderCurve(ctx, panelX + 30, 580, chartW, chartH, t, state.T, maxY, calcY, '#2fe08a', '垂直位移');
+
+            }, () => {
+                // 状态复位（录制结束后必须一次性完成）
+                state.recording = false;
+                state.playing = true;
+                state.t = 0;
+                headHistory = []; tailHistory = [];
+                recIndicator.style.display = 'none';
+                btnRecord.disabled = false;
+                btnPlay.disabled = false;
+                document.querySelectorAll('input[type="range"]').forEach(el => el.disabled = false);
+                if (controls) controls.enabled = true;
+                btnPlay.textContent = '⏸ 暂停';
+                updateSidebarValues(0);
+                drawDomChart(0);
+                updateScene3D(0);
+                timeSlider.value = 0;
+            });
+
+            // 首帧渲染后启动主循环（防止冻屏）
+            updateScene3D(0);
+            renderer.render(scene, camera);
+            drawDomChart(0);
+            
+            requestAnimationFrame(animate); // 在 init 末尾启动
+        }
+
+        // UI 绑定
+        btnPlay.addEventListener('click', () => {
+            state.playing = !state.playing;
+            btnPlay.textContent = state.playing ? '⏸ 暂停' : '▶ 播放';
+        });
+
+        timeSlider.addEventListener('input', (e) => {
+            if (state.recording) return;
+            state.t = (e.target.value / 1000) * state.T;
+            state.playing = false;
+            btnPlay.textContent = '▶ 播放';
+            headHistory = []; tailHistory = [];
+        });
+
+        btnRecord.addEventListener('click', () => {
+            if (state.recording) return;
+            state.recording = true;
+            state.playing = true;
+            state.t = 0;
+            state.recordStart = performance.now();
+            headHistory = []; tailHistory = [];
+            recIndicator.style.display = 'flex';
+            btnRecord.disabled = true;
+            btnPlay.disabled = true;
+            document.querySelectorAll('input[type="range"]').forEach(el => el.disabled = true);
+            if (controls) controls.enabled = false;
+            recorder.start();
+        });
+
+        btnPng.addEventListener('click', () => {
+            if (recorder) {
+                recorder.drawFrame(recorder.ctx, 1920, 1080, state.t);
+                recorder.exportPNG();
+            }
+        });
+
+        // 滑块绑定
+        const sliders = {
+            g: { el: document.getElementById('slider-g'), val: document.getElementById('val-g'), prop: 'g', unit: ' m/s²', fmt: v => v.toFixed(1) },
+            v0x: { el: document.getElementById('slider-v0x'), val: document.getElementById('val-v0x'), prop: 'v0x', unit: ' m/s', fmt: v => v.toFixed(1) },
+            v0y: { el: document.getElementById('slider-v0y'), val: document.getElementById('val-v0y'), prop: 'v0y', unit: ' m/s', fmt: v => v.toFixed(1) },
+            omega: { el: document.getElementById('slider-omega'), val: document.getElementById('val-omega'), prop: 'omega', unit: ' rad/s', fmt: v => v.toFixed(2) }
+        };
+
+        Object.values(sliders).forEach(slider => {
+            slider.el.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                state[slider.prop] = v;
+                slider.val.textContent = slider.fmt(v) + slider.unit;
+                
+                updatePhysicalState();
+                state.t = 0;
+                state.playing = true;
+                btnPlay.textContent = '⏸ 暂停';
+                headHistory = []; tailHistory = [];
+                
+                // 动态调整相机
+                if (slider.prop === 'v0x' || slider.prop === 'v0y' || slider.prop === 'g') {
+                    const targetX = calcX(state.T) / 2 * SCALE;
+                    const targetY = calcY(state.T / 2) * SCALE;
+                    controls.target.set(targetX, targetY, 0);
+                    camera.position.set(targetX + 15*SCALE, targetY + 10*SCALE, 20*SCALE);
+                    controls.update();
+                }
+            });
+        });
+
+        // 窗口缩放兜底
+        window.addEventListener('resize', () => {
+            if (!renderer || !camera) return;
+            const w = viewEl.clientWidth || window.innerWidth - 340;
+            const h = viewEl.clientHeight || window.innerHeight;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        });
+
+        // 启动初始化
+        init();
+    </script>
+    <!-- end of file -->
+</body>
+</html>
