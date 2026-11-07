@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验8 漫反射物体的三维全息摄影 · 3D交互仿真</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2d3646;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#f5b32e; --accent2:#4da3ff;
+    --ok:#3fb96f; --warn:#e5534b; --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column;}
+  header{height:52px; flex:none; display:flex; align-items:center; gap:14px; padding:0 16px; background:var(--panel); border-bottom:1px solid var(--line);}
+  header h1{font-size:16px; font-weight:600;}
+  header h1 span{color:var(--accent);}
+  #hint{font-size:12px; color:var(--muted); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hdr-btn{flex:none; background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer;}
+  .hdr-btn:hover{border-color:var(--accent);}
+  main{flex:1; display:flex; min-height:0;}
+  #sceneWrap{flex:1; position:relative; min-width:0;}
+  #scene{width:100%; height:100%; display:block;}
+  aside{width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column;}
+  .tabs{display:flex; border-bottom:1px solid var(--line); flex:none;}
+  .tab{flex:1; text-align:center; padding:10px 0; font-size:13px; color:var(--muted); cursor:pointer; user-select:none;}
+  .tab.active{color:var(--accent); border-bottom:2px solid var(--accent); background:var(--panel2);}
+  .tabBody{flex:1; overflow-y:auto; padding:14px; display:none;}
+  .tabBody.active{display:block;}
+  section{background:var(--panel2); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:12px;}
+  section h4{font-size:13px; color:var(--accent); margin-bottom:10px;}
+  .step{display:flex; gap:10px; padding:8px 6px; border-radius:8px; font-size:12.5px; line-height:1.5; align-items:flex-start;}
+  .step .dot{flex:none; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--line); color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:11px; margin-top:1px;}
+  .step.done{color:var(--muted); text-decoration:line-through;}
+  .step.done .dot{background:var(--ok); border-color:var(--ok); color:#08130c; text-decoration:none;}
+  .step.current{background:rgba(245,179,46,.08); outline:1px solid rgba(245,179,46,.35);}
+  .step.current .dot{border-color:var(--accent); color:var(--accent);}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12.5px;}
+  .row label{flex:none; width:96px; color:var(--muted);}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{flex:none; width:86px; text-align:right; font-family:Consolas,monospace; color:var(--text);}
+  .b{background:var(--panel); border:1px solid var(--line); color:var(--text); padding:7px 14px; border-radius:8px; font-size:12.5px; cursor:pointer;}
+  .b:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+  .b:disabled{opacity:.4; cursor:not-allowed;}
+  .b.primary{border-color:var(--accent); color:var(--accent);}
+  .btnRow{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th,td{border:1px solid var(--line); padding:6px 4px; text-align:center;}
+  th{color:var(--muted); font-weight:500;}
+  select{background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:3px; font-size:12px; width:100%;}
+  .kv{display:flex; justify-content:space-between; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line);}
+  .kv span:last-child{font-family:Consolas,monospace;}
+  .good{color:var(--ok);} .bad{color:var(--warn);}
+  .note{font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:6px;}
+  .formula{font-family:"Times New Roman",serif; font-size:13px; background:#0a0e14; border:1px solid var(--line); border-radius:8px; padding:8px; margin:6px 0; text-align:center;}
+  #floatWin{position:absolute; right:14px; top:14px; width:330px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,.5); z-index:5;}
+  #floatWin .bar{display:flex; align-items:center; padding:7px 10px; font-size:12px; color:var(--muted); background:var(--panel2); border-bottom:1px solid var(--line); gap:8px;}
+  #floatWin .bar b{color:var(--text); font-weight:600; flex:1;}
+  #reconCanvas{width:100%; height:290px; display:block; cursor:ew-resize;}  /* 背景由 drawRecon 的 fillRect 提供，勿设 CSS 背景（会触发合成器错位伪影） */
+  #floatTag{position:absolute; left:8px; top:8px; font-size:11px; color:var(--muted); pointer-events:none;}
+  #toast{position:fixed; left:50%; bottom:36px; transform:translateX(-50%) translateY(20px); background:var(--panel2); border:1px solid var(--accent); color:var(--text); padding:10px 18px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none; transition:.25s; z-index:99; max-width:80%;}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  #toast.warn{border-color:var(--warn);}
+  #infoCard{position:absolute; left:14px; bottom:14px; width:300px; background:rgba(22,27,34,.96); border:1px solid var(--accent); border-radius:var(--radius); padding:12px; font-size:12.5px; line-height:1.6; display:none; z-index:6;}
+  #infoCard h5{color:var(--accent); margin-bottom:6px; font-size:13px;}
+  #expTimer{font-family:Consolas,monospace; font-size:22px; color:var(--warn); text-align:center; padding:4px;}
+  .devstep{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12.5px;}
+  .devstep .tag2{flex:none; width:64px; color:var(--muted);}
+  .devstep .stat{flex:none; width:56px; text-align:right;}
+</style>
+</head>
+<body>
+<header>
+  <h1>实验8 · <span>漫反射物体的三维全息摄影</span></h1>
+  <div id="hint">He-Ne 激光 632.8 nm ｜ 物光与参考光干涉记录 → 参考光再现三维虚像 ｜ ⚠ 禁止直视激光、禁止触摸光学面</div>
+  <button class="hdr-btn" id="btnSample">示例流程一键完成</button>
+  <button class="hdr-btn" id="btnReset">重置实验</button>
+</header>
+<main>
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="floatWin">
+      <div class="bar"><b id="floatTitle">再现视场（透过全息干板观察）</b><span style="font-size:11px">←左右拖动→ 观察视差</span></div>
+      <canvas id="reconCanvas" width="330" height="290"></canvas>
+      <div id="floatTag" >+1 级衍射虚像</div>
+    </div>
+    <div id="infoCard"><h5 id="infoTitle"></h5><div id="infoDesc"></div><div style="text-align:right;margin-top:6px"><button class="b" id="infoClose" style="padding:3px 10px">关闭</button></div></div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="optics">光路调节</div>
+      <div class="tab" data-tab="dark">拍摄与暗室</div>
+      <div class="tab" data-tab="record">记录与再现</div>
+      <div class="tab" data-tab="principle">原理</div>
+    </div>
+
+    <div class="tabBody active" id="tab-guide">
+      <section>
+        <h4>实验步骤（完成后自动打勾）</h4>
+        <div class="step" id="st1"><div class="dot">1</div><div>打开氦氖激光器电源与光快门<button class="b" id="btnLaser" style="margin-left:8px">打开激光器</button><button class="b" id="btnShutter" style="margin-left:4px">开启光快门</button></div></div>
+        <div class="step" id="st2"><div class="dot">2</div><div>调节分光板透射率，使物光:参考光光强比在 1:1 ~ 1:2（光路调节页）</div></div>
+        <div class="step" id="st3"><div class="dot">3</div><div>移动平面反射镜 M₁、M₂，使两束光光程差 |ΔL| ≤ 3 cm</div></div>
+        <div class="step" id="st4"><div class="dot">4</div><div>用 M₂ 俯仰微调改变参考光方向，使干板处两束光夹角为 35° ~ 45°（理想约 40°）</div></div>
+        <div class="step" id="st5"><div class="dot">5</div><div>装干板曝光 → 暗室冲洗 → 再现观察虚像 → 填写表 2.8.2 并提交</div></div>
+      </section>
+      <section>
+        <h4>拍摄条件（教材要点）</h4>
+        <div class="kv"><span>物光与参考光夹角</span><span id="cAngle">—</span></div>
+        <div class="kv"><span>光程差 |ΔL|</span><span id="cPath">—</span></div>
+        <div class="kv"><span>光强比 物:参</span><span id="cRatio">—</span></div>
+        <div class="kv"><span>元件等高（光束共轴）</span><span class="good">✓ 已校准</span></div>
+        <div class="note">光路设置 4 个环节：① 夹角约 40°；② 物光与参考光的光程应近似相等；③ 载物台与全息干板架等高；④ 物光:参考光光强比在干板处选 1:1 ~ 1:2。</div>
+      </section>
+    </div>
+
+    <div class="tabBody" id="tab-optics">
+      <section>
+        <h4>分光板（渐变分光）</h4>
+        <div class="row"><label>透射率（物光）</label><input type="range" id="sRatio" min="20" max="80" value="65" step="1"><span class="val" id="vRatio">65 %</span></div>
+        <div class="row"><label>光强比 物:参</label><span class="val" id="vRatioShow" style="width:auto">—</span></div>
+      </section>
+      <section>
+        <h4>反射镜位置与俯仰（改变光程/夹角）</h4>
+        <div class="row"><label>M₁ 位置</label><input type="range" id="sM1" min="15" max="55" value="55" step="1"><span class="val" id="vM1">55 cm</span></div>
+        <div class="row"><label>M₂ 位置</label><input type="range" id="sM2" min="0" max="130" value="30" step="1"><span class="val" id="vM2">30 cm</span></div>
+        <div class="row"><label>M₂ 俯仰微调</label><input type="range" id="sTilt2" min="-40" max="40" value="0" step="1"><span class="val" id="vTilt2">0°</span></div>
+      </section>
+      <section>
+        <h4>实时光路参数</h4>
+        <div class="kv"><span>物光光程（BS→M₁→物→干板）</span><span id="pObj">—</span></div>
+        <div class="kv"><span>参考光光程（BS→M₂→干板）</span><span id="pRef">—</span></div>
+        <div class="kv"><span>光程差 |ΔL|</span><span id="pDiff">—</span></div>
+        <div class="kv"><span>干板处两光束夹角</span><span id="pAngle">—</span></div>
+        <div class="note">He-Ne 激光相干长度约数十厘米，但为保证条纹稳定，要求两臂光程近似相等；夹角过大条纹过密（超出干板分辨率），过小则观察时虚像与透射光混叠。</div>
+      </section>
+    </div>
+
+    <div class="tabBody" id="tab-dark">
+      <section>
+        <h4>曝光</h4>
+        <div class="row"><label>曝光时间</label><input type="range" id="sExp" min="1" max="15" value="12" step="0.5"><span class="val" id="vExp">12.0 s</span></div>
+        <div class="btnRow">
+          <button class="b" id="btnMount">装全息干板（药膜面朝被拍物）</button>
+          <button class="b primary" id="btnExpose" disabled>开始曝光</button>
+        </div>
+        <div id="expTimer">—</div>
+        <div class="note">曝光时保持安静、切勿走动碰触台面（模拟中曝光按加速播放）。曝光量过大或不足都会降低衍射效率。</div>
+      </section>
+      <section>
+        <h4>暗室处理（显影→水洗→定影→水洗→晾干）</h4>
+        <div class="devstep"><span class="tag2">显影时间</span><input type="range" id="sDev" min="0.5" max="4.5" value="0.5" step="0.1"><span class="val" id="vDev">0.5 min</span><span class="stat" id="stDev">未做</span></div>
+        <div class="devstep"><span class="tag2">定影时间</span><input type="range" id="sFix" min="0.5" max="5" value="0.5" step="0.1"><span class="val" id="vFix">0.5 min</span><span class="stat" id="stFix">未做</span></div>
+        <div class="btnRow">
+          <button class="b" id="btnDev" disabled>显影</button>
+          <button class="b" id="btnWash1" disabled>水洗</button>
+          <button class="b" id="btnFix" disabled>定影</button>
+          <button class="b" id="btnWash2" disabled>再次水洗</button>
+          <button class="b" id="btnDry" disabled>晾干</button>
+        </div>
+        <div id="devState" class="note" style="color:var(--text)">干板尚未曝光。</div>
+      </section>
+    </div>
+
+    <div class="tabBody" id="tab-record">
+      <section>
+        <h4>再现观察</h4>
+        <div class="btnRow">
+          <button class="b primary" id="btnRecon" disabled>放回干板原位，挡住物光，用参考光再现</button>
+          <button class="b" id="btnRemoveObj" disabled>取下被拍物</button>
+        </div>
+        <div class="note" id="reconNote">完成暗室处理后可再现。观察虚像时透过干板看向原物方向：+1 级衍射光形成虚像；0 级为透射眩光；-1 级为共轭像（翻转的弱像）。</div>
+      </section>
+      <section>
+        <h4>表 2.8.2　漫反射物体的三维全息摄影记录</h4>
+        <table>
+          <tr><th colspan="2">被拍摄物</th><td>石膏花瓶</td></tr>
+          <tr><td colspan="2">描述全息干板显影状态</td><td id="rDevState">—</td></tr>
+          <tr><th rowspan="4">虚像与原物比较</th><td>大小</td><td><select id="selSize"><option>— 请选择 —</option><option>与原物相同</option><option>放大</option><option>缩小</option></select></td></tr>
+          <tr><td>色彩</td><td><select id="selColor"><option>— 请选择 —</option><option>单色（激光色）</option><option>彩色（与原物同）</option><option>灰白</option></select></td></tr>
+          <tr><td>完整度</td><td><select id="selWhole"><option>— 请选择 —</option><option>完整立体像</option><option>部分缺损</option></select></td></tr>
+          <tr><td>清晰度</td><td><select id="selSharp"><option>— 请选择 —</option><option>清晰明亮</option><option>较模糊</option><option>极暗淡/严重灰雾</option></select></td></tr>
+        </table>
+        <div class="btnRow"><button class="b primary" id="btnSubmit">提交记录</button></div>
+        <div class="note" id="comment" style="color:var(--text)"></div>
+      </section>
+    </div>
+
+    <div class="tabBody" id="tab-principle">
+      <section>
+        <h4>记录原理（干涉）</h4>
+        <div class="note">物光波前：P(x,y)=A₁exp[iφ₁(x,y)]，参考光波前：Q(x,y)=A₂exp[iφ₂(x,y)]。全息干板上的光强：</div>
+        <div class="formula">I = |P+Q|² = A₁²+A₂²+2A₁A₂cos(φ₁−φ₂)</div>
+        <div class="note">前两项由振幅决定（常量），后两项干涉项同时记录了物光的<b>振幅和相位</b>——这就是"全息"（完全的信息）。</div>
+      </section>
+      <section>
+        <h4>光路（图 2.8.2）</h4>
+        <div class="note">激光束经分光板分为两束：<b>物光</b>（透射→M₁→扩束镜 L₁→照亮被拍物→漫反射→全息干板 H）与<b>参考光</b>（反射→M₂→扩束镜 L₂→直接照射干板 H）。物光与参考光必须相干：频率相同、振动方向相同、相位差恒定、光程差在相干长度内。</div>
+      </section>
+      <section>
+        <h4>再现原理（衍射）</h4>
+        <div class="note">全息干板相当于一块复杂光栅。用拍摄时同角度的参考光照射：+1 级衍射光再现物体的三维虚像（位于原物位置，非常逼真）；0 级为直接透射光（不带物体信息）；-1 级形成共轭像。本实验观察虚像。</div>
+      </section>
+      <section>
+        <h4>注意事项</h4>
+        <div class="note">① 禁止直视激光，禁止用手触摸光学面与药膜面；② 移动光学元件应贴着台面缓慢移动、轻移轻放；③ 拍摄时保持安静；④ 拍摄和冲洗都在暗室中进行。</div>
+      </section>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+/* ================= 全局状态 ================= */
+const CFG = {
+  powered:false, shutterOpen:false,
+  ratio:65,                       // 分光板透射率%（物光占比）
+  m1x:55, m2z:30, tilt2:0,        // M₁ 横向 / M₂ 纵向位置、M₂ 俯仰微调（台面坐标 cm）
+  mounted:false, exposing:false, exposed:false,
+  devDone:false, wash1:false, fixDone:false, wash2:false, dried:false,
+  devT:0.5, fixT:0.5,
+  recon:false, objectRemoved:false, submitted:false,
+  steps:[false,false,false,false,false],
+};
+const $ = id=>document.getElementById(id);
+const fmt = (v,n=1)=>Number(v).toFixed(n);
+let toastTimer;
+function toast(msg, warn=false){
+  const t=$('toast'); t.textContent=msg; t.className='show'+(warn?' warn':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='',3200);
+}
+
+/* ================= 光路几何与参数计算 ================= */
+// 台面坐标（cm）：激光沿 +x；BS 在 (-70,0)；干板在 (110,60)；物体固定在 (40,90)
+const BS=[-70,0], PLATE=[110,60], OBJ=[40,90];
+function dist(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+function optics(){
+  const M1=[CFG.m1x,0], obj=OBJ;
+  const M2=[-70,CFG.m2z];
+  const L2=[M2[0]+0.3*(PLATE[0]-M2[0]), M2[1]+0.3*(PLATE[1]-M2[1])];
+  // 光程：物光 BS→M₁→物体→干板；参考光 BS→M₂→干板
+  const Lobj = dist(BS,M1) + dist(M1,obj) + dist(obj,PLATE);
+  const Lref = dist(BS,M2) + dist(M2,PLATE);
+  // 干板处两束光方向夹角（θ2 含 M₂ 俯仰微调 δ）
+  const th1=Math.atan2(PLATE[1]-obj[1], PLATE[0]-obj[0]);
+  const th2=Math.atan2(PLATE[1]-L2[1], PLATE[0]-L2[0]) + CFG.tilt2*Math.PI/180;
+  let ang=Math.abs(th2-th1)*180/Math.PI; if(ang>180) ang=360-ang;
+  const ratioObj = CFG.ratio, ratioRef = 100-CFG.ratio;
+  return {M1,obj,M2,L2,Lobj,Lref,th1,th2,ang,ratioObj,ratioRef};
+}
+let OPT = optics();
+
+/* ================= Three.js 场景 ================= */
+const canvas=$('scene');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0e14);
+scene.fog=new THREE.Fog(0x0a0e14,900,2200);
+const camera=new THREE.PerspectiveCamera(45,1,0.5,4000);
+camera.position.set(-170,200,300);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(-20,20,40); controls.enableDamping=true;
+controls.minDistance=80; controls.maxDistance=1200;
+scene.add(new THREE.AmbientLight(0x8899bb,.55));
+const dl=new THREE.DirectionalLight(0xffffff,1.3);
+dl.position.set(-200,300,180); scene.add(dl);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(1000,48), new THREE.MeshStandardMaterial({color:0x11161f,roughness:.95}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-16; scene.add(floor);
+const grid=new THREE.GridHelper(1400,70,0x1e2a3a,0x18212e); grid.position.y=-15.9; scene.add(grid);
+
+const clickable=[];
+function tag(m,t,d){ m.userData.title=t; m.userData.desc=d; clickable.push(m); }
+function M(c,o={}){ return new THREE.MeshStandardMaterial({color:c,roughness:.55,metalness:.35,...o}); }
+const H=18;   // 光束高度（各元件等高，体现环节③）
+
+/* ---- 防震全息台 ---- */
+const table=new THREE.Mesh(new THREE.BoxGeometry(400,16,300), M(0x3a2f26,{roughness:.85}));
+table.position.set(-10,-8,30); scene.add(table);
+tag(table,'防震全息实验台','台面放置光学元件，底部有减震措施；光学镜头底座装磁铁可吸附在台面上，曝光时保持稳定。');
+for(const [sx,sz] of [[-190,-115],[170,-115],[-190,175],[170,175]]){
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(6,8,14,12), M(0x242c39));
+  leg.position.set(sx,-15,sz); scene.add(leg);
+  const scr=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,5,12), M(0xc9a227,{metalness:.9}));
+  scr.position.set(sx,-5,sz); scene.add(scr);
+  tag(scr,'调平螺丝','调节台面水平，保证光路平面平行于全息实验台。');
+}
+
+/* ---- 氦氖激光器 + 电源 ---- */
+const laserBody=new THREE.Mesh(new THREE.CylinderGeometry(9,9,95,24), M(0x772222,{roughness:.4}));
+laserBody.rotation.z=Math.PI/2; laserBody.position.set(-155,H,0); scene.add(laserBody);
+tag(laserBody,'氦氖激光器','输出波长 632.8 nm 的红色激光，单色性与相干性好，是全息摄影的理想光源。禁止直视激光！');
+const laserMount=new THREE.Mesh(new THREE.BoxGeometry(20,14,20), M(0x46536b));
+laserMount.position.set(-155,H-16,0); scene.add(laserMount);
+const laserGlow=new THREE.Mesh(new THREE.SphereGeometry(3.5,16,16), new THREE.MeshBasicMaterial({color:0xff4444}));
+laserGlow.position.set(-106,H,0); laserGlow.visible=false; scene.add(laserGlow);
+
+/* ---- 光快门 ---- */
+const shutter=new THREE.Mesh(new THREE.BoxGeometry(8,12,12), M(0x2c3648,{metalness:.6}));
+shutter.position.set(-100,H,0); scene.add(shutter);
+tag(shutter,'光快门','由曝光定时器控制通断，曝光时间一到自动关闭。拍摄瞬间切勿碰触台面。');
+
+/* ---- 曝光定时器 ---- */
+const timerBox=new THREE.Mesh(new THREE.BoxGeometry(26,16,18), M(0x2c3648));
+timerBox.position.set(-128,10,-60); scene.add(timerBox);
+const timerFace=new THREE.Mesh(new THREE.PlaneGeometry(20,9), new THREE.MeshBasicMaterial({color:0x1a0d0d}));
+timerFace.position.set(-128,10,-50.9); scene.add(timerFace);
+tag(timerBox,'曝光定时器','设定并控制曝光时间；与光快门联动。曝光时保持安静，切勿走动。');
+
+/* ---- 元件底座（含磁座） ---- */
+function mountPost(){
+  const g=new THREE.Group(); scene.add(g);
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(7,8,4,16), M(0x242c39,{metalness:.5}));
+  base.position.y=2; g.add(base);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,12,12), M(0x46536b));
+  post.position.y=10; g.add(post);
+  return g;
+}
+function makePlate2(size,mat,rotY){
+  const p=new THREE.Mesh(new THREE.BoxGeometry(2,size,size), mat);
+  p.rotation.y=rotY; return p;
+}
+/* ---- 分光板 ---- */
+const BSgrp=mountPost(); BSgrp.position.set(BS[0],0,BS[1]);
+const BSplate=makePlate2(30, new THREE.MeshPhysicalMaterial({color:0xaad4ff,transparent:true,opacity:.3,roughness:.05}), -Math.PI/4);
+BSplate.position.set(BS[0],H,BS[1]); scene.add(BSplate);
+tag(BSplate,'渐变分光板','将激光分为物光（透射）与参考光（反射）两束相干光；渐变镀膜可转动选择分光比。');
+/* ---- 平面反射镜 M1 / M2（含背板与镜框） ---- */
+const mirrorMat=()=>new THREE.MeshStandardMaterial({color:0xcfe0ee,metalness:.85,roughness:.12,emissive:0x1a2733,emissiveIntensity:.7});
+const mirrorBack=p=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(1.6,30,30), M(0x39445a)); b.position.x=-2.2; p.add(b); };
+const M1plate=makePlate2(26, mirrorMat(), Math.PI/4);
+mirrorBack(M1plate); scene.add(M1plate);
+const m1Mount=mountPost();
+tag(M1plate,'平面反射镜 M₁','反射物光射向被拍物；移动其位置可改变物光光程。');
+const M2plate=makePlate2(26, mirrorMat(), -Math.PI/4);
+mirrorBack(M2plate); scene.add(M2plate);
+const m2Mount=mountPost();
+tag(M2plate,'平面反射镜 M₂','反射参考光射向全息干板；移动其位置可改变参考光光程与夹角。');
+/* ---- 扩束镜 L1 / L2（含支座） ---- */
+const L1=new THREE.Mesh(new THREE.CylinderGeometry(5,5,4,20), M(0x9db8d8,{metalness:.4,roughness:.1}));
+L1.rotation.z=Math.PI/2; scene.add(L1);
+const l1Mount=mountPost();
+tag(L1,'扩束镜 L₁','将细物光扩展成面光，均匀照亮被拍物。');
+const L2=new THREE.Mesh(new THREE.CylinderGeometry(5,5,4,20), M(0x9db8d8,{metalness:.4,roughness:.1}));
+L2.rotation.z=Math.PI/2; scene.add(L2);
+const l2Mount=mountPost();
+tag(L2,'扩束镜 L₂','将细参考光扩展成面光，均匀覆盖全息干板。');
+const shutterMount=mountPost(); shutterMount.position.set(-100,0,0);
+/* ---- 载物台 + 被拍物（石膏花瓶） ---- */
+const vasePts=[
+  [5,0],[8,2.5],[10.5,6.5],[11,10.5],[9.2,14.5],[6.4,17.5],[4.8,19.5],[4.6,21],[5.8,21.8],[7,22.2]
+].map(p=>new THREE.Vector2(p[0],p[1]));
+const vaseMat=new THREE.MeshStandardMaterial({color:0xd8cfc0,roughness:.9});
+const vase=new THREE.Mesh(new THREE.LatheGeometry(vasePts,32), vaseMat); scene.add(vase);
+tag(vase,'被拍物（石膏花瓶）','漫反射物体。物光经其表面漫反射后携带振幅与相位信息到达干板。');
+const objStage=new THREE.Mesh(new THREE.CylinderGeometry(11,12,4,24), M(0x313d50));
+objStage.position.set(OBJ[0],2,OBJ[1]); scene.add(objStage);
+tag(objStage,'载物台','放置被拍物，与全息干板架等高（环节③）。');
+/* ---- 全息干板 + 干板架 ---- */
+const plateGlass=new THREE.Mesh(new THREE.BoxGeometry(1.2,34,34), new THREE.MeshPhysicalMaterial({color:0xcfe4ff,transparent:true,opacity:.35,roughness:.1}));
+scene.add(plateGlass);
+tag(plateGlass,'全息干板','记录干涉条纹（复杂光栅）；药膜面应朝向被拍物。曝光显影后放回原位可再现虚像。');
+const plateHolder=new THREE.Mesh(new THREE.BoxGeometry(3,34,6), M(0x46536b));
+scene.add(plateHolder);
+tag(plateHolder,'全息干板架','固定全息干板，拍摄与再现须保持在同一位置。');
+// 曝光后的条纹纹理
+function fringeTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const g=c.getContext('2d');
+  g.fillStyle='#20242c'; g.fillRect(0,0,128,128);
+  for(let i=0;i<128;i+=3){ g.fillStyle=`rgba(180,220,255,${0.10+0.08*Math.sin(i*0.7)})`; g.fillRect(i,0,1.4,128); }
+  for(let i=0;i<128;i+=3){ g.fillStyle=`rgba(180,220,255,${0.08+0.07*Math.sin(i*0.9+1)})`; g.fillRect(0,i,128,1.4); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+/* ---- 虚像（再现时显示的半透明幽灵） ---- */
+const ghostMat=new THREE.MeshBasicMaterial({color:0x7dffd2,transparent:true,opacity:0});
+const ghost=new THREE.Mesh(new THREE.LatheGeometry(vasePts,32), ghostMat);
+scene.add(ghost);
+
+/* ---- 光束可视化 ---- */
+function beamMat(op){ return new THREE.MeshBasicMaterial({color:0xff5544,transparent:true,opacity:op,depthWrite:false}); }
+const beams=[];
+function addBeam(r1,r2,op){
+  const b=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,1,20,1,true), beamMat(op));
+  scene.add(b); beams.push(b); return b;
+}
+function setBeam(b,x1,y1,z1,x2,y2,z2){
+  const dx=x2-x1, dy=y2-y1, dz=z2-z1, len=Math.hypot(dx,dy,dz);
+  b.scale.set(1,len,1);
+  b.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
+  const dir=new THREE.Vector3(dx,dy,dz).normalize();
+  b.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+}
+const b0=addBeam(.8,.8,.55);            // 激光器→快门→分光板
+const b1=addBeam(.8,.8,.4);             // BS→M1（物光细束）
+const b2=addBeam(.8,.8,.4);             // M1→物体（经L1）
+const b3=addBeam(2,12,.16);             // 物体→干板（漫反射锥）
+const b4=addBeam(.8,.8,.4);             // BS→M2（参考光细束）
+const b5=addBeam(2,13,.16);             // L2→干板（参考光锥）
+function setBeams(){
+  const on = CFG.powered && CFG.shutterOpen;
+  const objBlocked = CFG.recon;                    // 再现时挡住物光
+  b0.visible=on;
+  b1.visible=on && !objBlocked;
+  b2.visible=on && !objBlocked;
+  b3.visible=on && !objBlocked;
+  b4.visible=on;
+  b5.visible=on;
+  laserGlow.visible=on;
+  const o=OPT;
+  setBeam(b0,-106,H,0, BS[0],H,BS[1]);
+  setBeam(b1, BS[0],H,BS[1], o.M1[0],H,o.M1[1]);
+  setBeam(b2, o.M1[0],H,o.M1[1], o.obj[0],H,o.obj[1]);
+  setBeam(b3, o.obj[0],H,o.obj[1], PLATE[0],H,PLATE[1]);
+  setBeam(b4, BS[0],H,BS[1], o.M2[0],H,o.M2[1]);
+  setBeam(b5, o.L2[0],H,o.L2[1], PLATE[0],H,PLATE[1]);
+}
+
+/* ---- 每帧更新元件位置与光路 ---- */
+function updateOptics(){
+  OPT=optics();
+  const o=OPT;
+  M1plate.position.set(o.M1[0],H,o.M1[1]);
+  // M1 反射 +x 入射光射向物体：法线∝(r-d)
+  const dv1=[o.obj[0]-o.M1[0], o.obj[1]-o.M1[1]], dl1=Math.hypot(dv1[0],dv1[1]);
+  const r1=[dv1[0]/dl1, dv1[1]/dl1], d1=[1,0];
+  let n1=r1[0]-d1[0], n1z=r1[1]-d1[1]; const l1=Math.hypot(n1,n1z); n1/=l1; n1z/=l1;
+  M1plate.rotation.y=Math.atan2(-n1z,n1);
+  m1Mount.position.set(o.M1[0],0,o.M1[1]);
+  M2plate.position.set(o.M2[0],H,o.M2[1]);
+  // M2 反射 +z 方向入射光射向干板（含俯仰微调）：法线∝(r-d)
+  const dv2=[PLATE[0]-o.M2[0], PLATE[1]-o.M2[1]], dl2=Math.hypot(dv2[0],dv2[1]);
+  const base=Math.atan2(dv2[1],dv2[0]), rr=base+CFG.tilt2*Math.PI/180;
+  const r2=[Math.cos(rr), Math.sin(rr)], d2=[0,1];
+  let n2=r2[0]-d2[0], n2z=r2[1]-d2[1]; const l2=Math.hypot(n2,n2z); n2/=l2; n2z/=l2;
+  M2plate.rotation.y=Math.atan2(-n2z,n2);
+  m2Mount.position.set(o.M2[0],0,o.M2[1]);
+  L1.position.set(o.M1[0]+0.45*(o.obj[0]-o.M1[0]), H, o.M1[1]+0.45*(o.obj[1]-o.M1[1]));
+  l1Mount.position.copy(L1.position); l1Mount.position.y=0;
+  L2.position.set(o.L2[0],H,o.L2[1]);
+  l2Mount.position.set(o.L2[0],0,o.L2[1]);
+  vase.position.set(OBJ[0],4,OBJ[1]);
+  vase.visible=!CFG.objectRemoved;
+  ghost.position.copy(vase.position);
+  ghost.rotation.y=0;
+  // 干板朝向：法线为 -(v1̂+v2̂) 的方向
+  const v1=[PLATE[0]-o.obj[0],PLATE[1]-o.obj[1]], v2=[PLATE[0]-o.L2[0],PLATE[1]-o.L2[1]];
+  const len1=Math.hypot(...v1), len2=Math.hypot(...v2);
+  let nX=-(v1[0]/len1+v2[0]/len2), nZ=-(v1[1]/len1+v2[1]/len2); const nn=Math.hypot(nX,nZ);
+  plateGlass.position.set(PLATE[0],H,PLATE[1]);
+  plateGlass.rotation.y=Math.atan2(-nZ,nX);
+  plateHolder.position.set(PLATE[0]+4.5*Math.sin(plateGlass.rotation.y),H-1,PLATE[1]-4.5*Math.cos(plateGlass.rotation.y));
+  plateHolder.rotation.y=plateGlass.rotation.y;
+  // 面板读数
+  const dL=Math.abs(o.Lobj-o.Lref);
+  $('pObj').textContent=fmt(o.Lobj)+' cm';
+  $('pRef').textContent=fmt(o.Lref)+' cm';
+  $('pDiff').textContent=fmt(dL,2)+' cm';
+  $('pAngle').textContent=fmt(o.ang)+'°';
+  $('vRatioShow').textContent=`1 : ${fmt(o.ratioRef/o.ratioObj,2)}`;
+  const okA=o.ang>=35&&o.ang<=45, okD=dL<=3, okR=(o.ratioRef/o.ratioObj)>=1&&(o.ratioRef/o.ratioObj)<=2;
+  $('pDiff').className=dL<=3?'good':'bad';
+  $('pAngle').className=okA?'good':'bad';
+  $('cAngle').textContent=fmt(o.ang)+'° '+(okA?'✓':'✗');
+  $('cAngle').className=okA?'good':'bad';
+  $('cPath').textContent=fmt(dL,2)+' cm '+(okD?'✓':'✗');
+  $('cPath').className=okD?'good':'bad';
+  $('cRatio').textContent=`1 : ${fmt(o.ratioRef/o.ratioObj,2)} `+(okR?'✓':'✗');
+  $('cRatio').className=okR?'good':'bad';
+  setBeams();
+  checkSteps();
+}
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  CFG.steps[0]=CFG.powered && CFG.shutterOpen;
+  CFG.steps[1]=CFG.powered && (OPT.ratioRef/OPT.ratioObj)>=1 && (OPT.ratioRef/OPT.ratioObj)<=2;
+  CFG.steps[2]=CFG.steps[1] && Math.abs(OPT.Lobj-OPT.Lref)<=3;
+  CFG.steps[3]=CFG.steps[2] && OPT.ang>=35 && OPT.ang<=45;
+  CFG.steps[4]=CFG.submitted;
+  for(let i=0;i<5;i++){
+    const el=$('st'+(i+1));
+    el.classList.toggle('done',CFG.steps[i]);
+    el.classList.toggle('current',!CFG.steps[i]&&CFG.steps.slice(0,i).every(Boolean));
+  }
+}
+
+/* ================= 曝光与暗室 ================= */
+let expTimerInt=null;
+function computeQuality(){
+  // 曝光：理想 4~8 s（中心6）；显影：理想 2~3 min（中心2.5）
+  const qExp=Math.max(0, 1-Math.abs(CFG.expT-6)/6);
+  const qDev=Math.max(0, 1-Math.abs(CFG.devT-2.5)/2.2);
+  const fixOK=CFG.fixT>=3;
+  const eff=0.62*qExp*qDev*(fixOK?1:0.45);   // 衍射效率
+  return {qExp,qDev,fixOK,eff};
+}
+CFG.expT=12;
+function startExpose(){
+  if(!CFG.mounted){ toast('请先装上全息干板', true); return; }
+  if(!(CFG.steps[1]&&CFG.steps[2]&&CFG.steps[3])){ toast('光路条件未全部满足（分光比/光程差/夹角），请先完成光路调节', true); return; }
+  CFG.exposing=true; $('btnExpose').disabled=true;
+  const t=CFG.expT; let shown=0;
+  const t0=performance.now(), dur=2200;      // 模拟加速：任何时长2.2s播完
+  toast('曝光中——保持安静，切勿走动碰触台面！');
+  expTimerInt=setInterval(()=>{
+    const p=Math.min(1,(performance.now()-t0)/dur);
+    $('expTimer').textContent=`⏱ 曝光中 ${fmt(t*p,1)} / ${fmt(t,1)} s`;
+    if(p>=1){
+      clearInterval(expTimerInt); $('expTimer').textContent='✓ 曝光完成';
+      CFG.exposed=true; CFG.exposing=false;
+      plateGlass.material=new THREE.MeshBasicMaterial({map:fringeTexture(),transparent:true,opacity:.9});
+      $('devState').textContent='干板已曝光（尚是潜像）。请在暗室中按顺序冲洗：显影→水洗→定影→水洗→晾干。';
+      $('btnDev').disabled=false;
+      toast('曝光完成！取下干板进入暗室处理');
+    }
+  },50);
+}
+function runDev(){
+  CFG.devDone=true; $('stDev').textContent='✓'; $('stDev').className='stat good';
+  $('btnWash1').disabled=false; $('btnDev').disabled=true;
+  $('devState').textContent=`显影 ${fmt(CFG.devT)} min 完成（20 ℃，一般 2~3 min）。`;
+}
+function runWash1(){ CFG.wash1=true; $('btnFix').disabled=false; $('btnWash1').disabled=true; $('devState').textContent+=' 清水冲洗完毕。'; }
+function runFix(){
+  CFG.fixDone=true; $('stFix').textContent='✓'; $('stFix').className='stat good';
+  $('btnWash2').disabled=false; $('btnFix').disabled=true;
+  $('devState').textContent+=CFG.fixT>=3?' 定影完成（≥3 min）。':' 定影不足（<3 min），干板日后会褪影！';
+}
+function runWash2(){ CFG.wash2=true; $('btnDry').disabled=false; $('btnWash2').disabled=true; $('devState').textContent+=' 再次水洗完毕。'; }
+function runDry(){
+  CFG.dried=true; $('btnDry').disabled=true; $('btnRecon').disabled=false;
+  const q=computeQuality();
+  $('devState').textContent+=' 晾干，全息图制作完成。';
+  toast(`暗室处理完成！衍射效率约 ${fmt(q.eff*100,0)} %，切到"记录与再现"页观察虚像`);
+}
+
+/* ================= 再现视场（2D 画布） ================= */
+const rc=$('reconCanvas'), rcx=rc.getContext('2d');
+let parX=0;                                   // 视差参数 -1..1
+rc.addEventListener('pointerdown',e=>{ rc.setPointerCapture(e.pointerId); rc._d=e.clientX; });
+rc.addEventListener('pointermove',e=>{
+  if(rc._d===undefined||rc._d===null) return;
+  parX=Math.max(-1,Math.min(1,parX+(e.clientX-rc._d)/140));
+  rc._d=e.clientX;
+});
+['pointerup','pointercancel'].forEach(ev=>rc.addEventListener(ev,()=>rc._d=null));
+function drawRecon(){
+  const W=rc.width, Hc=rc.height, cx=W/2, cy=Hc/2+10;
+  rcx.fillStyle='#05070a'; rcx.fillRect(0,0,W,Hc);
+  if(!CFG.recon){
+    rcx.fillStyle='#39424f'; rcx.font='13px sans-serif'; rcx.textAlign='center';
+    rcx.fillText(CFG.dried?'点「放回干板原位…」开始再现':'干板尚未完成显影定影', cx, cy);
+    rcx.textAlign='left';
+    return;
+  }
+  const q=computeQuality(), eff=q.eff;
+  const blur=(1-Math.min(1,eff/0.6))*6;
+  const bright=0.2+0.8*Math.min(1,eff/0.55);
+  // 0 级透射眩光
+  const g0=rcx.createRadialGradient(cx-parX*6,cy,4,cx-parX*6,cy,90);
+  g0.addColorStop(0,`rgba(255,120,90,${0.10+0.1*parX*parX})`); g0.addColorStop(1,'rgba(0,0,0,0)');
+  rcx.fillStyle=g0; rcx.fillRect(0,0,W,Hc);
+  // -1 级共轭像（翻转弱像）
+  drawVase(rcx, cx-parX*30, cy+22, -1, 0.16*bright, 2+blur*0.4);
+  // +1 级虚像（视差：视角改变，虚像平移+微缩放）
+  const scale=1+parX*0.05;
+  drawVase(rcx, cx+parX*26, cy, scale, Math.min(0.92,bright), blur);
+  // 灰雾
+  if(q.qExp<0.85){
+    for(let i=0;i<220*(1-q.qExp);i++){
+      rcx.fillStyle=`rgba(200,210,220,${0.05+Math.random()*0.10})`;
+      rcx.fillRect(Math.random()*W,Math.random()*Hc,1.4,1.4);
+    }
+  }
+  rcx.fillStyle='#8b98a9'; rcx.font='11px sans-serif';
+  rcx.fillText(`衍射效率 ${fmt(eff*100,0)} % ｜ 拖动观察视差${CFG.objectRemoved?' ｜ 原物已取下，虚像仍在原位！':''}`, 10, Hc-10);
+}
+function drawVase(g,x,y,flip,alpha,blur){
+  g.save(); g.translate(x,y); g.scale(flip*1,1);
+  g.filter=`blur(${blur}px)`;
+  const grd=g.createLinearGradient(-20,0,20,0);
+  grd.addColorStop(0,'rgba(125,255,210,0.05)');
+  grd.addColorStop(0.5,`rgba(125,255,210,${alpha})`);
+  grd.addColorStop(1,'rgba(125,255,210,0.05)');
+  g.fillStyle=grd;
+  g.beginPath();
+  g.moveTo(0,-105);
+  g.bezierCurveTo(-13,-100,-9,-70,-16,-52);
+  g.bezierCurveTo(-24,-30,-24,10,-17,42);
+  g.bezierCurveTo(-14,62,-8,72,-7,92);
+  g.lineTo(7,92);
+  g.bezierCurveTo(8,72,14,62,17,42);
+  g.bezierCurveTo(24,10,24,-30,16,-52);
+  g.bezierCurveTo(9,-70,13,-100,0,-105);
+  g.closePath(); g.fill();
+  g.filter='none';
+  g.strokeStyle=`rgba(160,255,225,${alpha*0.8})`; g.lineWidth=1.4; g.stroke();
+  g.restore();
+}
+
+/* ================= 记录表 2.8.2 ================= */
+function submitRecord(){
+  const vals=[$('selSize').value,$('selColor').value,$('selWhole').value,$('selSharp').value];
+  if(vals.some(v=>v.startsWith('—'))){ toast('请先在再现视场中观察虚像，再逐项选择填写', true); return; }
+  CFG.submitted=true;
+  const q=computeQuality();
+  let c=`点评：`;
+  c+= q.qExp<0.55? '曝光量不当，' : '曝光量合适，';
+  c+= q.qDev<0.6? '显影时间偏离 2~3 min，' : '显影控制良好，';
+  c+= q.fixOK? '定影充分。' : '但定影不足（应≥3 min），干板长期保存会褪影。';
+  const expSharp = q.eff>0.5?'清晰明亮':(q.eff>0.28?'较模糊':'极暗淡/严重灰雾');
+  c+= expSharp===vals[3]? ' 你对清晰度的判断与衍射效率一致。' : ` 注意：按衍射效率(${fmt(q.eff*100,0)}%)，清晰度更接近「${expSharp}」。`;
+  if(vals[0]!=='与原物相同') c+=' 虚像应与原物同大小（无透镜全息）。';
+  if(vals[1]!=='单色（激光色）') c+=' 再现用激光照射，虚像应为单色。';
+  c+=' 每一小块干板都记录了全表面信息，故完整度应为完整立体像。';
+  $('comment').textContent=c;
+  toast('记录已提交！实验完成 🎉');
+  checkSteps();
+}
+
+/* ================= 控件绑定 ================= */
+$('btnLaser').onclick=()=>{
+  if(CFG.powered){ toast('激光器已开启'); return; }
+  CFG.powered=true; toast('激光器已点亮（He-Ne 632.8 nm）。请开启光快门'); updateOptics();
+};
+$('btnShutter').onclick=()=>{
+  if(!CFG.powered){ toast('请先打开激光器', true); return; }
+  if(CFG.shutterOpen){ toast('光快门已开启'); return; }
+  CFG.shutterOpen=true; $('btnShutter').textContent='光快门已开'; $('btnShutter').disabled=true;
+  toast('光快门开启：光路中出现物光与参考光两束光'); updateOptics();
+};
+$('sRatio').oninput=e=>{ CFG.ratio=+e.target.value; $('vRatio').textContent=CFG.ratio+' %'; updateOptics(); };
+$('sM1').oninput=e=>{ CFG.m1x=+e.target.value; $('vM1').textContent=CFG.m1x+' cm'; updateOptics(); };
+$('sM2').oninput=e=>{ CFG.m2z=+e.target.value; $('vM2').textContent=CFG.m2z+' cm'; updateOptics(); };
+$('sTilt2').oninput=e=>{ CFG.tilt2=+e.target.value; $('vTilt2').textContent=CFG.tilt2+'°'; updateOptics(); };
+$('sExp').oninput=e=>{ CFG.expT=+e.target.value; $('vExp').textContent=fmt(CFG.expT)+' s'; };
+$('sDev').oninput=e=>{ CFG.devT=+e.target.value; $('vDev').textContent=fmt(CFG.devT)+' min'; };
+$('sFix').oninput=e=>{ CFG.fixT=+e.target.value; $('vFix').textContent=fmt(CFG.fixT)+' min'; };
+$('btnMount').onclick=()=>{
+  if(!CFG.mounted){
+    if(!(CFG.steps[1]&&CFG.steps[2]&&CFG.steps[3])){ toast('光路 4 个环节未全部满足，不能装板曝光（先完成步骤2~4）', true); return; }
+    CFG.mounted=true; $('btnMount').textContent='干板已装好（可曝光）'; $('btnExpose').disabled=false;
+    toast('全息干板已固定（药膜面朝向被拍物），设置曝光时间后开始曝光');
+  }
+};
+$('btnExpose').onclick=startExpose;
+$('btnDev').onclick=runDev; $('btnWash1').onclick=runWash1;
+$('btnFix').onclick=runFix; $('btnWash2').onclick=runWash2; $('btnDry').onclick=runDry;
+$('btnRecon').onclick=()=>{
+  CFG.recon=true; $('btnRecon').disabled=true; $('btnRemoveObj').disabled=false;
+  $('floatTitle').textContent='再现视场（+1 级虚像 · 拖动看视差）';
+  toast('参考光照射干板：透过干板向原物方向看——三维虚像出现在原物位置！');
+  updateOptics();
+};
+$('btnRemoveObj').onclick=()=>{
+  CFG.objectRemoved=!CFG.objectRemoved;
+  $('btnRemoveObj').textContent=CFG.objectRemoved?'放回被拍物':'取下被拍物';
+  toast(CFG.objectRemoved?'被拍物已取下——虚像仍在原位！这就是全息照相与普通照片的本质区别。':'被拍物已放回载物台');
+  updateOptics();
+};
+$('btnSubmit').onclick=submitRecord;
+$('btnSample').onclick=()=>{
+  if(!CFG.powered){ $('btnLaser').onclick(); }
+  if(!CFG.shutterOpen){ $('btnShutter').onclick(); }
+  CFG.ratio=42; $('sRatio').value=42; $('vRatio').textContent='42 %';
+  CFG.m1x=30; $('sM1').value=30; $('vM1').textContent='30 cm';
+  CFG.m2z=85; $('sM2').value=85; $('vM2').textContent='85 cm';
+  CFG.tilt2=25; $('sTilt2').value=25; $('vTilt2').textContent='25°';
+  CFG.expT=6; $('sExp').value=6; $('vExp').textContent='6.0 s';
+  CFG.devT=2.5; $('sDev').value=2.5; $('vDev').textContent='2.5 min';
+  CFG.fixT=3.5; $('sFix').value=3.5; $('vFix').textContent='3.5 min';
+  updateOptics();
+  if(!CFG.mounted) $('btnMount').onclick();
+  if(!CFG.exposed) startExpose();
+  setTimeout(()=>{ if(!CFG.devDone){runDev();runWash1();runFix();runWash2();runDry();} },2600);
+  toast('示例流程已自动执行（约3秒完成曝光与暗室处理），随后到"记录与再现"页观察虚像');
+};
+$('btnReset').onclick=()=>location.reload();
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); $('tab-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+/* ---- 点击元件信息卡 ---- */
+const raycaster=new THREE.Raycaster(); let downXY=null;
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{
+  if(!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>5) return;
+  const rect=canvas.getBoundingClientRect();
+  const p=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+  raycaster.setFromCamera(p,camera);
+  const hits=raycaster.intersectObjects(clickable,true);
+  if(hits.length){
+    let o=hits[0].object; while(o&&!o.userData.title) o=o.parent;
+    if(o){ $('infoTitle').textContent=o.userData.title; $('infoDesc').textContent=o.userData.desc; $('infoCard').style.display='block'; }
+  }
+});
+$('infoClose').onclick=()=>$('infoCard').style.display='none';
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){       // 用 CSS 尺寸判断，避免每帧重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let rcTick=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  if(CFG.recon && ++rcTick%3===0) drawRecon();
+  ghostMat.opacity = CFG.recon ? Math.min(0.35, computeQuality().eff*0.5)*(CFG.objectRemoved?1.6:1) : 0;
+  controls.update(); renderer.render(scene,camera);
+}
+updateOptics(); checkSteps(); drawRecon();
+loop();
+</script>
+</body>
+</html>
