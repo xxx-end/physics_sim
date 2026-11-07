@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验6 用牛顿环法测球面的曲率半径 · 3D交互仿真</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2d3646;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#f5b32e; --accent2:#4da3ff;
+    --ok:#3fb96f; --warn:#e5534b; --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--text);
+    display:flex; flex-direction:column;
+  }
+  header{
+    height:52px; flex:none; display:flex; align-items:center; gap:14px; padding:0 16px;
+    background:var(--panel); border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:16px; font-weight:600;}
+  header h1 span{color:var(--accent);}
+  #hint{font-size:12px; color:var(--muted); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hdr-btn{
+    flex:none; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer;
+  }
+  .hdr-btn:hover{border-color:var(--accent); color:var(--accent);}
+  main{flex:1; display:flex; min-height:0;}
+  /* ---------- 左侧 3D ---------- */
+  #sceneWrap{flex:1; position:relative; min-width:0;}
+  #scene{width:100%; height:100%; display:block; cursor:grab;}
+  #scene:active{cursor:grabbing;}
+  #fovFloat{
+    position:absolute; right:14px; top:14px; width:300px; background:rgba(13,17,23,.88);
+    border:1px solid var(--line); border-radius:var(--radius); padding:10px; backdrop-filter:blur(4px);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  #fovFloat h3{font-size:12px; color:var(--muted); font-weight:500;}
+  #fovCanvas{width:100%; border-radius:8px; background:#000; border:1px solid var(--line);}
+  #fovFullscreen #fovCanvas{width:min(92vh,92vw); height:min(92vh,92vw);}
+  #fovFloat.fullscreen{position:fixed; inset:0; width:auto; height:auto; z-index:50;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,.95);}
+  #fovFloat.fullscreen h3{font-size:16px;}
+  .fov-bottom{display:flex; align-items:center; justify-content:space-between; font-size:12px;}
+  /* ---------- 右侧面板 ---------- */
+  aside{
+    width:400px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .tabs{display:flex; border-bottom:1px solid var(--line); flex:none;}
+  .tab{
+    flex:1; text-align:center; padding:10px 0; font-size:13px; color:var(--muted); cursor:pointer;
+    border-bottom:2px solid transparent; user-select:none;
+  }
+  .tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+  .tabBody{flex:1; overflow-y:auto; padding:14px; display:none;}
+  .tabBody.active{display:block;}
+  .tabBody::-webkit-scrollbar{width:8px;}
+  .tabBody::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+  section{background:var(--panel2); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:12px;}
+  section h4{font-size:13px; color:var(--accent2); margin-bottom:10px;}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px;}
+  .row label{width:96px; flex:none; color:var(--muted);}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{width:78px; flex:none; text-align:right; font-variant-numeric:tabular-nums;}
+  button.b{
+    background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px;
+    padding:7px 10px; font-size:12px; cursor:pointer; transition:.15s;
+  }
+  button.b:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+  button.b:disabled{opacity:.4; cursor:not-allowed;}
+  button.b.primary{background:var(--accent); color:#111; border:none; font-weight:600;}
+  button.b.primary:hover:not(:disabled){filter:brightness(1.1); color:#111;}
+  .btnRow{display:flex; gap:6px; flex-wrap:wrap;}
+  /* 步骤 */
+  .step{display:flex; align-items:flex-start; gap:8px; padding:7px 8px; border-radius:8px; margin-bottom:6px; font-size:12px; line-height:1.5;}
+  .step .dot{width:18px; height:18px; flex:none; border-radius:50%; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); margin-top:1px;}
+  .step.done .dot{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .step.done{color:var(--muted); text-decoration:line-through;}
+  .step.current{background:rgba(245,179,46,.08); outline:1px solid rgba(245,179,46,.35);}
+  .step.current .dot{border-color:var(--accent); color:var(--accent);}
+  /* 表格 */
+  table{width:100%; border-collapse:collapse; font-size:11.5px; font-variant-numeric:tabular-nums;}
+  th,td{border:1px solid var(--line); padding:4px 5px; text-align:center; white-space:nowrap;}
+  th{background:var(--panel); color:var(--muted); font-weight:500;}
+  td.dim{color:var(--muted);}
+  .formula{background:#0b0f14; border:1px dashed var(--line); border-radius:8px; padding:10px;
+    font-size:12px; line-height:2; text-align:center; margin:8px 0;}
+  .formula b{color:var(--accent);}
+  .kv{display:flex; justify-content:space-between; font-size:12px; padding:4px 0;}
+  .kv span:first-child{color:var(--muted);}
+  .kv .num{font-variant-numeric:tabular-nums;}
+  #resultBox{font-size:15px; text-align:center; padding:10px; border-radius:8px;
+    background:rgba(63,185,111,.1); border:1px solid rgba(63,185,111,.4); margin-top:8px; display:none;}
+  #toast{
+    position:fixed; left:50%; top:70px; transform:translateX(-50%); z-index:99;
+    background:rgba(28,35,48,.95); border:1px solid var(--accent); color:var(--text);
+    padding:9px 18px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none; transition:.25s;
+    max-width:70vw;
+  }
+  #toast.show{opacity:1;}
+  #toast.warn{border-color:var(--warn);}
+  #infoCard{
+    position:absolute; left:14px; top:14px; width:250px; background:rgba(13,17,23,.92);
+    border:1px solid var(--accent2); border-radius:var(--radius); padding:12px; font-size:12px;
+    line-height:1.6; display:none; z-index:20;
+  }
+  #infoCard h5{color:var(--accent2); margin-bottom:6px; font-size:13px;}
+  #infoCard .close{position:absolute; right:8px; top:6px; cursor:pointer; color:var(--muted);}
+  .snapTag{display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px;
+    background:rgba(245,179,46,.15); color:var(--accent); border:1px solid rgba(245,179,46,.4);}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px;
+    padding:0 5px; font-size:11px; font-family:inherit;}
+</style>
+</head>
+<body>
+<header>
+  <h1>实验6 · <span>用牛顿环法测球面的曲率半径</span></h1>
+  <div id="hint">按右侧引导步骤操作；鼠标拖动旋转视角，滚轮缩放，右键平移。点击装置部件可查看说明。</div>
+  <button class="hdr-btn" id="btnFovFull">目镜全屏</button>
+  <button class="hdr-btn" id="btnReset">重置实验</button>
+</header>
+<main>
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="infoCard"><span class="close" id="infoClose">✕</span><h5 id="infoTitle"></h5><div id="infoDesc"></div></div>
+    <!-- 目镜视野（浮动窗） -->
+    <div id="fovFloat">
+      <h3>数码目镜视野 <span id="fovModeTag" class="snapTag">钠光 589.3nm</span></h3>
+      <canvas id="fovCanvas" width="520" height="520"></canvas>
+      <div class="fov-bottom">
+        <span style="color:var(--muted)">“十”字叉丝对准暗环切线</span>
+        <span>读数 <b id="posRead" class="num" style="color:var(--accent)">15.000</b> mm</span>
+      </div>
+    </div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="measure">测量</div>
+      <div class="tab" data-tab="data">数据与处理</div>
+      <div class="tab" data-tab="principle">原理</div>
+    </div>
+
+    <!-- 操作引导 -->
+    <div class="tabBody active" id="tab-guide">
+      <section>
+        <h4>实验步骤（完成后自动打勾）</h4>
+        <div class="step" id="st1"><div class="dot">1</div><div>点亮钠光灯并预热 2~3 min<button class="b" id="btnLamp" style="margin-left:8px">点亮钠光灯</button></div></div>
+        <div class="step" id="st2"><div class="dot">2</div><div>调节 45° 半透半反射镜，使视场被钠黄光充满</div></div>
+        <div class="step" id="st3"><div class="dot">3</div><div>轻旋牛顿环装置三颗螺钉，使干涉条纹中心居中</div></div>
+        <div class="step" id="st4"><div class="dot">4</div><div>调焦物镜，直至条纹清晰且无视差</div></div>
+        <div class="step" id="st5"><div class="dot">5</div><div>移动测微手轮，测量第 1~11 暗环直径（切到"测量"页）</div></div>
+      </section>
+      <section>
+        <h4>装置调节</h4>
+        <div class="row"><label>半反射镜位置</label><input type="range" id="sMirror" min="0" max="100" value="20" step="1"><span class="val" id="vMirror">20</span></div>
+        <div class="row"><label>三颗螺钉(偏心)</label><input type="range" id="sOffset" min="-0.6" max="0.6" value="0.45" step="0.01"><span class="val" id="vOffset">0.45mm</span></div>
+        <div class="btnRow"><button class="b" id="btnLevel">自动调平(居中)</button></div>
+        <div class="row" style="margin-top:8px"><label>物镜调焦</label><input type="range" id="sFocus" min="0" max="100" value="8" step="1"><span class="val" id="vFocus">8</span></div>
+      </section>
+      <section>
+        <h4>物理参数（探究）</h4>
+        <div class="row"><label>透镜曲率半径 R</label><input type="range" id="sR" min="500" max="1500" value="855.1" step="0.1"><span class="val" id="vR">855.1mm</span></div>
+        <div class="row"><label>入射光波长 λ</label><input type="range" id="sLam" min="400" max="700" value="589.3" step="0.1"><span class="val" id="vLam">589.3nm</span></div>
+        <div class="btnRow">
+          <button class="b" id="btnWhite">切换白光</button>
+          <button class="b" id="btnDeform">接触形变误差：关</button>
+          <button class="b" id="btnBacklash">回程差模拟：关</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- 测量 -->
+    <div class="tabBody" id="tab-measure">
+      <section>
+        <h4>测微手轮（模拟螺旋测微器读数）</h4>
+        <div class="row"><label>粗调 ±0.5 mm</label>
+          <button class="b drum" data-step="-0.5">◀</button><button class="b drum" data-step="0.5">▶</button>
+        </div>
+        <div class="row"><label>中调 ±0.05 mm</label>
+          <button class="b drum" data-step="-0.05">◀</button><button class="b drum" data-step="0.05">▶</button>
+        </div>
+        <div class="row"><label>细调 ±0.005 mm</label>
+          <button class="b drum" data-step="-0.005">◀</button><button class="b drum" data-step="0.005">▶</button>
+        </div>
+        <div class="row"><label>或用键盘</label><span style="color:var(--muted)"><kbd>←</kbd> <kbd>→</kbd> 移动 0.005 mm（按住可连动）</span></div>
+        <div class="row"><label>标尺读数</label><span class="num" style="font-size:16px;color:var(--accent)" id="read2">15.000 mm</span></div>
+      </section>
+      <section>
+        <h4>对准与记录（一边外切、一边内切取平均）</h4>
+        <div class="row"><span id="snapInfo" style="color:var(--muted)">移动叉丝至某暗环切线处…</span></div>
+        <div class="btnRow">
+          <button class="b primary" id="btnRecX1">记录 x₁（切线读数）</button>
+          <button class="b primary" id="btnRecX2">记录 x₂（切线读数）</button>
+        </div>
+        <div class="kv" style="margin-top:8px"><span>当前环 x₁</span><span class="num" id="curX1">—</span></div>
+        <div class="kv"><span>当前环 x₂</span><span class="num" id="curX2">—</span></div>
+        <div class="btnRow" style="margin-top:8px">
+          <button class="b" id="btnUndo">撤销上一组</button>
+          <button class="b" id="btnSample">示例数据一键填充</button>
+        </div>
+      </section>
+      <section>
+        <h4>注意事项</h4>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          · 测量时应沿<b style="color:var(--accent)">同一方向</b>转动手轮，避免回程差；<br>
+          · 条纹不锐利，叉丝对准有定位误差，应一边外切、一边内切取平均；<br>
+          · 松开各手轮时需手托活动部分；调焦时镜筒先靠近但不接触牛顿环。
+        </div>
+      </section>
+    </div>
+
+    <!-- 数据与处理 -->
+    <div class="tabBody" id="tab-data">
+      <section>
+        <h4>表 2.6.1　测量牛顿环的直径（单位：mm）</h4>
+        <div style="overflow-x:auto">
+        <table id="dataTable">
+          <thead><tr><th>环数 m</th><th>x₁</th><th>x₂</th><th>Dₘ</th><th>D̄ₘ</th><th>D̄ₘ²</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </section>
+      <section>
+        <h4>直径平方差法处理</h4>
+        <div class="formula">
+          Dₘ² = 4mRλ ， Dₙ² = 4nRλ<br>
+          <b>R = (Dₘ² − Dₙ²) / [4(m−n)λ]</b>
+        </div>
+        <div class="row"><label>高阶环 m</label>
+          <select id="selM" class="b" style="flex:1"></select></div>
+        <div class="row"><label>低阶环 n</label>
+          <select id="selN" class="b" style="flex:1"></select></div>
+        <div class="btnRow"><button class="b primary" id="btnCalc">计算曲率半径 R</button></div>
+        <div id="calcDetail" style="font-size:12px; line-height:1.9; margin-top:8px"></div>
+        <div id="resultBox"></div>
+      </section>
+      <section>
+        <h4>仪器参数</h4>
+        <div class="kv"><span>牛顿环曲率半径（真实值）</span><span class="num">R₀ = 855.1 mm</span></div>
+        <div class="kv"><span>数码读数显微镜仪器误差</span><span class="num">Δ仪 = 0.02 mm</span></div>
+        <div class="kv"><span>钠光灯波长</span><span class="num">λ = 589.3 nm</span></div>
+      </section>
+    </div>
+
+    <!-- 原理 -->
+    <div class="tabBody" id="tab-principle">
+      <section>
+        <h4>牛顿环与等厚干涉</h4>
+        <div style="font-size:12px; line-height:1.9; color:var(--muted)">
+          平凸透镜凸面与平板玻璃接触，其间形成厚度以接触点为中心、沿径向按
+          <b style="color:var(--text)">r² = 2Re</b> 增长的空气薄膜。平行单色光垂直入射时，
+          薄膜上、下表面反射的两束相干光光程差仅由膜厚决定：
+        </div>
+        <div class="formula">
+          明纹：δ = 2e + λ/2 = kλ<br>
+          暗纹：δ = 2e + λ/2 = (2k+1)λ/2<br>
+          几何关系：r² = R² − (R−e)² ≈ 2Re<br>
+          ⇒ 暗环半径 <b>rₖ² = kRλ</b>
+        </div>
+        <div style="font-size:12px; line-height:1.9; color:var(--muted)">
+          同一级条纹对应同一厚度，故为<b style="color:var(--text)">等厚干涉</b>；圆环内疏外密，中心为暗斑。
+        </div>
+      </section>
+      <section>
+        <h4>系统误差与处理方法</h4>
+        <div style="font-size:12px; line-height:1.9; color:var(--muted)">
+          ① 接触处受压弹性形变、灰尘等使中心不是零级暗点而是一个圆斑 → 将半径测量改为<b style="color:var(--text)">直径 D</b> 测量，D² = 4kRλ 消除圆心判定的误差；<br>
+          ② 级数 k 无法确定 → 对第 m、n 级暗环取<b style="color:var(--text)">直径平方差</b>：<br>
+        </div>
+        <div class="formula">R = (Dₘ² − Dₙ²) / [4(m−n)λ]</div>
+        <div style="font-size:12px; line-height:1.9; color:var(--muted)">
+          只要测出两暗环直径并数出级数差 (m−n)，即可求出 R，与中心是否为理想接触点无关。
+        </div>
+      </section>
+      <section>
+        <h4>装置部件说明（3D 场景中点击查看）</h4>
+        <div style="font-size:12px; line-height:1.9; color:var(--muted)">
+          钠光灯 · 45°半透半反射镜 · 牛顿环装置(平凸透镜+平板玻璃+三颗螺钉) ·
+          JCD3 数码读数显微镜(物镜、数码目镜、测微手轮、标尺、底座)
+        </div>
+      </section>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================= 全局状态 ================= */
+const CFG = {
+  R0: 855.1,            // 真实曲率半径 mm
+  lambda0: 589.3,       // nm
+  FOV_MM: 6,            // 目镜视野宽度 mm
+  STAGE_ZERO: 15,       // 装置中心对应读数 15.000 mm
+  POS_MIN: -2.8, POS_MAX: 2.8,      // 显微镜行程（相对装置中心）mm，保证叉丝不出视野
+  BACKLASH: 0.05,                   // 回程差 mm
+  drum: 0, pos: 0,                  // 手轮指令位置 / 实际位置（相对装置中心）
+  R: 855.1, lam: 589.3,
+  white: false, deform: false, backlash: false,
+  focus: 8, mirror: 20, offset: 0.45,
+  lampOn: false, preheated: false,
+  steps: [false,false,false,false,false],
+  data: {},                 // m -> [[x1,x2],...]
+  curX1: null, curX2: null, curM: null,
+  lastDir: 0, pending: 0,   // 回程差模拟
+};
+const $ = id => document.getElementById(id);
+const fmt = (v,n=3) => Number(v).toFixed(n);
+
+/* ================= 提示 toast ================= */
+let toastTimer;
+function toast(msg, warn=false){
+  const t = $('toast');
+  t.textContent = msg; t.className = 'show' + (warn ? ' warn' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.className='', 2600);
+}
+
+/* ================= 物理计算 ================= */
+// 第 k 级暗环半径 mm
+function darkRadius(k, R=CFG.R, lam=CFG.lam){
+  const l = lam*1e-6;                       // nm → mm
+  return Math.sqrt(k * R * l);
+}
+// 单色光强度：等厚干涉 I = sin²(2πe/λ)，e 含接触形变偏移
+function intensityMono(r_mm, R, lam_mm, deform){
+  const e = r_mm*r_mm/(2*R) + (deform ? 0.35*lam_mm : 0);
+  const s = Math.sin(2*Math.PI*e/lam_mm);
+  return s*s;
+}
+// 波长(nm) → RGB
+function lamToRGB(l){
+  let r=0,g=0,b=0;
+  if(l<440){ r=-(l-440)/60; b=1; }
+  else if(l<490){ g=(l-440)/50; b=1; }
+  else if(l<510){ g=1; b=-(l-510)/20; }
+  else if(l<580){ r=(l-510)/70; g=1; }
+  else if(l<645){ r=1; g=-(l-645)/65; }
+  else { r=1; }
+  let f=1;
+  if(l<420) f=.3+.7*(l-380)/40; else if(l>680) f=.3+.7*(700-l)/20;
+  const gm=.8;
+  return [Math.pow(r*f,gm), Math.pow(g*f,gm), Math.pow(b*f,gm)];
+}
+const WHITE_LAMS = [];
+for(let l=400; l<=700; l+=16) WHITE_LAMS.push({l, rgb: lamToRGB(l)});
+
+/* ================= 目镜视野渲染 ================= */
+const fov = $('fovCanvas');
+const fovCtx = fov.getContext('2d');
+const NSIZE = 260;                            // 低分辨率计算，再放大
+const off = document.createElement('canvas'); off.width=off.height=NSIZE;
+const offCtx = off.getContext('2d');
+const imgData = offCtx.createImageData(NSIZE,NSIZE);
+
+function renderFOV(){
+  const half = NSIZE/2;
+  const pxmm = NSIZE/CFG.FOV_MM;              // 像素 / mm
+  // 条纹图案固定在视野中央（仅受螺钉偏心影响）；叉丝随显微镜移动
+  const cx = half - CFG.offset * pxmm;
+  const cy = half;
+  const chx = half + CFG.pos * pxmm;          // 叉丝位置（视野坐标）
+  const d = imgData.data;
+  const lampFactor = CFG.lampOn ? (1 - Math.abs(CFG.mirror-50)/50*0.75) : 0;
+  const lmm = CFG.lam*1e-6;
+
+  for(let y=0;y<NSIZE;y++){
+    for(let x=0;x<NSIZE;x++){
+      const i=(y*NSIZE+x)*4;
+      const sx=(x-cx)/pxmm, sy=(y-cy)/pxmm;
+      const r=Math.sqrt(sx*sx+sy*sy);
+      let R=0,G=0,B=0;
+      if(CFG.white && CFG.lampOn){
+        // 白光：各波长非相干叠加，可见度随光程差衰减
+        const vis = Math.exp(-2*r*r/(2*CFG.R)/0.0022);
+        for(const w of WHITE_LAMS){
+          const I = intensityMono(r, CFG.R, w.l*1e-6, CFG.deform)*vis;
+          R+=I*w.rgb[0]; G+=I*w.rgb[1]; B+=I*w.rgb[2];
+        }
+        const k=0.62; R*=k; G*=k; B*=k;
+      } else if(CFG.lampOn){
+        const I = intensityMono(r, CFG.R, lmm, CFG.deform);
+        const c = lamToRGB(CFG.lam);
+        R=I*c[0]; G=I*c[1]; B=I*c[2];
+      }
+      const f = lampFactor*255;
+      d[i]  = Math.min(255, R*f);
+      d[i+1]= Math.min(255, G*f);
+      d[i+2]= Math.min(255, B*f);
+      d[i+3]= 255;
+    }
+  }
+  offCtx.putImageData(imgData,0,0);
+  // 放大绘制 + 失焦模糊
+  fovCtx.imageSmoothingEnabled = true;
+  fovCtx.clearRect(0,0,520,520);
+  fovCtx.filter = `blur(${Math.abs(CFG.focus-50)*0.09}px)`;
+  fovCtx.drawImage(off,0,0,520,520);
+  fovCtx.filter='none';
+  // 十字叉丝（随显微镜/测微手轮移动）
+  const S = 520;
+  const cx520 = chx/NSIZE*S, cy520 = half/NSIZE*S;
+  fovCtx.strokeStyle='rgba(0,255,160,.9)'; fovCtx.lineWidth=1.2;
+  fovCtx.beginPath();
+  fovCtx.moveTo(cx520,0); fovCtx.lineTo(cx520,cy520-45);
+  fovCtx.moveTo(cx520,cy520+45); fovCtx.lineTo(cx520,S);
+  fovCtx.moveTo(0,cy520); fovCtx.lineTo(cx520-45,cy520);
+  fovCtx.moveTo(cx520+45,cy520); fovCtx.lineTo(S,cy520);
+  fovCtx.stroke();
+  fovCtx.font='12px monospace'; fovCtx.fillStyle='rgba(0,255,160,.75)';
+  fovCtx.fillText(`${fmt(CFG.pos+CFG.STAGE_ZERO)} mm`, 14, 24);
+}
+
+/* ================= 叉丝对准检测 ================= */
+function nearestTangent(){
+  // 返回 {m, side:-1|+1, dist}：叉丝(读数 p)与第 m 级暗环切线的距离
+  const p = CFG.pos + CFG.STAGE_ZERO;
+  let best=null;
+  for(let m=1;m<=16;m++){
+    const r = darkRadius(m);
+    for(const side of [-1,1]){
+      const t = CFG.STAGE_ZERO + side*r;
+      const dist = Math.abs(p-t);
+      if(!best || dist<best.dist) best={m, side, dist, target:t};
+    }
+  }
+  return best;
+}
+
+/* ================= 手轮 / 回程差 ================= */
+function moveDrum(step){
+  if(!CFG.steps[4]){
+    const todo = CFG.steps.findIndex(s=>!s);
+    toast(`测量的前置调节未完成：请先完成第 ${todo+1} 步${todo+1===1?'（点亮钠光灯）':todo+1===2?'（半反射镜滑到 50 附近）':todo+1===3?'（点「自动调平」）':'（调焦滑到 50 附近）'}`, true);
+    return;
+  }
+  CFG.drum += step;
+  if(CFG.backlash){
+    // 反向时先空程
+    const dir = Math.sign(step);
+    if(CFG.lastDir!==0 && dir!==CFG.lastDir && CFG.pending!==0){
+      // 处于空程中
+    }
+    if(CFG.lastDir!==0 && dir!==CFG.lastDir){
+      CFG.pending = CFG.BACKLASH*dir;         // 需要走完 0.05mm 空程
+    }
+    if(CFG.pending!==0){
+      const consumed = dir*step;
+      if(Math.sign(CFG.pending)===dir && Math.abs(CFG.pending)>0){
+        const take = Math.min(Math.abs(CFG.pending), Math.abs(consumed));
+        CFG.pending -= take*dir;
+        if(Math.abs(CFG.pending)>1e-9){
+          toast('回程差：手轮反向转动存在空程，请沿同一方向转动', true);
+          CFG.lastDir = dir;
+          updateReadout(); return;
+        }
+      }
+    }
+  }
+  CFG.lastDir = Math.sign(step)||CFG.lastDir;
+  CFG.drum = Math.max(CFG.POS_MIN, Math.min(CFG.POS_MAX, CFG.drum));
+  CFG.pos = CFG.drum;
+  updateReadout();
+}
+function updateReadout(){
+  const p = CFG.pos + CFG.STAGE_ZERO;
+  $('posRead').textContent = fmt(p);
+  $('read2').textContent = fmt(p)+' mm';
+  const nt = nearestTangent();
+  const tol = 0.012;
+  const snap = $('snapInfo');
+  if(nt && nt.dist<tol && !CFG.white){
+    snap.innerHTML = `<span class="snapTag">已对准第 ${nt.m} 级暗环${nt.side<0?'左':'右'}切线</span>`;
+  } else if(CFG.white){
+    snap.innerHTML = '<span style="color:var(--warn)">白光模式下条纹无确定级数，请切回钠光测量</span>';
+  } else {
+    snap.textContent = '移动叉丝至某暗环切线处…';
+  }
+}
+
+/* ================= 测量记录 ================= */
+function record(which){
+  if(!CFG.steps[4]){ toast('请先完成调节步骤', true); return; }
+  if(CFG.white){ toast('白光模式无法按级数测量，请切回钠光', true); return; }
+  const nt = nearestTangent();
+  const tol = 0.012;
+  if(!nt || nt.dist>=tol){ toast('未对准任何暗环切线，请用细调手轮微调', true); return; }
+  const p = CFG.pos + CFG.STAGE_ZERO;
+  const m = nt.m;
+  if(which===1){
+    CFG.curX1 = p; CFG.curM = m; $('curX1').textContent = fmt(p)+' (第'+m+'环)';
+    toast(`已记录第 ${m} 级暗环 x₁ = ${fmt(p)} mm`);
+  } else {
+    if(CFG.curM===null){ toast('请先记录该环的 x₁', true); return; }
+    if(CFG.curM!==m && Math.abs(nt.m-CFG.curM)!==0){ 
+      if(nt.m!==CFG.curM){ toast(`x₂ 应与 x₁ 属同一环（当前为第 ${m} 环）`, true); return; }
+    }
+    CFG.curX2 = p; $('curX2').textContent = fmt(p)+' (第'+m+'环)';
+    const d = Math.abs(CFG.curX2 - CFG.curX1);
+    if(!CFG.data[m]) CFG.data[m]=[];
+    CFG.data[m].push([CFG.curX1, CFG.curX2]);
+    CFG.curX1=CFG.curX2=CFG.curM=null;
+    $('curX1').textContent='—'; $('curX2').textContent='—';
+    toast(`第 ${m} 级暗环直径 Dₘ = ${fmt(d)} mm 已记录`);
+  }
+  renderTable();
+}
+
+/* ================= 数据表 ================= */
+function renderTable(){
+  const tb = $('dataTable').querySelector('tbody');
+  tb.innerHTML='';
+  for(let m=1;m<=11;m++){
+    const arr = CFG.data[m]||[];
+    const tr = document.createElement('tr');
+    let dMean='—', d2='—';
+    if(arr.length){
+      const ds = arr.map(a=>Math.abs(a[1]-a[0]));
+      dMean = fmt(ds.reduce((s,v)=>s+v,0)/ds.length);
+      d2 = fmt(Math.pow(parseFloat(dMean),2),2);
+    }
+    const cells = [m,
+      arr.length?fmt(arr[arr.length-1][0]):'—',
+      arr.length?fmt(arr[arr.length-1][1]):'—',
+      arr.length?fmt(Math.abs(arr[arr.length-1][1]-arr[arr.length-1][0])):'—',
+      dMean, d2];
+    cells.forEach(c=>{
+      const td=document.createElement('td');
+      td.textContent=c;
+      if(c==='—') td.className='dim';
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  }
+}
+function undoLast(){
+  const ms = Object.keys(CFG.data).map(Number).filter(m=>CFG.data[m].length);
+  if(!ms.length){ toast('没有可撤销的数据', true); return; }
+  ms.sort((a,b)=>b-a);
+  const m = CFG.data[ms[0]] ? ms.find(k=>CFG.data[k].length) : ms[0];
+  CFG.data[m].pop();
+  renderTable();
+  toast(`已撤销第 ${m} 环的最后一组数据`);
+}
+function fillSample(){
+  // 按真实物理 + 小噪声生成 3 次重复测量
+  for(let m=1;m<=11;m++){
+    const Dtrue = 2*darkRadius(m, CFG.R0, CFG.lambda0);
+    CFG.data[m]=[];
+    for(let t=0;t<3;t++){
+      const D = Dtrue + (Math.random()-0.5)*0.008;
+      const x1 = CFG.STAGE_ZERO - D/2 + (Math.random()-0.5)*0.003;
+      CFG.data[m].push([x1, x1+D]);
+    }
+  }
+  renderTable();
+  toast('已填入示例数据（3 次重复测量）');
+}
+
+/* ================= 数据处理 ================= */
+function computeR(){
+  const m = +$('selM').value, n = +$('selN').value;
+  const Dm = meanD(m), Dn = meanD(n);
+  const detail = $('calcDetail'), box = $('resultBox');
+  if(Dm===null || Dn===null){
+    detail.innerHTML = `<span style="color:var(--warn)">第 ${Dm===null?m:n} 级暗环尚无测量数据，请先测量或填入示例数据。</span>`;
+    box.style.display='none'; return;
+  }
+  const lam_mm = CFG.lambda0*1e-6;            // 用钠光名义值处理
+  const R = (Dm*Dm - Dn*Dn)/(4*(m-n)*lam_mm);
+  const uD = 0.02/Math.sqrt(3);               // 仪器误差 B 类不确定度 mm
+  const dR = uD*Math.sqrt(Dm*Dm + Dn*Dn)/(2*(m-n)*lam_mm);
+  const rel = Math.abs(R-CFG.R0)/CFG.R0*100;
+  detail.innerHTML =
+    `D̄${sub(m)} = ${fmt(Dm)} mm ， D̄${sub(n)} = ${fmt(Dn)} mm<br>`+
+    `D̄${sub(m)}² − D̄${sub(n)}² = ${fmt(Dm*Dm-Dn*Dn,3)} mm² ， (m−n) = ${m-n}<br>`+
+    `u(D) = Δ仪/√3 ≈ ${fmt(uD,4)} mm`;
+  box.style.display='block';
+  box.innerHTML = `R = ${fmt(R,1)} ± ${fmt(dR,1)} mm &nbsp;｜&nbsp; 相对误差 E = ${fmt(rel,2)} %`;
+  toast('计算完成，请与真实值 R₀ = 855.1 mm 比较');
+  function sub(k){ return m===k?'m':'n'; }
+}
+function meanD(m){
+  const arr = CFG.data[m];
+  if(!arr || !arr.length) return null;
+  const ds = arr.map(a=>Math.abs(a[1]-a[0]));
+  return ds.reduce((s,v)=>s+v,0)/ds.length;
+}
+
+/* ================= Three.js 3D 场景 ================= */
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e14);
+scene.fog = new THREE.Fog(0x0a0e14, 600, 1600);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 4000);
+camera.position.set(-190, 150, 260);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 45, 0);
+controls.enableDamping = true;
+controls.maxDistance = 900; controls.minDistance = 60;
+
+scene.add(new THREE.AmbientLight(0x8899bb, 0.55));
+const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+dir.position.set(-200,300,180); scene.add(dir);
+const warm = new THREE.PointLight(0xffb347, 0, 400);   // 钠光，点亮后增强
+warm.position.set(-120,45,0); scene.add(warm);
+
+// 地面
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(900,48),
+  new THREE.MeshStandardMaterial({color:0x11161f, roughness:.95})
+);
+floor.rotation.x=-Math.PI/2; floor.position.y=-12; scene.add(floor);
+const grid = new THREE.GridHelper(1200, 60, 0x1e2a3a, 0x18212e);
+grid.position.y=-11.9; scene.add(grid);
+
+const clickable=[];
+function tag(mesh, title, desc){
+  mesh.userData.title=title; mesh.userData.desc=desc;
+  clickable.push(mesh);
+}
+function M(color, opts={}){
+  return new THREE.MeshStandardMaterial({color, roughness:.55, metalness:.35, ...opts});
+}
+
+/* ---- 底座与导轨 ---- */
+const base = new THREE.Mesh(new THREE.BoxGeometry(300,12,58), M(0x2a3444,{roughness:.7}));
+base.position.y=6; scene.add(base);
+tag(base,'底座','JCD3 型数码读数显微镜的底座，承载测量架与导轨。');
+const rail = new THREE.Mesh(new THREE.BoxGeometry(300,8,16), M(0x8b98a9,{metalness:.8,roughness:.3}));
+rail.position.set(0,16,-12); scene.add(rail);
+tag(rail,'导轨槽','测微手轮转动丝杆，带动测量架及显微镜沿导轨槽左右移动。');
+
+/* ---- 工作台 + 台面玻璃 + 牛顿环装置 ---- */
+const stage = new THREE.Mesh(new THREE.BoxGeometry(120,8,70), M(0x313d50,{roughness:.8}));
+stage.position.set(0,20,14); scene.add(stage);
+tag(stage,'工作台','放置牛顿环装置的平台，上表面为台面玻璃。');
+const groundGlass = new THREE.Mesh(new THREE.BoxGeometry(60,2,60),
+  new THREE.MeshPhysicalMaterial({color:0xdfe8f0, roughness:.9, transparent:true, opacity:.5}));
+groundGlass.position.set(0,25,14); scene.add(groundGlass);
+tag(groundGlass,'台面玻璃 / 毛玻璃','牛顿环装置置于其上，散射光使视场明亮均匀。');
+
+// 平板玻璃（牛顿环下半）
+const flatGlass = new THREE.Mesh(new THREE.BoxGeometry(46,3,46),
+  new THREE.MeshPhysicalMaterial({color:0xbfd8e8, roughness:.05, metalness:0, transparent:true, opacity:.45}));
+flatGlass.position.set(0,31,0); scene.add(flatGlass);
+tag(flatGlass,'平板玻璃','牛顿环装置的下半部分，上表面与平凸透镜凸面接触形成空气薄膜。');
+// 平凸透镜：LatheGeometry（上表面平坦，凸面朝下与平板玻璃接触）
+const R_LENS = 90;                        // 视觉夸大的曲率半径（实际 855mm 太平）
+const LENS_R = 20, Y_FLAT_TOP = 8.25, Y_BOTTOM = 6;
+const lensProfile = [new THREE.Vector2(0.001, Y_FLAT_TOP), new THREE.Vector2(LENS_R, Y_FLAT_TOP)];
+for(let i=0;i<=24;i++){
+  const r = LENS_R*Math.cos(Math.PI*i/48);
+  const sag = R_LENS - Math.sqrt(Math.max(R_LENS*R_LENS-r*r,0));
+  lensProfile.push(new THREE.Vector2(Math.max(r,0.001), Y_BOTTOM + sag));
+}
+const lens = new THREE.Mesh(new THREE.LatheGeometry(lensProfile, 64),
+  new THREE.MeshPhysicalMaterial({color:0xa8d4e8, roughness:.03, metalness:.05,
+    transparent:true, opacity:.5, transmission:.4, side:THREE.DoubleSide}));
+lens.position.set(0, 26.5, 0);            // 使凸面最低点恰在平板玻璃上表面(32.5)处
+scene.add(lens);
+tag(lens,'平凸透镜','曲率半径 R 很大的平凸透镜，凸面朝下与平板玻璃接触；其曲率半径为待测量。');
+// 金属框 + 三颗螺钉
+const mount = new THREE.Mesh(new THREE.CylinderGeometry(25,25,4,48,1,true), M(0x5a6577,{metalness:.7,roughness:.35}));
+mount.position.set(0,32,0); scene.add(mount);
+tag(mount,'牛顿环装置金属框','由三颗螺钉固定透镜与平板玻璃；拧得过紧会变形，过松则轻微震动会使条纹移动。');
+for(let i=0;i<3;i++){
+  const a = i*Math.PI*2/3 + Math.PI/6;
+  const screw = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,5,16), M(0xc9a227,{metalness:.9,roughness:.3}));
+  screw.position.set(25*Math.cos(a),32,25*Math.sin(a));
+  scene.add(screw);
+  tag(screw,'调平螺钉','轻旋三颗螺钉可使干涉条纹中心移到装置中央。');
+}
+
+/* ---- 钠光灯 ---- */
+const lampBody = new THREE.Mesh(new THREE.BoxGeometry(34,26,22), M(0x36445a));
+lampBody.position.set(-135,45,0); scene.add(lampBody);
+tag(lampBody,'钠光灯','发出波长 λ = 589.3 nm 的单色黄光，使用前需预热 2~3 min。');
+const lampGlow = new THREE.Mesh(new THREE.SphereGeometry(9,24,24),
+  new THREE.MeshBasicMaterial({color:0xffc247, transparent:true, opacity:0}));
+lampGlow.position.set(-114,45,0); scene.add(lampGlow);
+const lampBeam = new THREE.Mesh(new THREE.CylinderGeometry(3,6,80,16,1,true),
+  new THREE.MeshBasicMaterial({color:0xffca55, transparent:true, opacity:0, side:THREE.DoubleSide}));
+lampBeam.rotation.z=Math.PI/2; lampBeam.position.set(-72,45,0); scene.add(lampBeam);
+
+/* ---- 45° 半透半反射镜 ---- */
+const halfMirror = new THREE.Mesh(new THREE.BoxGeometry(1,26,26),
+  new THREE.MeshPhysicalMaterial({color:0xaad4ff, transparent:true, opacity:.32, roughness:.05, metalness:.1}));
+halfMirror.position.set(-46,45,0); halfMirror.rotation.y = -Math.PI/4;
+scene.add(halfMirror);
+tag(halfMirror,'45° 半透半反射镜','将钠光反射向下，照亮牛顿环装置；调节其位置使钠黄光充满整个目镜视场。');
+
+/* ---- JCD3 数码读数显微镜（随叉丝移动） ---- */
+const micro = new THREE.Group(); scene.add(micro);
+const microM = M(0x46536b,{roughness:.5,metalness:.5});
+const column = new THREE.Mesh(new THREE.BoxGeometry(14,64,14), microM); column.position.set(0,44,-26); micro.add(column);
+tag(column,'方轴/旋钮','支撑测量架，与导轨槽配合移动。');
+const arm = new THREE.Mesh(new THREE.BoxGeometry(14,12,34), microM); arm.position.set(0,72,-14); micro.add(arm);
+const tube = new THREE.Mesh(new THREE.CylinderGeometry(7,7,58,24), microM); tube.position.set(0,46,0); micro.add(tube);
+tag(tube,'镜筒','由数码目镜和物镜组成，镜筒正面正对牛顿环装置中心。');
+const eyepiece = new THREE.Mesh(new THREE.BoxGeometry(16,12,16), M(0x1a2230)); eyepiece.position.set(0,80,0); micro.add(eyepiece);
+tag(eyepiece,'数码目镜','内置测量软件，界面中的“十”字叉丝可作为测量参照。');
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(13,9), new THREE.MeshBasicMaterial({color:0x0b2018}));
+screen.position.set(0,80,8.2); eyepiece.add(screen); micro.add(eyepiece);
+const objective = new THREE.Mesh(new THREE.CylinderGeometry(4,2.6,12,20), M(0x9aa8bd,{metalness:.85,roughness:.25}));
+objective.position.set(0,20,0); micro.add(objective);
+tag(objective,'物镜','调焦手轮使镜筒自下而上移动，直至条纹清晰且无视差。');
+const drum = new THREE.Mesh(new THREE.CylinderGeometry(6,6,10,24), M(0xc9a227,{metalness:.85,roughness:.3}));
+drum.rotation.z=Math.PI/2; drum.position.set(-11,30,-8); micro.add(drum);
+tag(drum,'测微手轮','丝杆带动测量架移动；读数由标尺读数和测微手轮读数两部分组成（类似螺旋测微器）。转动应沿同一方向以免回程差。');
+const slider = new THREE.Mesh(new THREE.BoxGeometry(20,10,18), M(0x55617a)); slider.position.set(0,16,-12); micro.add(slider);
+
+/* ---- 信息卡（点击部件） ---- */
+const raycaster = new THREE.Raycaster();
+let downXY=null;
+canvas.addEventListener('pointerdown', e=> downXY=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup', e=>{
+  if(!downXY || Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1])>5) return;
+  const rect=canvas.getBoundingClientRect();
+  const p=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+  raycaster.setFromCamera(p,camera);
+  const hits=raycaster.intersectObjects(clickable,true);
+  if(hits.length){
+    let o=hits[0].object;
+    while(o && !o.userData.title) o=o.parent;
+    if(o && o.userData.title){
+      $('infoTitle').textContent=o.userData.title;
+      $('infoDesc').textContent=o.userData.desc;
+      $('infoCard').style.display='block';
+    }
+  }
+});
+$('infoClose').onclick=()=>$('infoCard').style.display='none';
+
+/* ================= 步骤状态 ================= */
+function checkSteps(){
+  CFG.steps[0] = CFG.preheated;
+  CFG.steps[1] = CFG.lampOn && Math.abs(CFG.mirror-50)<=8;
+  CFG.steps[2] = Math.abs(CFG.offset)<=0.05;
+  CFG.steps[3] = Math.abs(CFG.focus-50)<=3;
+  CFG.steps[4] = CFG.steps.slice(0,4).every(Boolean);
+  for(let i=0;i<5;i++){
+    const el=$('st'+(i+1));
+    el.classList.toggle('done', CFG.steps[i]);
+    el.classList.toggle('current', !CFG.steps[i] && CFG.steps.slice(0,i).every(Boolean));
+  }
+  if(CFG.steps[4] && !$('st5').dataset.toasted){
+    $('st5').dataset.toasted='1';
+    toast('调节完成！切换到「测量」页开始测量第 1~11 暗环直径');
+  }
+}
+$('btnLamp').onclick=()=>{
+  if(CFG.lampOn){ toast('钠光灯已点亮'); return; }
+  CFG.lampOn=true; lampGlow.material.opacity=.95; lampBeam.material.opacity=.28;
+  warm.intensity=2.2; $('btnLamp').textContent='预热中…'; $('btnLamp').disabled=true;
+  toast('钠光灯已点亮，预热中（2~3 min 模拟为 2 秒）…');
+  setTimeout(()=>{ CFG.preheated=true; $('btnLamp').textContent='已点亮'; checkSteps(); }, 2000);
+};
+$('btnLevel').onclick=()=>{
+  // 平滑动画把偏心调到 0
+  const t0=performance.now(), from=CFG.offset;
+  (function anim(t){
+    const k=Math.min(1,(t-t0)/600);
+    CFG.offset = from*(1-k);
+    $('sOffset').value=CFG.offset; $('vOffset').textContent=fmt(CFG.offset,2)+'mm';
+    if(k<1) requestAnimationFrame(anim); else { toast('三颗螺钉已调平，条纹中心居中'); checkSteps(); }
+  })(t0);
+};
+
+/* ================= 控件绑定 ================= */
+$('sMirror').oninput=e=>{ CFG.mirror=+e.target.value; $('vMirror').textContent=CFG.mirror; checkSteps(); };
+$('sOffset').oninput=e=>{ CFG.offset=+e.target.value; $('vOffset').textContent=fmt(CFG.offset,2)+'mm'; checkSteps(); };
+$('sFocus').oninput=e=>{ CFG.focus=+e.target.value; $('vFocus').textContent=CFG.focus; checkSteps(); };
+$('sR').oninput=e=>{ CFG.R=+e.target.value; $('vR').textContent=fmt(CFG.R,1)+'mm'; };
+$('sLam').oninput=e=>{ CFG.lam=+e.target.value; $('vLam').textContent=fmt(CFG.lam,1)+'nm'; updateModeTag(); };
+$('btnWhite').onclick=()=>{
+  CFG.white=!CFG.white;
+  $('btnWhite').textContent = CFG.white?'切回钠光':'切换白光';
+  $('btnWhite').style.borderColor = CFG.white?'var(--accent2)':'';
+  updateModeTag();
+  if(CFG.white) toast('白光模式：中心暗斑周围出现彩色圆环，级数不再确定');
+};
+function updateModeTag(){
+  $('fovModeTag').textContent = CFG.white ? '白光（彩色环）' : '钠光 '+fmt(CFG.lam,1)+'nm';
+}
+$('btnDeform').onclick=()=>{
+  CFG.deform=!CFG.deform;
+  $('btnDeform').textContent='接触形变误差：'+(CFG.deform?'开':'关');
+  $('btnDeform').style.borderColor = CFG.deform?'var(--warn)':'';
+  if(CFG.deform) toast('接触点存在弹性形变/灰尘：中心变为或明或暗的圆斑（对应教材系统误差①）');
+};
+$('btnBacklash').onclick=()=>{
+  CFG.backlash=!CFG.backlash;
+  $('btnBacklash').textContent='回程差模拟：'+(CFG.backlash?'开':'关');
+  $('btnBacklash').style.borderColor = CFG.backlash?'var(--warn)':'';
+  if(CFG.backlash) toast('已开启回程差：手轮反向转动后需先空程 0.05 mm');
+};
+document.querySelectorAll('.drum').forEach(b=>{
+  let iv=null;
+  const step=()=>moveDrum(parseFloat(b.dataset.step));
+  b.addEventListener('pointerdown',()=>{ step(); iv=setInterval(step,110); });
+  ['pointerup','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>clearInterval(iv)));
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'){ moveDrum(-0.005); e.preventDefault(); }
+  if(e.key==='ArrowRight'){ moveDrum(0.005); e.preventDefault(); }
+});
+// 直接在目镜视野中左右拖动叉丝（等效转动测微手轮）
+(function(){
+  let dragging=false, lastX=0;
+  fov.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; fov.setPointerCapture(e.pointerId); });
+  fov.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const pxmm = fov.clientWidth/CFG.FOV_MM;
+    const dmm = (e.clientX-lastX)/pxmm;
+    if(Math.abs(dmm)>1e-6){ moveDrum(dmm); lastX=e.clientX; }
+  });
+  ['pointerup','pointercancel'].forEach(ev=>fov.addEventListener(ev, ()=>dragging=false));
+})();
+$('btnRecX1').onclick=()=>record(1);
+$('btnRecX2').onclick=()=>record(2);
+$('btnUndo').onclick=undoLast;
+$('btnSample').onclick=fillSample;
+$('btnCalc').onclick=computeR;
+for(const sel of ['selM','selN']){
+  const el=$(sel);
+  for(let k=1;k<=11;k++){
+    const o=document.createElement('option'); o.value=k; o.textContent='第 '+k+' 级暗环';
+    if(sel==='selM'&&k===11) o.selected=true;
+    if(sel==='selN'&&k===1) o.selected=true;
+    el.appendChild(o);
+  }
+}
+$('btnReset').onclick=()=>location.reload();
+$('btnFovFull').onclick=()=>{
+  $('fovFloat').classList.toggle('fullscreen');
+  $('btnFovFull').textContent = $('fovFloat').classList.contains('fullscreen')?'退出全屏':'目镜全屏';
+};
+
+/* 标签页 */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('tab-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+/* ================= 主循环 ================= */
+function resize(){
+  const w=canvas.clientWidth, h=canvas.clientHeight;
+  if(canvas.width!==w||canvas.height!==h){
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let fovTick=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  // 显微镜跟随叉丝位置（1mm 视野 = 1 场景单位）
+  micro.position.x = CFG.pos;
+  // 白光下屏面泛白，钠光下屏泛黄
+  screen.material.color.setHex(CFG.white?0x30302a:0x0b2018);
+  if(++fovTick % 2 === 0) renderFOV();       // 每 2 帧刷新视野，保证性能
+  controls.update();
+  renderer.render(scene, camera);
+}
+checkSteps(); updateReadout(); updateModeTag(); renderTable();
+loop();
+</script>
+</body>
+</html>
