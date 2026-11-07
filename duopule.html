@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验13 · 多普勒效应的研究和应用</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:385px;flex:0 0 385px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--accent)}
+.val{flex:0 0 80px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#freqBox{position:absolute;right:14px;bottom:14px;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#freqBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#freqBox .bar b{color:var(--text);font-weight:600;flex:1}
+#freq2d{width:100%;height:96px;display:block;}   /* 背景由绘制函数提供，勿设 CSS 背景（避免合成器错位伪影） */
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.good{color:var(--ok)} .info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+#fvPlot{width:100%;height:200px;background:#05070a;border:1px solid var(--line);border-radius:8px}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验13 · 多普勒效应的研究和应用</h1>
+  <span class="tag">多普勒效应综合实验仪 · <b>f = f₀(1+v/u)</b> · f–v 拟合测声速</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="freqBox">
+    <div class="bar"><b>频率计（接收信号）</b><span id="gateLamp" style="width:10px;height:10px;border-radius:50%;background:#333;display:inline-block"></span>光电门</div>
+    <canvas id="freq2d" width="248" height="96"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div>开始多普勒效应实验，设置信号频率为 <b>40.000 kHz</b>，发射器处于谐振状态</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div>按<b>复位</b>，将小车置于导轨中间（两个限位光电门之间）</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div>启动电机，设不同速度，<b>朝向声源</b>运动，小车经过限位光电门时自动记录 5 组 (v⁺, f⁺)</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>改变运动方向</b>（远离声源），记录 5 组 (v⁻, f⁻)</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>作 <b>f–v 关系曲线</b>：由斜率 k=f₀/u 求声速 u=f₀/k，由截距验证波源频率 f₀，验证多普勒效应</div></div>
+    </section>
+    <section>
+      <h4>注意事项（教材 p.98）</h4>
+      <div class="info">为保证电机运动状态的准确性，启动电机之前要先将固定接收换能器的小车置于导轨中间，即两个限位光电门之间的位置，然后按一下电机控制器复位键即可开始实验。若运动模式切换，需重复复位操作，确保初始运动状态正确。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>信号源（超声波发射器）</h4>
+      <div class="row"><label>信号频率 f₀</label><input type="range" id="sF" min="38.000" max="42.000" step="0.010" value="39.400"><span class="val" id="vF">39.400 kHz</span></div>
+      <div class="info" id="resShow">偏离谐振点（40.000 kHz），信号偏弱</div>
+    </section>
+    <section>
+      <h4>环境与运动控制</h4>
+      <div class="row"><label>环境温度 t</label><input type="range" id="sT" min="0" max="35" step="0.5" value="20"><span class="val" id="vT">20.0 °C</span></div>
+      <div class="row"><label>小车速度</label><input type="range" id="sV" min="0.10" max="0.80" step="0.05" value="0.30"><span class="val" id="vV">0.30 m/s</span></div>
+      <div class="row"><label>运动方向</label>
+        <select id="selDir">
+          <option value="1">朝向声源（v⁺ &gt; 0）</option>
+          <option value="-1">远离声源（v⁻ &lt; 0）</option>
+        </select>
+      </div>
+      <button class="b" id="btnReset2">复位（小车回中）</button>
+      <button class="b" id="btnRun">启动电机</button>
+      <button class="b" id="btnStop">停止</button>
+      <div class="info" id="runState">已停止。改变速度或方向后需重新复位。</div>
+    </section>
+    <section>
+      <h4>数据记录（经过限位光电门时自动采集）</h4>
+      <div class="info" id="recShow">朝向声源：0 组　|　远离声源：0 组</div>
+      <div class="info">同一速度设置只记录一次；改变速度或方向后请先复位再启动。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.13.1 多普勒效应法测声速</h4>
+      <div id="tbl">尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>f–v 关系曲线（最小二乘拟合）</h4>
+      <canvas id="fvPlot" width="355" height="200"></canvas>
+      <div id="fitShow" class="info">记录数据后自动拟合。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>实验原理</h4>
+      <p class="info">当波源和接收器之间有相对运动时，接收器接收到的频率与波源发出的频率不同：波源靠近接收器时波长变短、频率升高（蓝移）；远离时波长变长、频率降低（红移）。这就是<b>多普勒效应</b>（1842年，多普勒提出）。</p>
+      <div class="formula">f = f₀ · (u + v₁cosα₁)/(u − v₂cosα₂)　（2.13.1）</div>
+      <p class="info">式中 u 为声速，v₁、v₂ 分别为接收器与声源的速度，α₁、α₂ 为其运动方向与连线的夹角。</p>
+    </section>
+    <section>
+      <h4>声源不动、接收器运动</h4>
+      <div class="formula">f = f₀ · (1 + v/u)　　（2.13.2）</div>
+      <p class="info">接收器朝向声源运动时 v 取正，反之取负。f₀ 保持不变时，f 与 v 呈<b>线性关系</b>。</p>
+      <div class="formula">f–v 直线斜率 k = f₀/u　⇒　u = f₀/k</div>
+      <p class="info">测出不同运动速度下的接收频率，作 f–v 曲线：由<b>斜率</b>可求声速 u，由<b>截距</b>可验证波源频率 f₀。</p>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <p class="info">多普勒效应综合实验仪：①超声波发射组件；②传感器接收及红外发射组件（小车上）；③红外接收组件；④电机控制器；⑤光电门；⑥充电孔；⑦滑轮；⑧导轨支架组件；⑨小车。小车上接收到的超声信号经红外通道发送至固定接收端，避免导线拖曳影响运动。</p>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 状态与物理 ================= */
+const F0=40.000;                        // 谐振频率 kHz
+const CFG={
+  f:39.400, tC:20, vSet:0.30, dir:1,    // 频率kHz / 温度℃ / 速度m/s / 方向(+1朝向声源)
+  x:0, running:false, needRec:false, mDir:1,   // mDir：小车当前运动方向（限位反弹只改它，不改用户设置 dir）
+  recPos:[], recNeg:[]                  // {v, f}（v 带符号，朝向声源为正）
+};
+function uAir(){ return 331.45*Math.sqrt((CFG.tC+273.15)/273.15); }   // 理论声速
+function fRecv(v){ return CFG.f*1000*(1+v/uAir()); }                  // 接收频率 Hz
+function resFactor(){ const d=CFG.f-F0; return 1/(1+(d/0.35)**2); }   // 谐振因子
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,500,1100);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(60,85,190);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,22,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.75));
+const dLight=new THREE.DirectionalLight(0xffffff,1.25); dLight.position.set(130,230,140); scene.add(dLight);
+const dLight2=new THREE.DirectionalLight(0x6688cc,.35); dLight2.position.set(-110,60,-160); scene.add(dLight2);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.userData={title,text};
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+
+/* ---- 实验台 ---- */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(190,8,110), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-80,-42],[80,-42],[-80,42],[80,42]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,66,9), M(0x3a2e20));
+  leg.position.set(p[0],-41,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-74; scene.add(floor);
+
+/* ---- 导轨（1单位=1cm；声源在 x=-65，导轨 ±70） ---- */
+const RY=12;
+const railBase=new THREE.Mesh(new THREE.BoxGeometry(150,4,8), M(0x39424e,{metalness:.4}));
+railBase.position.set(0,RY-2,0); scene.add(railBase);
+tag(railBase,'导轨与支架','小车沿导轨匀速运动；两端装有限位光电门（±55cm）与换能器组件。');
+const rail=new THREE.Mesh(new THREE.BoxGeometry(150,2.2,2.2), M(0x8b98a9,{metalness:.7,roughness:.3}));
+rail.position.set(0,RY,0); scene.add(rail);
+/* 滑轮（左端） */
+const pulley=new THREE.Mesh(new THREE.CylinderGeometry(3,3,1.2,20), M(0xc9a24a,{metalness:.75,roughness:.35}));
+pulley.rotation.x=Math.PI/2; pulley.position.set(-72,RY+7,0); scene.add(pulley);
+tag(pulley,'滑轮','电机经绳绕过滑轮牵引小车，实现匀速运动。');
+/* 电机控制器（右端） */
+const motorBox=new THREE.Mesh(new THREE.BoxGeometry(18,12,12), M(0x2c3648,{roughness:.5}));
+motorBox.position.set(80,RY+3,0); scene.add(motorBox);
+const motorLed=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8), new THREE.MeshBasicMaterial({color:0x331111}));
+motorLed.position.set(80,RY+8,-6.2); scene.add(motorLed);
+tag(motorBox,'电机控制器','驱动小车匀速运动；启动前需先复位（小车置于两限位光电门之间）。');
+/* 绳 */
+const rope=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,150,6), M(0x7a6a3a));
+rope.rotation.z=Math.PI/2; rope.position.set(0,RY+7,0); scene.add(rope);
+tag(rope,'牵引绳','连接电机与小车，经滑轮换向。');
+
+/* ---- 超声波发射组件（固定，左端） ---- */
+const txGroup=new THREE.Group(); scene.add(txGroup);
+const txPost=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2,14,12), M(0x46536b));
+txPost.position.set(-65,RY+7,0); txGroup.add(txPost);
+const txBody=new THREE.Mesh(new THREE.CylinderGeometry(3,3,4,20), M(0x46536b,{metalness:.5}));
+txBody.rotation.z=Math.PI/2; txBody.position.set(-65,RY+13,0); txGroup.add(txBody);
+const txHorn=new THREE.Mesh(new THREE.CylinderGeometry(4.6,1.6,3,24), M(0xb9c4d0,{metalness:.75,roughness:.3}));
+txHorn.rotation.z=Math.PI/2; txHorn.position.set(-61.4,RY+13,0); txGroup.add(txHorn);
+tag(txBody,'超声波发射组件','压电陶瓷换能器，谐振频率约 40kHz，向右发射平面超声波。发射器必须处于谐振状态。');
+
+/* ---- 红外接收组件（固定，右端） ---- */
+const irGroup=new THREE.Group(); scene.add(irGroup);
+const irPost=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2,16,12), M(0x46536b));
+irPost.position.set(66,RY+8,0); irGroup.add(irPost);
+const irBody=new THREE.Mesh(new THREE.BoxGeometry(4,4,4), M(0x313d50));
+irBody.position.set(66,RY+17,0); irGroup.add(irBody);
+tag(irBody,'红外接收组件','接收小车红外发射组件发回的超声信号数据（红外传输避免导线拖曳影响运动）。');
+
+/* ---- 限位光电门（±55） ---- */
+const gateLamps=[];
+[[55,'右侧'],[-55,'左侧']].forEach(([gx,name])=>{
+  const g=new THREE.Group(); scene.add(g);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.4,RY+6,10), M(0x46536b));
+  post.position.set(gx,(RY+6)/2,6); g.add(post);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,12), M(0x46536b));
+  arm.position.set(gx,RY+7,0); g.add(arm);
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(.9,10,8), new THREE.MeshBasicMaterial({color:0x331111}));
+  lamp.position.set(gx,RY+8.6,6); g.add(lamp); gateLamps.push(lamp);
+  tag(arm,'限位光电门（'+name+'）','小车经过时遮挡光路，采集该时刻的接收频率与运动速度，并限制小车运动范围。');
+});
+
+/* ---- 小车（接收换能器+红外发射组件） ---- */
+const cart=new THREE.Group(); scene.add(cart);
+const cartBody=new THREE.Mesh(new THREE.BoxGeometry(10,3,7), M(0x46536b,{metalness:.5}));
+cartBody.position.y=RY+2.7; cart.add(cartBody);
+[[-3.5,-2.6],[3.5,-2.6],[-3.5,2.6],[3.5,2.6]].forEach(p=>{
+  const w=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,1,14), M(0x20262f));
+  w.rotation.x=Math.PI/2; w.position.set(p[0],RY+1.2,p[1]); cart.add(w);
+});
+const cartMast=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,10,10), M(0x46536b));
+cartMast.position.set(1,RY+8.5,0); cart.add(cartMast);
+const rxBody=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,3,18), M(0x46536b,{metalness:.5}));
+rxBody.rotation.z=Math.PI/2; rxBody.position.set(-2.5,RY+13,0); cart.add(rxBody);
+const rxHorn=new THREE.Mesh(new THREE.CylinderGeometry(3.6,1.4,2.2,22), M(0xb9c4d0,{metalness:.75,roughness:.3}));
+rxHorn.rotation.z=Math.PI/2; rxHorn.position.set(-5.4,RY+13,0); cart.add(rxHorn);
+const irTx=new THREE.Mesh(new THREE.BoxGeometry(2,2,2), M(0x501818));
+irTx.position.set(1.5,RY+14.3,0); cart.add(irTx);
+tag(cartBody,'小车','沿导轨匀速运动，车上装有接收换能器与红外发射组件。');
+tag(rxBody,'传感器接收组件','接收超声波并测量频率，经红外发射组件发送至红外接收组件。');
+
+/* ---- 行波可视化（发射器→小车） ---- */
+const waveBars=[];
+for(let i=0;i<56;i++){
+  const b=new THREE.Mesh(new THREE.BoxGeometry(.5,1,.5), new THREE.MeshBasicMaterial({color:0x4cc2ff,transparent:true,opacity:.45}));
+  b.position.y=RY+13; scene.add(b); waveBars.push(b);
+}
+function updateWaves(time){
+  const lam=3.6;                             // 可视化波长（cm，夸大）
+  const res=resFactor();
+  waveBars.forEach((b,i)=>{
+    const t=i/55;
+    const x=-61+t*(cart.position.x+6-(-61));
+    const vis=CFG.running||Math.abs(CFG.x)>0;
+    b.visible=CFG.f>0;
+    b.position.x=x;
+    const amp=Math.sin(2*Math.PI*(x+61)/lam - time*7);
+    const fade=(1-t*.55)*res;
+    b.scale.y=Math.max(.06,(.5+.5*amp)*3.4*fade);
+    b.material.opacity=(.15+.35*Math.abs(amp))*fade;
+  });
+}
+
+/* ================= 频率计浮动窗口 ================= */
+const fCanvas=document.createElement('canvas'); fCanvas.width=248; fCanvas.height=96;
+function drawFreq(){
+  const g=fCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,248,96);
+  const vNow=CFG.running? CFG.dir*CFG.vSet : 0;
+  const f=fRecv(vNow);
+  g.fillStyle='#57e389'; g.font='bold 26px Consolas,monospace'; g.textAlign='center';
+  g.fillText(Math.round(f)+' Hz',124,38);
+  g.font='13px Consolas,monospace'; g.fillStyle='#8bd8a8';
+  g.fillText('f₀='+CFG.f.toFixed(3)+' kHz · u='+fmt(uAir(),1)+' m/s',124,64);
+  g.fillStyle=CFG.running?'#ffb454':'#556';
+  g.font='12px sans-serif';
+  g.fillText(CFG.running?(CFG.dir>0?'运动: 朝向声源 v=+'+CFG.vSet.toFixed(2):'运动: 远离声源 v=-'+CFG.vSet.toFixed(2)):'静止',124,86);
+  const c2=$('#freq2d'); c2.getContext('2d').drawImage(fCanvas,0,0);
+}
+
+/* ================= 交互 ================= */
+$('#sF').oninput=e=>{ CFG.f=+e.target.value; $('#vF').textContent=CFG.f.toFixed(3)+' kHz';
+  $('#resShow').textContent = Math.abs(CFG.f-F0)<=0.02?'已处于谐振状态（信号最大）':'偏离谐振点（40.000 kHz），信号偏弱';
+  checkSteps(); };
+$('#sT').oninput=e=>{ CFG.tC=+e.target.value; $('#vT').textContent=CFG.tC.toFixed(1)+' °C'; renderData(); };
+$('#sV').oninput=e=>{ CFG.vSet=+e.target.value; $('#vV').textContent=CFG.vSet.toFixed(2)+' m/s'; };
+$('#selDir').onchange=e=>{ CFG.dir=+e.target.value; };
+$('#btnReset2').onclick=()=>{
+  CFG.x=0; cart.position.x=0; CFG.running=false; CFG.needRec=true; CFG.mDir=CFG.dir;
+  $('#runState').textContent='已复位（小车位于两光电门之间中部）。';
+  $('#btnRun').classList.remove('on');
+  checkSteps();
+};
+$('#btnRun').onclick=()=>{
+  if(!CFG.needRec&&CFG.recPos.length+CFG.recNeg.length>0&&!CFG.running){
+    toast('<b style="color:var(--warn)">运动模式已改变，请先复位</b>再启动电机（教材要求）。');
+    return;
+  }
+  CFG.mDir=CFG.dir;
+  CFG.running=true; $('#btnRun').classList.add('on');
+  $('#runState').textContent='电机运转中：小车匀速运动，经过限位光电门时自动记录。';
+};
+$('#btnStop').onclick=()=>{ CFG.running=false; $('#btnRun').classList.remove('on'); $('#runState').textContent='已停止。'; };
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const s=[];
+  s[0]=Math.abs(CFG.f-F0)<=0.02;
+  s[1]=Math.abs(CFG.x)<1&&!CFG.running&&CFG.needRec;   // 复位后（回中且待记录）
+  s[2]=CFG.recPos.length>=5;
+  s[3]=CFG.recNeg.length>=5;
+  s[4]=s[2]&&s[3];
+  const tips=['信号频率已设为谐振点！','小车已复位，启动电机开始测量。','正向 5 组已记录，切换方向（远离声源）继续。','两个方向数据齐了，查看 f–v 拟合结果！','f–v 拟合完成，声速与波源频率已验证！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 记录与拟合 ================= */
+function record(vSigned){
+  const f=fRecv(vSigned)+(Math.random()-.5)*3;      // ±1.5Hz 采集误差
+  const rec={v:vSigned, f:+f.toFixed(1)};
+  (vSigned>0?CFG.recPos:CFG.recNeg).push(rec);
+  CFG.needRec=false;
+  toast('已记录 '+(vSigned>0?'v⁺':'v⁻')+' = '+vSigned.toFixed(2)+' m/s，f = '+Math.round(f)+' Hz　（改变速度/方向后请复位再启动）');
+  $('#recShow').textContent='朝向声源：'+CFG.recPos.length+' 组　|　远离声源：'+CFG.recNeg.length+' 组';
+  renderData(); checkSteps();
+}
+function fit(){
+  const pts=[...CFG.recPos,...CFG.recNeg];
+  const n=pts.length; if(n<2) return null;
+  let sx=0,sy=0,sxx=0,sxy=0;
+  pts.forEach(p=>{ sx+=p.v; sy+=p.f; sxx+=p.v*p.v; sxy+=p.v*p.f; });
+  const k=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+  const b=(sy-k*sx)/n;
+  return {k, b, u:CFG.f*1000/k};                    // u=f₀/k (m/s)
+}
+function renderData(){
+  const rp=CFG.recPos, rn=CFG.recNeg;
+  if(rp.length||rn.length){
+    const nCol=Math.max(rp.length,rn.length,1);
+    let head='<th>测量序号</th>', rowP='<th>v⁺ /(m/s)</th><td>—</td>', rowF1='<th>f⁺ /Hz</th><td>—</td>',
+        rowN='<th>v⁻ /(m/s)</th><td>—</td>', rowF2='<th>f⁻ /Hz</th><td>—</td>';
+    head=''; rowP='<th>v⁺ /(m/s)</th>'; rowF1='<th>f⁺ /Hz</th>'; rowN='<th>v⁻ /(m/s)</th>'; rowF2='<th>f⁻ /Hz</th>';
+    for(let i=0;i<nCol;i++){ head+=`<th>${i+1}</th>`;
+      rowP+=`<td class="num">${rp[i]?rp[i].v.toFixed(2):'—'}</td>`;
+      rowF1+=`<td class="num">${rp[i]?Math.round(rp[i].f):'—'}</td>`;
+      rowN+=`<td class="num">${rn[i]?Math.abs(rn[i].v).toFixed(2):'—'}</td>`;
+      rowF2+=`<td class="num">${rn[i]?Math.round(rn[i].f):'—'}</td>`; }
+    $('#tbl').innerHTML=`<table>${head?`<tr>${head}</tr>`:''}<tr>${rowP}</tr><tr>${rowF1}</tr><tr>${rowN}</tr><tr>${rowF2}</tr></table>
+    <div class="info">v⁺：小车朝向声源（f &gt; f₀）；v⁻：远离声源（f &lt; f₀）。</div>`;
+  } else $('#tbl').innerHTML='尚未记录数据。';
+  /* 拟合与绘图 */
+  const F=fit();
+  const cv=$('#fvPlot'), g=cv.getContext('2d'), W=cv.width, H=cv.height;
+  g.fillStyle='#05070a'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#1a2c3f'; g.lineWidth=1;
+  for(let x=0;x<=W;x+=35.5){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); }
+  for(let y=0;y<=H;y+=20){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  if(!F){ $('#fitShow').innerHTML='记录数据后自动拟合。'; return; }
+  const vs=pts=>pts.map(p=>p.v), fs=pts=>pts.map(p=>p.f);
+  const allV=[-0.9,0.9, ...vs(CFG.recPos), ...vs(CFG.recNeg)];
+  const allF=[...fs(CFG.recPos), ...fs(CFG.recNeg), F.b, F.k*0.9+F.b];
+  const vMin=Math.min(...allV)-.1, vMax=Math.max(...allV)+.1;
+  const fMin=Math.min(...allF)-30, fMax=Math.max(...allF)+30;
+  const X=v=>(v-vMin)/(vMax-vMin)*(W-50)+40, Y=f=>H-30-(f-fMin)/(fMax-fMin)*(H-50);
+  /* 坐标轴 */
+  g.strokeStyle='#3a4a5e'; g.beginPath();
+  g.moveTo(40,10); g.lineTo(40,H-30); g.lineTo(W-10,H-30); g.stroke();
+  g.fillStyle='#8b98a9'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('v /(m/s)',W/2,H-8);
+  g.save(); g.translate(14,H/2); g.rotate(-Math.PI/2); g.fillText('f /Hz',0,0); g.restore();
+  /* 拟合线 */
+  g.strokeStyle='#4cc2ff'; g.lineWidth=2; g.beginPath();
+  g.moveTo(X(vMin),Y(F.k*vMin+F.b)); g.lineTo(X(vMax),Y(F.k*vMax+F.b)); g.stroke();
+  /* 散点 */
+  g.fillStyle='#5dffb0';
+  [...CFG.recPos,...CFG.recNeg].forEach(p=>{ g.beginPath(); g.arc(X(p.v),Y(p.f),3.5,0,7); g.fill(); });
+  const ut=uAir();
+  const eU=Math.abs(F.u-ut)/ut*100, eF0=Math.abs(F.b-CFG.f*1000)/(CFG.f*1000)*100;
+  $('#fitShow').innerHTML=`<div class="kv"><span>拟合斜率 k</span><b>${F.k.toFixed(2)} Hz/(m/s)</b></div>
+    <div class="kv"><span>声速 u = f₀/k</span><b>${fmt(F.u,2)} m/s（理论 ${fmt(ut,2)}，误差 <span class="${eU<2?'good':''}">${fmt(eU,2)}%</span>）</b></div>
+    <div class="kv"><span>截距（波源频率）</span><b>${Math.round(F.b)} Hz（设定 ${Math.round(CFG.f*1000)}，误差 <span class="${eF0<1?'good':''}">${fmt(eF0,2)}%</span>）</b></div>
+    <div class="info">f 随 v 线性变化且朝向声源时偏高、远离时偏低 —— 多普勒效应得到验证。</div>`;
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.f=F0; $('#sF').value=F0; $('#vF').textContent='40.000 kHz';
+  $('#resShow').textContent='已处于谐振状态（信号最大）';
+  CFG.recPos=[]; CFG.recNeg=[];
+  for(let i=0;i<5;i++){
+    const v=+(0.20+i*0.15).toFixed(2);
+    CFG.recPos.push({v, f:+(fRecv(v)+(Math.random()-.5)*3).toFixed(1)});
+    CFG.recNeg.push({v:-v, f:+(fRecv(-v)+(Math.random()-.5)*3).toFixed(1)});
+  }
+  CFG.x=0; cart.position.x=0; CFG.running=false; CFG.needRec=true;
+  $('#recShow').textContent='朝向声源：5 组　|　远离声源：5 组';
+  checkSteps(); renderData();
+  toast('已自动记录 10 组数据（t='+CFG.tC+'℃，理论 u='+fmt(uAir(),2)+' m/s）。查看「数据处理」页 f–v 拟合。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.recPos=[]; CFG.recNeg=[]; CFG.f=39.400; CFG.x=0; CFG.running=false; CFG.needRec=false;
+  cart.position.x=0;
+  $('#sF').value=39.4; $('#vF').textContent='39.400 kHz';
+  $('#resShow').textContent='偏离谐振点（40.000 kHz），信号偏弱';
+  $('#recShow').textContent='朝向声源：0 组　|　远离声源：0 组';
+  $('#btnRun').classList.remove('on');
+  $('#runState').textContent='已停止。';
+  renderData(); checkSteps();
+  $('#tbl').innerHTML='尚未记录数据。';
+  toast('实验已重置');
+};
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,time=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){        // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let lcdT=0, lastT=performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  const dt=Math.min((performance.now()-lastT)/1000,.1); lastT=performance.now();  // 真实时间步长
+  time+=dt;
+  if(CFG.running){
+    const vCm=CFG.vSet*100;                // m/s → cm/s
+    /* 运动方向：mDir=+1 朝向声源（x 减小）；限位反弹只翻转 mDir，不改变用户设置 dir */
+    let nx=CFG.x-CFG.mDir*vCm*dt;
+    if(nx>58){ nx=58; CFG.mDir=-CFG.mDir; }
+    if(nx<-58){ nx=-58; CFG.mDir=-CFG.mDir; }
+    /* 经过光电门 */
+    const crossed=Math.abs(nx)>=55&&Math.abs(CFG.x)<55;
+    if(crossed){
+      gateLamps.forEach(l=>{ l.material.color.setHex(0xff4444); });
+      setTimeout(()=>gateLamps.forEach(l=>l.material.color.setHex(0x331111)),200);
+      $('#gateLamp').style.background='#ff4444';
+      setTimeout(()=>$('#gateLamp').style.background='#333',250);
+      if(CFG.needRec){
+        const vSigned=CFG.dir*CFG.vSet;    // 朝向声源为正（dir=+1）
+        record(+vSigned.toFixed(2));
+      }
+    }
+    CFG.x=nx;
+  }
+  cart.position.x=CFG.x;
+  motorLed.material.color.setHex(CFG.running?0xff4444:0x331111);
+  updateWaves(time);
+  lcdT+=1/60;
+  if(lcdT>0.12){ lcdT=0; drawFreq(); }
+  controls.update(); renderer.render(scene,camera);
+}
+checkSteps();
+loop();
+</script>
+</body>
+</html>
