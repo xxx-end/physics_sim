@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验11 · 用扭摆法测定物体的转动惯量</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--bad:#ff6b6b;--radius:10px;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:380px;flex:0 0 380px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--accent)}
+.val{flex:0 0 62px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.b.warn{background:#5c4514;border-color:#96742a}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#counterBox{position:absolute;right:14px;bottom:14px;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#counterBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#counterBox .bar b{color:var(--text);font-weight:600;flex:1}
+#counterLcd{width:100%;height:96px;display:block;cursor:default}   /* 背景由绘制函数提供，勿设 CSS 背景（避免合成器错位伪影） */
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.good{color:var(--ok)} .info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv b{color:var(--accent);font-variant-numeric:tabular-nums}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+#lcdBig{font-family:Consolas,monospace;background:#05070a;border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:#57e389;font-size:18px;letter-spacing:1px;margin:6px 0}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验11 · 用扭摆法测定物体的转动惯量</h1>
+  <span class="tag">扭摆 · 光电门 + <b>THC-1A 通用计数器</b> · 验证平行轴定理</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动完成全部测量</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="counterBox">
+    <div class="bar"><b>THC-1A 简易计数器</b><span id="gateLamp" style="width:10px;height:10px;border-radius:50%;background:#333;display:inline-block"></span>光电门</div>
+    <canvas id="counterLcd" width="248" height="96"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div>转动三个<b>平衡螺钉</b>，使水平仪气泡位于中心（基座水平）<div id="screwBox"></div></div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div>装上<b>金属载物圆盘</b>，启动扭摆（摆角约 90°），用计数器测量 <b>10T₀</b></div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div>测量<b>塑料圆柱体</b>的 m、D，放上圆盘测 <b>10T₁</b>，求出弹簧扭转常数 K 与圆盘转动惯量 J盘</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div>测量<b>金属圆筒</b>的 m、D外、D内，测 10T，求 J筒并与理论值比较</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>换<b>夹具+金属细杆</b>（测质量时取下夹具），测 m、L 与 10T（扣除 J夹具），求 J杆</div></div>
+      <div class="step" id="st6"><div class="dot">6</div><div>装上<b>两个滑块</b>对称放置，x = 0.05 ~ 0.25 m 逐点测 <b>5T</b>，验证<b>平行轴定理</b></div></div>
+    </section>
+    <section>
+      <h4>注意事项（教材 p.88）</h4>
+      <div class="info">① 弹簧的 K 与摆角略有关，摆角取 <b>90° 左右</b>误差最小；② 切勿随意拨碰、拨弄弹簧；③ 基座必须保持水平；④ 待测物支架必须全部套入扭摆主轴并紧固；⑤ 测金属细杆质量时，必须将夹具取下。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>装载待测物（支架套入主轴并紧固）</h4>
+      <div class="row"><label>当前装载</label>
+        <select id="selLoad">
+          <option value="disc">金属载物圆盘</option>
+          <option value="cyl">圆盘 + 塑料圆柱体</option>
+          <option value="tube">圆盘 + 金属圆筒</option>
+          <option value="rod">夹具 + 金属细杆</option>
+          <option value="para">细杆 + 两个对称滑块</option>
+        </select>
+      </div>
+      <div class="row" id="rowX" style="display:none"><label>滑块位置 x</label><input type="range" id="sX" min="0.05" max="0.25" step="0.05" value="0.05"><span class="val" id="vX">0.05 m</span></div>
+    </section>
+    <section>
+      <h4>扭摆启动</h4>
+      <div class="row"><label>摆角 A</label><input type="range" id="sAmp" min="40" max="120" step="5" value="90"><span class="val" id="vAmp">90°</span></div>
+      <button class="b" id="btnRun">启动扭摆</button>
+      <button class="b" id="btnStop">停止</button>
+      <span class="info" id="runState">已停止</span>
+    </section>
+    <section>
+      <h4>质量与尺寸测量</h4>
+      <button class="b" id="btnMD">天平/卡尺测量当前物体</button>
+      <div id="mdShow" class="info">尚未测量</div>
+    </section>
+    <section>
+      <h4>通用计数器（自动重复 3 次取平均）</h4>
+      <div id="lcdBig">READY</div>
+      <button class="b" id="btnMeasure">测量周期</button>
+      <div class="info" id="measNote">先启动扭摆，再点「测量周期」。挡光杆每经过光电门一次计数一次。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.11.1 弹性系数及转动惯量测定</h4>
+      <div id="t1">尚未完成圆盘与圆柱体测量。</div>
+    </section>
+    <section>
+      <h4>表 2.11.2 金属圆筒转动惯量测定</h4>
+      <div id="t2">尚未完成圆筒测量。</div>
+    </section>
+    <section>
+      <h4>表 2.11.3 金属细杆转动惯量测定</h4>
+      <div id="t3">尚未完成细杆测量。</div>
+    </section>
+    <section>
+      <h4>表 2.11.4 滑块转动惯量测定（由 x=0.05 数据）</h4>
+      <div id="t4">尚未完成滑块测量。</div>
+    </section>
+    <section>
+      <h4>表 2.11.5 验证平行轴定理</h4>
+      <div id="t5">尚未完成滑块逐点测量。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>实验原理</h4>
+      <p class="info">扭摆的垂直轴上装有薄片状涡卷弹簧，物体在水平面内转过 θ 角后，在弹簧恢复力矩作用下绕垂直轴作往复扭转运动。</p>
+      <div class="formula">M = −Kθ （胡克定律）　　M = Jβ</div>
+      <div class="formula">β = d²θ/dt² = −(K/J)θ = −ω²θ　⇒　θ = A·cos(ωt+φ)</div>
+      <div class="formula">T = 2π/ω = 2π√(J/K)</div>
+      <p class="info">测得 T 并已知 J、K 中任一个，即可算出另一个。选用形状规则、密度均匀的塑料圆柱体（理论 J 可精确计算）来标定 K：</p>
+      <div class="formula">K = 4π²·J圆柱 / (T₁²−T₀²)　　J盘 = K·T₀²/(4π²)</div>
+      <div class="formula">待测物（放圆盘上）：J = K·T²/(4π²) − J盘</div>
+      <p class="info">测金属细杆时不用圆盘而用夹具，需扣除夹具转动惯量：</p>
+      <div class="formula">J细杆 = K·T²/(4π²) − J夹具　（J夹具 = 0.211×10⁻⁴ kg·m²）</div>
+    </section>
+    <section>
+      <h4>理论值公式</h4>
+      <div class="formula">塑料圆柱：J = ⅛·m·D̄²<br>金属圆筒：J = ⅛·m·(D外²+D内²)<br>金属细杆：J = 1/12·m·L̄²</div>
+    </section>
+    <section>
+      <h4>平行轴定理</h4>
+      <p class="info">两滑块对称置于细杆凹槽、距中心转轴 x 时：</p>
+      <div class="formula">J理论 = J细杆 + J滑块 + J夹具 + 2m滑块·x²</div>
+      <p class="info">若各 x 处的实验值与理论值相符（J–x² 呈线性、斜率≈2m滑块），则平行轴定理得证。</p>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+const fmt=(v,n=3)=>(+v).toFixed(n);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+
+/* ================= 状态与真值 ================= */
+/* 各物体真值（自洽）：由这些真值推出的周期与理论公式完全一致 */
+const TRUE={
+  cyl :{m:0.702, D:0.0998},                       // 塑料圆柱
+  tube:{m:0.693, Do:0.1000, Di:0.0948},           // 金属圆筒
+  rod :{m:0.412, L:0.610},                        // 金属细杆
+  slider:{m:0.110, r:0.012},                      // 单个滑块
+  Jclamp:0.211e-4,                                // 夹具转动惯量
+  K:0.030500,                                     // 弹簧扭转常数真值
+  Jdisc:6.254e-4                                  // 载物圆盘真值
+};
+const rodTheoTrue=(1/12)*TRUE.rod.m*TRUE.rod.L**2;
+function Jof(mode,x){                              // 系统对转轴的转动惯量真值
+  if(mode==='disc') return TRUE.Jdisc;
+  if(mode==='cyl')  return TRUE.Jdisc + (1/8)*TRUE.cyl.m*TRUE.cyl.D**2;
+  if(mode==='tube') return TRUE.Jdisc + (1/8)*TRUE.tube.m*(TRUE.tube.Do**2+TRUE.tube.Di**2);
+  if(mode==='rod')  return TRUE.Jclamp + rodTheoTrue;
+  return TRUE.Jclamp + rodTheoTrue + 2*TRUE.slider.m*x*x + TRUE.slider.m*TRUE.slider.r**2;
+}
+function Tof(mode,x){ return 2*Math.PI*Math.sqrt(Jof(mode,x)/TRUE.K); } // 周期真值
+
+const CFG={
+  load:'disc', x:0.05, amp:90,
+  running:false, theta:0, omega:0, phase:0,
+  level:{h:[5,5,5]},                               // 三螺钉高度 0~10
+  MD:{},                                           // 已测 m/D
+  T10:{}, T5:{},                                   // 测量记录（3次平均）
+  steps:[false,false,false,false,false,false]
+};
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,420,900);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(120,120,190);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,48,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.75));
+const dLight=new THREE.DirectionalLight(0xffffff,1.25); dLight.position.set(150,260,120); scene.add(dLight);
+const dLight2=new THREE.DirectionalLight(0x6688cc,.35); dLight2.position.set(-120,80,-160); scene.add(dLight2);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+const tag=(mesh,title,text)=>{
+  mesh.userData={title,text};
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    showInfo(title,text); });
+};
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function showInfo(title,text){ toast('<b style="color:var(--accent)">'+title+'</b>　'+text); }
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d')); const t=new THREE.CanvasTexture(c); return t; }
+
+/* ---- 实验台 ---- */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(170,8,120), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-70,-48],[70,-48],[-70,48],[70,48]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,66,9), M(0x3a2e20));
+  leg.position.set(p[0],-41,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-74; scene.add(floor);
+
+/* ---- 扭摆主体 ---- */
+const swing=new THREE.Group(); scene.add(swing);            // 随调平整体微倾
+const base=new THREE.Mesh(new THREE.CylinderGeometry(17,19,5,32), M(0x5c6672,{metalness:.6,roughness:.4}));
+base.position.y=2.5; swing.add(base);
+tag(base,'扭摆底座','铸铁三爪底座，底部有三个调平螺钉。基座必须保持水平（水平仪气泡居中）。');
+/* 三个平衡螺钉（ knob 可交互） */
+const screwKnobs=[];
+[[0,1],[210,2],[330,3]].forEach(([deg,i],k)=>{
+  const a=deg*Math.PI/180;
+  const g=new THREE.Group();
+  const stem=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,4,12), M(0x39424e));
+  stem.position.y=1; g.add(stem);
+  const knob=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,2.4,16), M(0xc9a24a,{metalness:.8,roughness:.3}));
+  knob.position.y=4; g.add(knob);
+  g.position.set(14*Math.cos(a),5,14*Math.sin(a));
+  swing.add(g); screwKnobs.push(knob);
+  tag(knob,'平衡螺钉 '+i+'　高度 '+fmt(CFG.level.h[k],1)+' cm','在「操作引导」页调节三个螺钉高度，使水平仪气泡居中。');
+});
+/* 水平仪 */
+const levelRim=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,1,24), M(0x223040));
+levelRim.position.set(-8,5.4,0); swing.add(levelRim);
+const levelGlass=new THREE.Mesh(new THREE.CylinderGeometry(3.6,3.6,.4,24), new THREE.MeshPhysicalMaterial({color:0xaad4ff,transparent:true,opacity:.35,roughness:.05}));
+levelGlass.position.set(-8,6.05,0); swing.add(levelGlass);
+const ringTarget=new THREE.Mesh(new THREE.RingGeometry(.9,1.2,24), new THREE.MeshBasicMaterial({color:0x88ffcc,side:THREE.DoubleSide}));
+ringTarget.rotation.x=-Math.PI/2; ringTarget.position.set(-8,6.27,0); swing.add(ringTarget);
+const bubble=new THREE.Mesh(new THREE.SphereGeometry(.62,16,12), new THREE.MeshBasicMaterial({color:0x51e07f}));
+bubble.scale.y=.45; swing.add(bubble);
+tag(levelRim,'水平仪','气泡位于中心圆内表示基座水平。调节底部三个平衡螺钉。');
+/* 立柱 + 轴承座 */
+const post=new THREE.Mesh(new THREE.CylinderGeometry(4.5,5,30,20), M(0x6b7684,{metalness:.55,roughness:.35}));
+post.position.y=20; swing.add(post);
+tag(post,'立柱与轴承座','垂直轴 1 与底座 4 间装有轴承，以降低摩擦力矩。');
+const bearing=new THREE.Mesh(new THREE.BoxGeometry(13,7,13), M(0x46536b,{metalness:.5}));
+bearing.position.y=37.5; swing.add(bearing);
+/* 涡卷弹簧罩（薄圆盘状涡卷弹簧 3 装在垂直轴上） */
+const springCase=new THREE.Mesh(new THREE.CylinderGeometry(10,10,6,28), M(0x7d8a99,{metalness:.65,roughness:.35}));
+springCase.position.y=45; swing.add(springCase);
+const springSpiralTex=canvasTex(128,128,g=>{
+  g.strokeStyle='#c8a24a'; g.lineWidth=3; g.beginPath();
+  for(let a=0;a<6*Math.PI;a+=.05){ const r=4+a*4.6;
+    const x=64+r*Math.cos(a), y=64+r*Math.sin(a);
+    a===0?g.moveTo(x,y):g.lineTo(x,y); }
+  g.stroke();
+});
+const springFace=new THREE.Mesh(new THREE.RingGeometry(3,9.6,32), new THREE.MeshBasicMaterial({map:springSpiralTex,transparent:true,side:THREE.DoubleSide}));
+springFace.position.set(0,45.02,10.05); swing.add(springFace);
+tag(springCase,'涡卷弹簧','薄片状涡卷弹簧，产生恢复力矩 M=−Kθ。切勿随意拨碰、拨弄弹簧！');
+
+/* ---- 旋转部分（垂直轴+夹持+待测物） ---- */
+const R=new THREE.Group(); swing.add(R);
+const shaft=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,9,16), M(0x9aa7b5,{metalness:.85,roughness:.2}));
+shaft.position.y=52; swing.add(shaft);
+tag(shaft,'垂直轴','待测物支架全部套入主轴并紧固后随轴扭转摆动。');
+const collet=new THREE.Mesh(new THREE.CylinderGeometry(3.6,3.6,5,16), M(0xc9a24a,{metalness:.8,roughness:.3}));
+collet.position.y=59.5; R.add(collet);
+/* 载物圆盘 + 挡光杆 */
+const disc=new THREE.Mesh(new THREE.CylinderGeometry(17,17,3.5,40), M(0x8b98a9,{metalness:.7,roughness:.35}));
+disc.position.y=58.75; R.add(disc);
+tag(disc,'金属载物圆盘','放置圆柱体/圆筒等待测物。圆盘边缘装有挡光杆，经过光电门时计数。');
+const baffle=new THREE.Mesh(new THREE.BoxGeometry(15,1.4,1.4), M(0xd8e2ec,{metalness:.6,roughness:.3}));
+baffle.position.set(22.5,59,0); R.add(baffle);
+tag(baffle,'挡光杆','圆盘上的挡光杆自由往返通过光电门，挡光一次计数一次。');
+/* 塑料圆柱体 */
+const cyl=new THREE.Mesh(new THREE.CylinderGeometry(5,5,9,32), M(0xd8c56a,{roughness:.6}));
+cyl.position.y=65; R.add(cyl);
+tag(cyl,'塑料圆柱体（待测）','形状规则、密度均匀，理论值 J=⅛·m·D²，用于标定弹簧扭转常数 K。');
+/* 金属圆筒 */
+const tubeShape=new THREE.Shape(); tubeShape.absarc(0,0,5,0,Math.PI*2,false);
+const hole=new THREE.Path(); hole.absarc(0,0,4.74,0,Math.PI*2,true); tubeShape.holes.push(hole);
+const tube=new THREE.Mesh(new THREE.ExtrudeGeometry(tubeShape,{depth:9,bevelEnabled:false,curveSegments:40}),
+  M(0xb9c4d0,{metalness:.8,roughness:.3}));
+tube.rotation.x=-Math.PI/2; tube.position.y=60.5; R.add(tube);
+tag(tube,'金属圆筒（待测）','理论值 J=⅛·m·(D外²+D内²)。用游标卡尺分别测量内、外径。');
+/* 夹具 + 金属细杆 + 滑块 */
+const clamp=new THREE.Mesh(new THREE.BoxGeometry(6,5,6), M(0x46536b,{metalness:.5}));
+clamp.position.y=61.5; R.add(clamp);
+tag(clamp,'夹具','细杆通过夹具套入主轴。测细杆质量时必须将夹具取下；计算时扣除 J夹具=0.211×10⁻⁴ kg·m²。');
+const rod=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,61,14), M(0xb9c4d0,{metalness:.8,roughness:.3}));
+rod.rotation.z=Math.PI/2; rod.position.y=63; R.add(rod);
+tag(rod,'金属细杆（待测）','理论值 J=1/12·m·L²。杆上有两边凹槽，滑块可对称自由滑动。');
+const sliderL=new THREE.Mesh(new THREE.BoxGeometry(4,3.6,3.2), M(0x7d6a3a,{metalness:.6,roughness:.4}));
+const sliderR=sliderL.clone();
+[sliderL,sliderR].forEach(s=>{ s.position.y=63; R.add(s); });
+tag(sliderL,'滑块（×2）','两个滑块对称放置在细杆凹槽内，距转轴 x。J理论=J细杆+J滑块+J夹具+2m滑块x²。');
+
+/* ---- 光电门 ---- */
+const gateGroup=new THREE.Group(); scene.add(gateGroup);
+const gateStand=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.8,66,12), M(0x46536b));
+gateStand.position.set(25,33,0); gateGroup.add(gateStand);
+const gateFoot=new THREE.Mesh(new THREE.CylinderGeometry(6,7,2,20), M(0x39424e));
+gateFoot.position.set(25,1,0); gateGroup.add(gateFoot);
+const gateArm=new THREE.Mesh(new THREE.BoxGeometry(10,1.6,1.6), M(0x46536b));
+gateArm.position.set(20,66,4.6); gateGroup.add(gateArm);
+const gateEmit=new THREE.Mesh(new THREE.BoxGeometry(2.4,4,2.4), M(0x2c3648));
+gateEmit.position.set(20,64,7); gateGroup.add(gateEmit);
+const gateRecv=new THREE.Mesh(new THREE.BoxGeometry(2.4,4,2.4), M(0x2c3648));
+gateRecv.position.set(20,64,2); gateGroup.add(gateRecv);
+const gateBeam=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,4.6,8), new THREE.MeshBasicMaterial({color:0xff5544}));
+gateBeam.rotation.x=Math.PI/2; gateBeam.position.set(20,64.6,4.5); gateGroup.add(gateBeam);
+const gateLamp3D=new THREE.Mesh(new THREE.SphereGeometry(.7,12,10), new THREE.MeshBasicMaterial({color:0x331111}));
+gateLamp3D.position.set(20,66.6,2); gateGroup.add(gateLamp3D);
+tag(gateEmit,'激光光电门','激光光电二极管响应速度快、精度可达微秒级。调节支架使挡光杆处于开口中央且能自由往返通过。');
+tag(gateRecv,'光电接收器','将光信号转换为脉冲信号送入通用计数器；挡光时指示灯亮。');
+
+/* ---- 通用计数器 ---- */
+const cntBox=new THREE.Mesh(new THREE.BoxGeometry(34,16,11), M(0x2c3648,{roughness:.5}));
+cntBox.position.set(-42,8,-40); scene.add(cntBox);
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=248; lcdCanvas.height=96;
+const lcdTexture=new THREE.CanvasTexture(lcdCanvas);
+const lcd3D=new THREE.Mesh(new THREE.PlaneGeometry(30,10), new THREE.MeshBasicMaterial({map:lcdTexture}));
+lcd3D.position.set(-42,9.5,-34.4); scene.add(lcd3D);
+tag(cntBox,'THC-1A 通用计数器','自动记录、存储多组实验数据并求平均值；可测量物体转动周期。');
+function drawLCD(main,sub){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,248,96);
+  g.fillStyle='#57e389'; g.font='bold 26px Consolas,monospace'; g.textAlign='center';
+  g.fillText(main,124,42);
+  g.font='13px Consolas,monospace'; g.fillStyle='#8bd8a8';
+  g.fillText(sub,124,70);
+  lcdTexture.needsUpdate=true;
+  const c2=$('#counterLcd'), g2=c2.getContext('2d');
+  g2.drawImage(lcdCanvas,0,0);
+}
+drawLCD('READY','模式: 10T · 周期测量');
+
+/* ================= 装载切换 ================= */
+function applyLoad(){
+  const m=CFG.load;
+  disc.visible = (m==='disc'||m==='cyl'||m==='tube');
+  baffle.visible = disc.visible;
+  cyl.visible  = (m==='cyl');
+  tube.visible = (m==='tube');
+  rod.visible  = (m==='rod'||m==='para');
+  clamp.visible= (m==='rod'||m==='para');
+  const sl=(m==='para');
+  sliderL.visible=sliderR.visible=sl;
+  if(sl){ sliderL.position.x=-CFG.x*100; sliderR.position.x=CFG.x*100; }
+  $('#rowX').style.display = sl?'flex':'none';
+  stopSwing(true);
+  $('#measNote').textContent = m==='para'
+    ? '滑块模式测 5T（周期较长）。改变 x 后周期即时变化。'
+    : '先启动扭摆，再点「测量周期」。挡光杆每经过光电门一次计数一次。';
+}
+$('#selLoad').onchange=e=>{ CFG.load=e.target.value; applyLoad(); };
+$('#sX').oninput=e=>{ CFG.x=+e.target.value; $('#vX').textContent=fmt(CFG.x,2)+' m'; applyLoad(); };
+$('#sAmp').oninput=e=>{ CFG.amp=+e.target.value; $('#vAmp').textContent=CFG.amp+'°'; };
+$('#btnRun').onclick=()=>{
+  CFG.running=true; CFG.phase=0; CFG.omega=2*Math.PI/Tof(CFG.load,CFG.x);
+  $('#runState').textContent='摆动中 ω='+fmt(CFG.omega,3)+' rad/s';
+  toast('扭摆已启动，摆角 '+CFG.amp+'°。'+(CFG.amp<80||CFG.amp>100?'<b style="color:var(--warn)">摆角偏离 90° 较大，会引入系统误差！</b>':''));
+};
+$('#btnStop').onclick=()=>stopSwing();
+function stopSwing(silent){
+  CFG.running=false; R.rotation.y=0;
+  $('#runState').textContent='已停止';
+  if(!silent) toast('已停止。改变装载或滑块位置后需重新启动。');
+}
+
+/* ================= 测量：质量尺寸 ================= */
+const noise=(r)=>1+(Math.random()-.5)*2*r;
+$('#btnMD').onclick=()=>{
+  const m=CFG.load;
+  const n=v=>v*noise(.0015);          // 天平/卡尺微小随机误差
+  if(m==='cyl')       CFG.MD.cyl ={m:n(TRUE.cyl.m),  D:n(TRUE.cyl.D)};
+  else if(m==='tube') CFG.MD.tube={m:n(TRUE.tube.m),Do:n(TRUE.tube.Do),Di:n(TRUE.tube.Di)};
+  else if(m==='rod'||m==='para') CFG.MD.rod ={m:n(TRUE.rod.m),L:n(TRUE.rod.L)};
+  else { toast('当前装载无需测质量尺寸（圆盘参数由 K 与 T₀ 间接得出）'); return; }
+  showMD(); checkSteps(); renderData();
+};
+function showMD(){
+  const md=CFG.MD, m=CFG.load, el=$('#mdShow');
+  if(m==='cyl'&&md.cyl) el.innerHTML=`塑料圆柱：m=${fmt(md.cyl.m,4)} kg，D=${fmt(md.cyl.D*100,2)} cm`;
+  else if(m==='tube'&&md.tube) el.innerHTML=`金属圆筒：m=${fmt(md.tube.m,4)} kg，D外=${fmt(md.tube.Do*100,2)} cm，D内=${fmt(md.tube.Di*100,2)} cm`;
+  else if((m==='rod'||m==='para')&&md.rod) el.innerHTML=`金属细杆：m=${fmt(md.rod.m,4)} kg，L=${fmt(md.rod.L,3)} m（不含夹具）`;
+  else if(m==='disc') el.innerHTML='圆盘质量无需直接测量';
+  else el.innerHTML='尚未测量';
+}
+
+/* ================= 测量：周期 ================= */
+$('#btnMeasure').onclick=()=>{
+  if(!CFG.running){ toast('请先<b>启动扭摆</b>再测量'); return; }
+  const para=(CFG.load==='para');
+  /* 误差源：摆角偏离90°、底座未水平 */
+  let extra=1;
+  if(CFG.amp<80||CFG.amp>100) extra+=.004*Math.abs(CFG.amp-90);
+  const lv=Math.hypot(levelErr().dx,levelErr().dz);   // 气泡偏移幅度
+  extra+=lv*.006;
+  if(lv>.15&&CFG.steps[0]) toast('<b style="color:var(--warn)">基座未严格调平，测量误差增大</b>');
+  const Ttrue=Tof(CFG.load,CFG.x)*extra;
+  const per=para?5:10, nT=per*Ttrue;
+  const reps=[]; for(let i=0;i<3;i++) reps.push(nT*noise(.0012));
+  const avg=reps.reduce((a,b)=>a+b)/3;
+  if(para){ CFG.T5[CFG.x.toFixed(2)]=avg; }
+  else{ CFG.T10[CFG.load]=avg; }
+  drawLCD(avg.toFixed(2)+' s',(para?'5T':'10T')+' ×3平均 · T='+fmt(avg/per,4)+' s');
+  $('#lcdBig').textContent=(para?'5T = ':'10T = ')+avg.toFixed(2)+' s　(3次平均)';
+  toast('测量完成：'+(para?'5T':'10T')+' = <b>'+avg.toFixed(2)+' s</b>（T = '+fmt(avg/per,4)+' s，3 次平均）');
+  checkSteps(); renderData();
+};
+
+/* ================= 调平 ================= */
+const screwBox=$('#screwBox');
+CFG.level.h.forEach((h,i)=>{
+  const row=document.createElement('div'); row.className='row';
+  row.innerHTML=`<label>螺钉 ${i+1}</label><input type="range" min="0" max="10" step="0.1" value="${h}" data-i="${i}"><span class="val" data-v="${i}">${fmt(h,1)} cm</span>`;
+  screwBox.appendChild(row);
+});
+screwBox.querySelectorAll('input').forEach(inp=>inp.oninput=e=>{
+  const i=+e.target.dataset.i; CFG.level.h[i]=+e.target.value;
+  screwBox.querySelector('[data-v="'+i+'"]').textContent=fmt(CFG.level.h[i],1)+' cm';
+  applyLevel(); checkSteps();
+});
+function levelErr(){                              // 气泡偏移量（0 为居中）
+  const h=CFG.level.h;
+  return { dx:(h[1]-h[2])*0.866/5, dz:(h[0]-(h[1]+h[2])/2)/5 };
+}
+function applyLevel(){
+  const e=levelErr();
+  swing.rotation.z=e.dx*.03; swing.rotation.x=-e.dz*.03;
+  bubble.position.set(-8-e.dx*3.4,6.35,-e.dz*3.4);
+}
+applyLevel();
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const s=CFG.steps, e=levelErr();
+  s[0]=Math.abs(e.dx)<.12&&Math.abs(e.dz)<.12;
+  s[1]=!!CFG.T10['disc'];
+  s[2]=!!(CFG.T10['cyl']&&CFG.MD.cyl);
+  s[3]=!!(CFG.T10['tube']&&CFG.MD.tube);
+  s[4]=!!(CFG.T10['rod']&&CFG.MD.rod);
+  s[5]=Object.keys(CFG.T5).length>=3;
+  const tips=['基座已水平，气泡居中！','10T₀ 已测得，进入下一步标定 K。','K 与 J盘 已求出（见数据处理页）！','圆筒转动惯量已得！','细杆转动惯量已得！','平行轴定理验证完成（≥3 个 x 点）！'];
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  const md=CFG.MD, t=CFG.T10;
+  /* 表 2.11.1 */
+  if(t['disc']&&t['cyl']&&md.cyl){
+    const T0=t['disc']/10, T1=t['cyl']/10;
+    const Jcyl=(1/8)*md.cyl.m*md.cyl.D**2;
+    const K=4*Math.PI**2*Jcyl/(T1**2-T0**2);
+    const Jdisc=K*T0**2/(4*Math.PI**2);
+    CFG._K=K; CFG._Jdisc=Jdisc;
+    $('#t1').innerHTML=`<table>
+      <tr><th></th><th>塑料圆柱体</th><th>金属载物圆盘</th></tr>
+      <tr><td>质量 m /kg</td><td class="num">${fmt(md.cyl.m,4)}</td><td>—</td></tr>
+      <tr><td>直径 D /m</td><td class="num">${fmt(md.cyl.D,4)}</td><td>—</td></tr>
+      <tr><td>平均周期 T̄ /s</td><td class="num">${fmt(T1,4)}</td><td class="num">${fmt(T0,4)}</td></tr>
+      <tr><td>圆柱理论值 J/（kg·m²）</td><td class="num" colspan="2">${Jcyl.toExponential(3)}</td></tr>
+      <tr><td>弹簧扭转常数 K/（N·m）</td><td class="num" colspan="2">${K.toExponential(3)}</td></tr>
+      <tr><td>圆盘 J盘/（kg·m²）</td><td class="num" colspan="2">${Jdisc.toExponential(3)}</td></tr></table>`;
+  }
+  /* 表 2.11.2 圆筒 */
+  if(t['tube']&&md.tube&&CFG._K){
+    const T=t['tube']/10;
+    const Jt=(1/8)*md.tube.m*(md.tube.Do**2+md.tube.Di**2);
+    const Je=CFG._K*T**2/(4*Math.PI**2)-CFG._Jdisc;
+    const E=Math.abs(Je-Jt)/Jt*100;
+    $('#t2').innerHTML=`<table>
+      <tr><th>m /kg</th><th>D外 /m</th><th>D内 /m</th><th>T̄ /s</th></tr>
+      <tr><td class="num">${fmt(md.tube.m,4)}</td><td class="num">${fmt(md.tube.Do,4)}</td><td class="num">${fmt(md.tube.Di,4)}</td><td class="num">${fmt(T,4)}</td></tr>
+      <tr><td colspan="2">理论值 J/（kg·m²）</td><td colspan="2" class="num">${Jt.toExponential(3)}</td></tr>
+      <tr><td colspan="2">实验值 J/（kg·m²）</td><td colspan="2" class="num">${Je.toExponential(3)}</td></tr>
+      <tr><td colspan="2">百分误差 E₀</td><td colspan="2" class="num ${E<3?'good':''}">${fmt(E,2)} %</td></tr></table>`;
+  }
+  /* 表 2.11.3 细杆 */
+  if(t['rod']&&md.rod&&CFG._K){
+    const T=t['rod']/10;
+    const Jt=(1/12)*md.rod.m*md.rod.L**2;
+    const Je=CFG._K*T**2/(4*Math.PI**2)-TRUE.Jclamp;
+    const E=Math.abs(Je-Jt)/Jt*100;
+    $('#t3').innerHTML=`<table>
+      <tr><th>m /kg（不含夹具）</th><th>L /m</th><th>T̄ /s</th></tr>
+      <tr><td class="num">${fmt(md.rod.m,4)}</td><td class="num">${fmt(md.rod.L,3)}</td><td class="num">${fmt(T,4)}</td></tr>
+      <tr><td colspan="2">理论值 J/（kg·m²）</td><td colspan="2" class="num">${Jt.toExponential(3)}</td></tr>
+      <tr><td colspan="2">实验值 J（扣除 J夹具）/（kg·m²）</td><td colspan="2" class="num">${Je.toExponential(3)}</td></tr>
+      <tr><td colspan="2">百分误差 E₀</td><td colspan="2" class="num ${E<3?'good':''}">${fmt(E,2)} %</td></tr></table>`;
+  }
+  /* 表 2.11.5 平行轴 */
+  const xs=Object.keys(CFG.T5).sort();
+  if(xs.length&&CFG._K&&md.rod){
+    const Jrod=(1/12)*md.rod.m*md.rod.L**2, ms=TRUE.slider.m;
+    let rows='';
+    xs.forEach(x=>{
+      const T=CFG.T5[x]/5;
+      const Je=CFG._K*T**2/(4*Math.PI**2);
+      const Jt=Jrod+TRUE.Jclamp+2*ms*x*x+TRUE.slider.m*TRUE.slider.r**2;
+      const E=Math.abs(Je-Jt)/Jt*100;
+      rows+=`<tr><td class="num">${(+x).toFixed(2)}</td><td class="num">${CFG.T5[x].toFixed(2)}</td><td class="num">${fmt(T,4)}</td><td class="num">${Je.toExponential(3)}</td><td class="num">${Jt.toExponential(3)}</td><td class="num ${E<4?'good':''}">${fmt(E,1)}%</td></tr>`;
+    });
+    $('#t5').innerHTML=`<table><tr><th>x /m</th><th>5T̄ /s</th><th>T̄ /s</th><th>J实验</th><th>J理论</th><th>相差</th></tr>${rows}</table>
+    <div class="info">J理论 = J细杆理论 + J夹具 + 2m滑块·x²（含滑块自转）。J–x² 呈线性、斜率≈2m滑块=${fmt(2*ms,3)} kg，即平行轴定理得证。</div>`;
+    if(xs.length>=2){
+      /* J实验–x² 线性拟合：J = a + b·x²，斜率 b≈2m滑块，截距 a≈J杆+J夹具+2·J滑块自转 */
+      const pts=xs.map(x=>[x*x, CFG._K*(CFG.T5[x]/5)**2/(4*Math.PI**2)]);
+      const n=pts.length, sx=pts.reduce((s,p)=>s+p[0],0), sy=pts.reduce((s,p)=>s+p[1],0);
+      const sxx=pts.reduce((s,p)=>s+p[0]*p[0],0), sxy=pts.reduce((s,p)=>s+p[0]*p[1],0);
+      const b=(n*sxy-sx*sy)/(n*sxx-sx*sx), a=(sy-b*sx)/n;
+      const Jslider=(a-TRUE.Jclamp-Jrod)/2;
+      $('#t4').innerHTML=`<table>
+        <tr><th>拟合斜率 b</th><th>2m滑块</th><th>单滑块 J/（kg·m²）</th></tr>
+        <tr><td class="num">${b.toExponential(3)}</td><td class="num">${fmt(2*ms,3)} kg</td>
+        <td class="num">${Jslider.toExponential(3)}（真值 ${((0.5*ms*TRUE.slider.r**2)).toExponential(2)}）</td></tr></table>
+        <div class="info">由 J–x² 直线拟合得：斜率 b 与 2m滑块 相符，截距扣除 J杆、J夹具后即为滑块自转惯量。</div>`;
+    }
+  }
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.level.h=[5,5,5];
+  screwBox.querySelectorAll('input').forEach(inp=>{ inp.value=5; });
+  screwBox.querySelectorAll('.val').forEach(v=>v.textContent='5.0 cm');
+  applyLevel();
+  CFG.MD.cyl={m:TRUE.cyl.m,D:TRUE.cyl.D};
+  CFG.MD.tube={m:TRUE.tube.m,Do:TRUE.tube.Do,Di:TRUE.tube.Di};
+  CFG.MD.rod={m:TRUE.rod.m,L:TRUE.rod.L};
+  CFG.T10={disc:10*Tof('disc',0),cyl:10*Tof('cyl',0),tube:10*Tof('tube',0),rod:10*Tof('rod',0)};
+  CFG.T5={}; ['0.05','0.10','0.15','0.20','0.25'].forEach(x=>CFG.T5[x]=5*Tof('para',+x));
+  CFG.running=true; CFG.phase=0; CFG.omega=2*Math.PI/Tof(CFG.load,CFG.x);
+  $('#runState').textContent='摆动中';
+  showMD(); checkSteps(); renderData();
+  toast('已自动完成全部测量并填表（3 组平均已模拟）。查看「数据处理」页各表结果。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.MD={}; CFG.T10={}; CFG.T5={}; CFG._K=null; CFG._Jdisc=null;
+  CFG.load='disc'; $('#selLoad').value='disc'; applyLoad();
+  CFG.level.h=[5,5,5];
+  screwBox.querySelectorAll('input').forEach(inp=>inp.value=5);
+  screwBox.querySelectorAll('.val').forEach(v=>v.textContent='5.0 cm');
+  applyLevel(); stopSwing(true); drawLCD('READY','模式: 10T · 周期测量');
+  $('#lcdBig').textContent='READY'; $('#mdShow').innerHTML='尚未测量';
+  ['#t1','#t2','#t3','#t4','#t5'].forEach(s=>$(s).innerHTML='尚未完成测量。');
+  checkSteps(); toast('实验已重置');
+};
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){         // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let lastStep=0, tick=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  if(CFG.running){
+    CFG.phase+=1/60;
+    CFG.theta=CFG.amp*Math.PI/180*Math.cos(CFG.omega*CFG.phase);
+    R.rotation.y=CFG.theta;
+    /* 挡光杆经过光电门 → LED 闪 */
+    const norm=((CFG.theta%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+    const blocked=norm<.07||norm>2*Math.PI-.07;
+    gateLamp3D.material.color.setHex(blocked?0xff4444:0x331111);
+    $('#gateLamp').style.background=blocked?'#ff4444':'#333';
+  }
+  screwKnobs.forEach((k,i)=>{ k.rotation.y=CFG.level.h[i]*1.2; });
+  controls.update(); renderer.render(scene,camera);
+}
+applyLoad(); checkSteps();
+loop();
+</script>
+</body>
+</html>
