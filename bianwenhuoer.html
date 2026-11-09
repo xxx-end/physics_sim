@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验4 · 变温霍尔效应及其参数测定</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+#benchRead{position:absolute;left:14px;top:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;font-variant-numeric:tabular-nums}
+#benchRead b{color:#57e389}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+aside{width:460px;flex:0 0 460px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 96px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b.warn{background:#5c4a1d;border-color:#96802f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums} td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+.mv{font-size:12px;color:var(--muted)} .mv b{color:#57e389;font-family:Consolas,monospace}
+.rd{font-family:Consolas,monospace;font-size:13px;line-height:1.9}
+.rd .ovf{color:#ff6b5e;font-weight:bold}
+canvas.chart{background:#0a0f16;border:1px solid var(--line);border-radius:8px;width:100%}
+.badge{display:inline-block;padding:1px 7px;margin:2px;border-radius:10px;font-size:11px;background:#243040;color:#7f8ea3}
+.badge.ok{background:#1d4a2f;color:#57e389}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验4 · 变温霍尔效应及其参数测定</h1>
+  <span class="tag">U<sub>H</sub>=(U₁−U₂+U₃−U₄)/4　·　R<sub>H</sub>=<b>U<sub>H</sub>d/(I<sub>S</sub>B)</b>　·　n=<b>I<sub>S</sub>B/(U<sub>H</sub>ed)</b>　·　B=<b>C·I<sub>M</sub></b></span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动设置并填示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="benchRead"></div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">仪器操作</div>
+    <div class="tab" data-tab="data">测量记录</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>连线与开机</b>：按序连接 测试仪→开关盒→霍尔组件（4,2 与 1,3）→C 型电磁铁（1,3），打开电源并预热（约 5 s），记录电磁铁系数 C 与组件厚度 d</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>测室温 U<sub>H</sub>-I<sub>S</sub> 关系（表 2.4.1）</b>：量程调至 200 mV，I<sub>M</sub>=400 mA；I<sub>S</sub> 依次取 0.5~3.0 mA，每个 I<sub>S</sub> 用开关盒完成 (+B,+I)/(−B,+I)/(−B,−I)/(+B,−I) 四组换向测量，作 U<sub>H</sub>-I<sub>S</sub> 曲线，求 R<sub>H</sub> 与 n</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>n 型组件变温测量（表 2.4.2）</b>：接温控电源与 DC12V 风扇，I<sub>S</sub>=2 mA、I<sub>M</sub>=50 mA；从 −20 ℃ 起每 20 ℃ 一点至 120 ℃（刚升温时须功率反接降温，温度稳定后测量），绘 n-t 曲线</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>p 型组件变温测量（表 2.4.3）</b>：换 p 型组件，I<sub>S</sub>=0.5 mA、I<sub>M</sub>=1000 mA，−5~135 ℃ 每 20 ℃ 一点，注意 U<sub>H</sub> 极性与量程</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>结论</b>：比较两种导电类型组件的 R<sub>H</sub> 符号与 n-t 曲线形态（n 型指数上升、p 型 U 形）</div></div>
+    </section>
+    <section>
+      <h4>操作要点</h4>
+      <div class="info">① 开机前工作电流、励磁电流旋钮逆时针到底（最小）；② 电压量程调至高量程 200 mV，超量程时数显屏首位闪"1"；③ 只有接通负载恒流源才有输出（开关盒"断开"时电流表为 0）；④ 各子实验测量完毕应及时断开工作电流和励磁电流开关；⑤ 温控电源输出正接升温、反接降温，保护温度 +148 ℃。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 连线与开机（按序）</h4>
+      <button class="b" id="c1">1. 测试仪输出端 → 开关盒 I_S/I_M 输入端</button>
+      <button class="b" id="c2">2. 开关盒 I_S 输出端 → 组件电极 1,3</button>
+      <button class="b" id="c3">3. 开关盒 I_M 输出端 → C 型电磁铁 1,3</button>
+      <button class="b" id="c4">4. 开关盒 I_S 输出端 → 组件电极 4,2（霍尔电压）</button>
+      <button class="b" id="btnPower" disabled>电源：关</button>
+      <div class="mv" id="warmShow">未开机</div>
+    </section>
+    <section>
+      <h4>② 霍尔效应测试仪 ZKY-HL</h4>
+      <div class="row"><label>电压量程</label><button class="b" id="btnRange">当前 ±20 mV（点击切 ±200 mV）</button></div>
+      <div class="row"><label>工作电流 I_S</label><button class="b" data-is="-0.5">−0.5</button><button class="b" data-is="-0.1">−0.1</button><button class="b" data-is="0.1">＋0.1</button><button class="b" data-is="0.5">＋0.5</button><span class="mv"><b id="vIs">0.00 mA</b></span></div>
+      <div class="row"><label>励磁电流 I_M</label><button class="b" data-im="-100">−100</button><button class="b" data-im="-10">−10</button><button class="b" data-im="10">＋10</button><button class="b" data-im="100">＋100</button><span class="mv"><b id="vIm">0 mA</b>　B=<b id="vB">0.0 mT</b></span></div>
+      <div class="rd" id="rdShow">I_S：—　U_H：—　I_M：—</div>
+    </section>
+    <section>
+      <h4>③ 双刀双掷开关盒 ZKY-BD0001</h4>
+      <div class="row"><label>I_S 换向</label><button class="b" data-iss="-1">反向</button><button class="b" data-iss="0">断开</button><button class="b" data-iss="1">正向</button></div>
+      <div class="row"><label>I_M 换向</label><button class="b" data-ims="-1">反向</button><button class="b" data-ims="0">断开</button><button class="b" data-ims="1">正向</button></div>
+      <div class="row"><label>测量</label><button class="b" id="btnRec" disabled>📋 记录本组读数</button><button class="b" id="btnAuto4" disabled>⚡ 四组自动换向测量</button></div>
+      <div id="pendShow" class="mv">暂存组合：—</div>
+      <button class="b" id="btnRow" disabled>✔ 计算 U_H 填入表 2.4.1（当前 I_S）</button>
+    </section>
+    <section>
+      <h4>④ 温控电源与霍尔组件</h4>
+      <button class="b" id="btnTC">接温控电源 + DC12V 风扇</button>
+      <div class="row"><label>目标温度</label><button class="b" data-tg="-10">−10</button><button class="b" data-tg="10">＋10</button><span class="mv">当前 <b id="vT">25.0 ℃</b>　目标 <b id="vTg">25 ℃</b></span></div>
+      <div class="row"><label>功率电源</label><button class="b" id="btnHeat">正接（升温）</button><button class="b" id="btnCool">反接（降温）</button></div>
+      <div class="mv" id="tcShow">温控未接入</div>
+      <div class="row"><label>霍尔组件</label><button class="b" id="btnN">n 型</button><button class="b" id="btnP">p 型</button></div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.4.1　测 U_H-I_S 关系曲线表（I_M=400 mA，n 型，室温）</h4>
+      <div class="mv" id="t1meta">C=—，d=—</div>
+      <div id="tbl1"></div>
+      <canvas class="chart" id="cv1" width="420" height="180"></canvas>
+      <div class="mv" id="t1res"></div>
+    </section>
+    <section>
+      <h4>表 2.4.2　n 型组件 n-t 关系曲线表（I_S=2 mA，I_M=50 mA）</h4>
+      <button class="b" id="btnRec2">🌡 记录当前温度点（n 型 → 表 2.4.2）</button>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>表 2.4.3　p 型组件 n-t 关系曲线表（I_S=0.5 mA，I_M=1000 mA）</h4>
+      <button class="b" id="btnRec3">🌡 记录当前温度点（p 型 → 表 2.4.3）</button>
+      <div id="tbl3"></div>
+      <canvas class="chart" id="cv2" width="420" height="200"></canvas>
+    </section>
+    <section>
+      <h4>结论</h4>
+      <div id="conclude" class="info">完成表 2.4.1 后自动给出 R_H、n；完成两个变温表后给出 n-t 曲线对比结论。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>霍尔效应</h4>
+      <div class="formula">eE_H = eν̄B　(2.4.1)　　I_S = nev̄bd　(2.4.2)</div>
+      <div class="formula">U_H = E_H·b = I_S·B/(ned) = R_H·I_S·B/d = K_H·I_S·B　(2.4.3)</div>
+      <div class="formula">R_H = U_H·d/(I_S·B)　(2.4.4)　　n = I_S·B/(U_H·e·d)　(2.4.5)</div>
+      <div class="info">U_H 与 I_S、B 成正比，与厚度 d 成反比；R_H=1/(ne) 为霍尔系数（m³/C），符号由载流子电荷符号决定——n 型为负、p 型为正，据此可判断导电类型。</div>
+    </section>
+    <section>
+      <h4>副效应与换向消除法</h4>
+      <div class="info">不等位电压 U_0=I_S·r 只随 I_S 方向变；埃廷斯豪森效应等热磁副效应引入的误差很小可忽略。四组换向测量：<br>(+B,+I_S) U₁=U_H+U_0；　(−B,+I_S) U₂=−U_H+U_0；<br>(−B,−I_S) U₃=U_H−U_0；　(+B,−I_S) U₄=−U_H−U_0。</div>
+      <div class="formula">U_H = (U₁−U₂+U₃−U₄)/4　(2.4.7)</div>
+    </section>
+    <section>
+      <h4>载流子的激发</h4>
+      <div class="info">半导体载流子来自本征激发与杂质电离。杂质半导体低温下载流子主要来自杂质电离（n 近似不变）；足够高温度下本征激发成为主要来源。n 型：n 随温度先平缓后陡增；p 型：杂质耗尽区 n 先下降，本征区再上升（U 形）。</div>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <div class="info">霍尔效应测试仪（工作电流 0~10 mA、霍尔电压 0~20/200 mV 手动切换量程、励磁电流 0~1000 mA）；温控电源（测温精度 ±0.5 ℃，保护温度 +148 ℃）；C 型电磁铁（系数 C=251.6 mT/A，B=C·I_M）；双刀双掷开关盒（正向/断开/反向三态）；霍尔组件 n 型、p 型各一（厚度 d=1.00 μm，工作电流 1→3 端，霍尔电极 4 正 2 负）。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 产生霍尔效应应具备哪些条件？<br>(2) 怎样利用 I_S、B 的方向及 U_H 的极性判断试样的导电类型？<br>(3) 若磁场 B 与霍尔组件的法线方向不一致，对测量结果有何影响？<br>(4) 能否用霍尔元件测量交变磁场？若能，应怎样测量？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),4500); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数 ================= */
+const ECH=1.602e-19, CC=251.6;             // 电磁铁系数 mT/A
+const DN=1.00e-6, DP=1.00e-6;              // 组件厚度 m
+const nN=t=>0.88e22*Math.exp(0.0182*(t+20));                       // n 型载流子浓度
+const nP=t=>4.2e22*Math.exp(-t/95)+6.5e20*Math.exp((t-20)/45);     // p 型（U 形：杂质耗尽下探后本征回升）
+const RHof=t=>{ const n=(state.comp==='n')?nN(t):nP(t); return ((state.comp==='n')?-1:1)/(n*ECH); };  /* n 型 R_H<0 → U_H<0 */
+const Bof=im=>CC*im/1000;                                          // mT
+function noiseOf(key){ let h=0; for(const c of key) h=(h*31+c.charCodeAt(0))%1000; return ((h/1000)-0.5)*0.1; }
+/* 当前开关组合下的 U_AB (mV)：U_H 随 B、I_S 双换向；U_0 只随 I_S 换向 */
+function readU(){
+  if(!state.power||!state.warmed||!state.conn.every(Boolean)) return 0;
+  const sIs=state.Is*state.isSw, sIm=state.Im*state.imSw;          // 带符号 mA
+  const key=[state.comp,state.T.toFixed(0),sIs,sIm].join('|');
+  if(state.isSw===0) return noiseOf(key+'i0');                     // 断 I_S：无输出
+  const d=(state.comp==='n')?DN:DP;
+  const uh=(state.imSw!==0)? RHof(state.T)*(sIs*1e-3)*(Bof(sIm)/1000)/d*1000 : 0;
+  const u0=(state.comp==='n'?0.4:0.6)*state.Is*state.isSw;         // 不等位电压
+  return uh+u0+noiseOf(key);
+}
+const ovf=u=>Math.abs(u)>state.range;                               // 超量程
+
+/* ================= 状态 ================= */
+const state={
+  conn:[false,false,false,false], power:false, warmed:false, warmT:0,
+  range:20, Is:0, Im:0, isSw:0, imSw:0,
+  pend:{},                       // 当前 I_S 暂存组合 'is,im'→U
+  t1rows:[], lockIM:null, t1RH:null, t1n:null,
+  tcLink:false, T:25, Tg:25, tmode:0,            // 功率 0/正接1/反接-1
+  comp:'n', t2rows:[], t3rows:[], pendT:{},
+  done1:false, done2:false, done3:false, done4:false
+};
+const TLIST2=[-20,0,20,40,60,80,100,120], TLIST3=[-5,15,35,55,75,95,115,135];
+const ISLIST=[0.5,1,1.5,2,2.5,3];
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x10131a); scene.fog=new THREE.Fog(0x10131a,260,700);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000); camera.position.set(0,25,58); camera.lookAt(-2,9,0);
+const controls=new THREE.OrbitControls(camera,canvas); controls.target.set(-2,9,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x99a5bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,.9); dl.position.set(40,90,80); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+const desk=new THREE.Mesh(new THREE.BoxGeometry(120,3,46), M(0x3d4654,{roughness:.8}));
+desk.position.set(0,1.5,0); scene.add(desk);
+/* C 型电磁铁（C 形铁轭+六匝励磁线圈+极面+底座+接线柱） */
+const magG=new THREE.Group();
+const iron=M(0x5a6070,{metalness:.55,roughness:.4});
+const back=new THREE.Mesh(new THREE.BoxGeometry(6,20,10), iron); back.position.set(-6,11,0); magG.add(back);
+const topBar=new THREE.Mesh(new THREE.BoxGeometry(14,6,10), iron); topBar.position.set(0,21,0); magG.add(topBar);
+const bot=new THREE.Mesh(new THREE.BoxGeometry(14,6,10), iron); bot.position.set(0,1,0); magG.add(bot);
+/* 极面（打磨亮钢面） */
+const poleMat=M(0x9aa2b0,{metalness:.8,roughness:.25});
+const poleT=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,3,24), poleMat); poleT.rotation.x=Math.PI/2; poleT.position.set(3,16.5,0); magG.add(poleT);
+const poleB=poleT.clone(); poleB.position.set(3,5.5,0); magG.add(poleB);
+/* 励磁线圈：每侧 6 匝漆包铜线叠加 */
+for(const z of [-2.6,2.6]){
+  for(let i=0;i<6;i++){
+    const turn=new THREE.Mesh(new THREE.TorusGeometry(3.6,0.4,8,26), M(0xb5793a,{metalness:.6,roughness:.45}));
+    turn.position.set(-6,11,z-1.4+i*0.56); magG.add(turn);
+  }
+}
+/* 底座 + 励磁接线柱（红/黑香蕉座） */
+const mbase=new THREE.Mesh(new THREE.BoxGeometry(16,1.2,14), M(0x2c3036,{roughness:.6})); mbase.position.set(-2,0.6,0); magG.add(mbase);
+function mpost(x,z,c){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.5,.6,.6,12), M(0x14161a)); base.position.y=.9; g.add(base);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.9,10), M(c,{metalness:.3})); head.position.y=1.6; g.add(head);
+  g.position.set(x,1.2,z); magG.add(g); return g;
+}
+mpost(-1,4.5,0xc23b3b); mpost(1,4.5,0x2a2d33);     // I_M 接线柱（世界 ≈ (−19/−17, 5.4, 4.5)）
+/* 霍尔组件（气隙中）：PCB 小板 + 霍尔芯片 + 4 根引脚 */
+const chipG=new THREE.Group();
+const pcbC=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.16,2), M(0x1a6a3c,{roughness:.5})); chipG.add(pcbC);
+const chip=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.24,1), M(0x2244aa,{roughness:.4})); chip.position.y=0.2; chipG.add(chip);
+chipG.userData.chip=chip;
+for(let i=0;i<4;i++){
+  const pin=new THREE.Mesh(new THREE.BoxGeometry(0.14,1.7,0.14), M(0xc9ccd2,{metalness:.7}));
+  pin.position.set(-0.9+i*0.6,-0.95,0); chipG.add(pin);
+}
+chipG.position.set(3,11,0); magG.add(chipG);
+magG.position.set(-18,3,0); scene.add(magG);
+tag(magG,'C 型电磁铁','磁极系数 C=251.6 mT/A，B=C·I_M。励磁电流从红色接线座流入、黑色流出为正向，由右手螺旋定则确定气隙中 B 的方向。');
+tag(chipG,'霍尔组件','N/P 型各一个（外观相同材料不同），厚 d=1.00 μm。工作电流 1→3 端，霍尔电极 4 正 2 负。气隙磁感应强度方向垂直组件表面。');
+/* 霍尔效应测试仪（数码屏+三旋钮指示条+下沿 8 个接线端子+电源开关） */
+const insG=new THREE.Group();
+const ibody=new THREE.Mesh(new THREE.BoxGeometry(24,13,9), M(0xd8dce2,{roughness:.45})); ibody.position.y=6.5; insG.add(ibody);
+const insCv=document.createElement('canvas'); insCv.width=512; insCv.height=150; window.__insCv=insCv;
+const ig=insCv.getContext('2d'); const insTex=new THREE.CanvasTexture(insCv);
+const iscr=new THREE.Mesh(new THREE.PlaneGeometry(21,6), new THREE.MeshBasicMaterial({map:insTex}));
+iscr.position.set(0,9,4.55); insG.add(iscr);
+for(let i=0;i<3;i++){
+  const kg=new THREE.Group();
+  const k=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.0,1.1,18), M(0x494f58,{metalness:.35,roughness:.5})); k.rotation.x=Math.PI/2; kg.add(k);
+  const mk=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.7,0.12), M(0xf2f4f6)); mk.position.set(0,0.4,0.55); kg.add(mk);
+  kg.position.set(-7+i*7,2.6,4.6); insG.add(kg);
+}
+/* 下沿 4 组接线端子（I_S 出 / I_M 出 / U_H 入 / 温控接口） */
+function jack2(x,c){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.42,.5,.5,12), M(0x14161a)); base.position.y=.45; g.add(base);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.26,.26,.8,10), M(c,{metalness:.3})); head.position.y=1; g.add(head);
+  g.position.set(x,0,4.5); return g;
+}
+[[-9.5,0xc23b3b],[-8,0x2a2d33],[-4.5,0xc23b3b],[-3,0x2a2d33],[1.5,0xc23b3b],[3,0x2a2d33],[7,0x3b7ac2],[8.5,0x3b7ac2]]
+  .forEach(j=>insG.add(jack2(j[0],j[1])));
+/* 电源开关（红）+ 铭牌 */
+const psw=new THREE.Mesh(new THREE.BoxGeometry(1.6,1,0.5), M(0x9c3d33,{roughness:.5})); psw.position.set(10.5,6.5,4.55); insG.add(psw);
+const insG_pl=new THREE.Mesh(new THREE.BoxGeometry(4,1.2,0.2), M(0x22262c)); insG_pl.position.set(-10,6.5,4.55); insG.add(insG_pl);
+insG.position.set(22,3,4); scene.add(insG);
+tag(insG,'霍尔效应测试仪 ZKY-HL','工作电流 0~10 mA、霍尔电压 0~20/200 mV（手动切换量程）、励磁电流 0~1000 mA。下沿端子：I_S 输出、I_M 输出、U_H 输入、温控接口。开机前电流旋钮逆时针到底；只有接通负载恒流源才有输出。');
+/* 温控电源（屏+按键+输出端子+DC12V 风扇） */
+const tcG=new THREE.Group();
+const tbody=new THREE.Mesh(new THREE.BoxGeometry(18,11,8), M(0xe3e0d6,{roughness:.5})); tbody.position.y=5.5; tcG.add(tbody);
+const tcCv=document.createElement('canvas'); tcCv.width=256; tcCv.height=110; window.__tcCv=tcCv;
+const tg=tcCv.getContext('2d'); const tcTex=new THREE.CanvasTexture(tcCv);
+const tscr=new THREE.Mesh(new THREE.PlaneGeometry(12,5), new THREE.MeshBasicMaterial({map:tcTex}));
+tscr.position.set(0,7.4,4.05); tcG.add(tscr);
+/* 输出端子（红黑×2：功率输出、传感器） */
+tcG.add(jack2(-6,0xc23b3b)); tcG.add(jack2(-4.5,0x2a2d33)); tcG.add(jack2(6,0xc23b3b)); tcG.add(jack2(7.5,0x2a2d33));
+/* DC12V 风扇：外框 + 4 叶片（接温控后旋转） */
+const fanG=new THREE.Group();
+const fring=new THREE.Mesh(new THREE.TorusGeometry(1.5,0.2,8,24), M(0x22262c)); fanG.add(fring);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.38,0.5,12), M(0x33363b)); hub.rotation.x=Math.PI/2; fanG.add(hub);
+for(let i=0;i<4;i++){
+  const bl=new THREE.Mesh(new THREE.BoxGeometry(0.55,1.45,0.08), M(0x525b6a,{roughness:.5}));
+  bl.position.set(Math.sin(i*Math.PI/2)*0.9, Math.cos(i*Math.PI/2)*0.9, 0.1);
+  bl.rotation.z=-i*Math.PI/2; fanG.add(bl);
+}
+fanG.position.set(0,2.4,4.15); tcG.add(fanG);
+tcG.position.set(22,3,-14); scene.add(tcG);
+tag(tcG,'温控电源 + DC12V 风扇','测温精度 ±0.5 ℃，保护温度 +148 ℃。输出正接升温、反接降温；刚升温时应从低温开始测试（反接降温），待高于室温再正接升温。');
+/* 双刀双掷开关盒（两组拨杆+顶面丝印+两侧端子排） */
+const swG=new THREE.Group();
+const sbody=new THREE.Mesh(new THREE.BoxGeometry(15,5,8), M(0x2c313a,{roughness:.6})); sbody.position.y=2.5; swG.add(sbody);
+const sbCv=document.createElement('canvas'); sbCv.width=256; sbCv.height=96;
+const sbg=sbCv.getContext('2d');
+sbg.fillStyle='#2c313a'; sbg.fillRect(0,0,256,96);
+sbg.fillStyle='#c8cdd4'; sbg.font='bold 26px Arial'; sbg.textAlign='center';
+sbg.fillText('I_S 换向',70,36); sbg.fillText('I_M 换向',186,36);
+sbg.font='15px Arial'; sbg.fillStyle='#8b98a9';
+sbg.fillText('反 − 0 断 + 正',70,66); sbg.fillText('反 − 0 断 + 正',186,66);
+const sbTex=new THREE.CanvasTexture(sbCv);
+const sbTop=new THREE.Mesh(new THREE.PlaneGeometry(13,4.8), new THREE.MeshStandardMaterial({map:sbTex,roughness:.6}));
+sbTop.rotation.x=-Math.PI/2; sbTop.position.y=5.01; swG.add(sbTop);
+function lever(x,color){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,0.6,16), M(0x11141a)); g.add(base);
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,2.6,10), M(color,{metalness:.4}));
+  rod.position.y=1.2; g.add(rod); g.userData.rod=rod;
+  g.position.set(x,5.2,0); return g;
+}
+const levS=lever(-3.4,0xc23b3b), levM=lever(3.4,0x3b7ac2); swG.add(levS,levM);
+/* 两侧端子排（左：输入；右：输出） */
+[[-6.5,0xc23b3b],[-5,0x2a2d33],[-3.2,0x3b7ac2],[-1.7,0x2a2d33]].forEach(j=>swG.add(jack2(j[0],j[1])));
+[[5.2,0xc23b3b],[6.7,0x2a2d33],[8.2,0x3b7ac2],[9.7,0x2a2d33]].forEach(j=>{ const g=jack2(j[0],j[1]); swG.add(g); });
+swG.position.set(-18,3,16); scene.add(swG);
+tag(swG,'双刀双掷开关盒 ZKY-BD0001','两组换向开关（I_S 与 I_M），各有正向/断开/反向三态：电流红进黑出拨向下方为正向、上方为反向、竖立为断开。左排接测试仪输入、右排接组件与电磁铁。');
+/* 导线（带香蕉插头+金属插尖） */
+function wire(a,b,color){
+  const mid=a.clone().add(b).multiplyScalar(.5); mid.y=Math.max(a.y,b.y)+4.5;
+  const cur=new THREE.CatmullRomCurve3([a,mid,b]);
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(cur,26,.15,8), M(color)));
+  [a,b].forEach((p,i)=>{
+    const dir=cur.getTangent(i===0?0:1).normalize();
+    const plug=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,1.5,12), M(color));
+    plug.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    plug.position.copy(p).addScaledVector(dir,0.75); g.add(plug);
+    const tip=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.7,10), M(0xc9ccd2,{metalness:.75}));
+    tip.quaternion.copy(plug.quaternion);
+    tip.position.copy(p).addScaledVector(dir,1.85); g.add(tip);
+  });
+  return g;
+}
+/* 4 条接线：0 测试仪→开关盒输入；1 开关盒 I_S→组件 1,3；2 I_M→电磁铁接线柱；3 I_S→组件 4,2 */
+const wires=[
+  wire(new THREE.Vector3(12.5,4.2,8),  new THREE.Vector3(-11.2,6.2,16), 0xcc4444),
+  wire(new THREE.Vector3(-13.7,6.2,16),new THREE.Vector3(-15,13,0.5),   0x3b7ac2),
+  wire(new THREE.Vector3(-11.2,6.2,15),new THREE.Vector3(-19,5.4,4.6),  0xc23b3b),
+  wire(new THREE.Vector3(-16.3,6.2,16),new THREE.Vector3(-14.2,12.6,0.8),0x49c46a)];
+wires.forEach(w=>{w.visible=false; scene.add(w);});
+
+/* ================= 数码屏绘制 ================= */
+function drawIns(){
+  ig.fillStyle='#040a06'; ig.fillRect(0,0,512,150);
+  const u=readU(), ov=ovf(u);
+  function cell(x,w,val,unit,ovfFlag){
+    ig.strokeStyle='#1d4028'; ig.lineWidth=2; ig.strokeRect(x,14,w,84);
+    ig.fillStyle='#0a140c'; ig.fillRect(x+2,16,w-4,80);
+    ig.font='44px Consolas'; ig.textAlign='right'; ig.textBaseline='middle';
+    if(ovfFlag){ ig.fillStyle='#ff5040'; ig.font='40px Consolas'; ig.fillText('1',x+w-14,56);
+      ig.fillStyle='#2c4a34'; ig.font='26px Consolas'; ig.fillText('888',x+w-40,56); }
+    else{ ig.fillStyle='#4dff88'; ig.fillText(val,x+w-10,56); }
+    ig.fillStyle='#7fae8c'; ig.font='16px Consolas'; ig.textBaseline='alphabetic'; ig.textAlign='center';
+    ig.fillText(unit,x+w/2,116);
+  }
+  const isV=(state.power&&state.warmed)?(state.isSw===0?0:state.Is*state.isSw):0;
+  const imV=(state.power&&state.warmed)?(state.imSw===0?0:state.Im*state.imSw):0;
+  cell(14,150,(isV>=0?isV.toFixed(2):isV.toFixed(2)),'mA',false);
+  cell(184,160,ov?'':u.toFixed(2),'mV',ov);
+  cell(364,134,(imV>=0?'':'-')+Math.abs(imV).toFixed(0),'mA',false);
+  ig.fillStyle='#8fdca4'; ig.font='13px Consolas'; ig.textAlign='left';
+  ig.fillText('工作电流',14,140); ig.fillText('霍尔电压  量程±'+state.range+'mV',184,140); ig.fillText('励磁电流',364,140);
+  ig.fillStyle=state.warmed?'#57e389':'#c0554a';
+  ig.fillText(state.power?(state.warmed?'● READY（已预热）':'● 预热中…'):'○ POWER OFF',14,10);
+  insTex.needsUpdate=true;
+  /* 霍尔芯片热效应：高温时芯片微微发红 */
+  const em=state.T>60?Math.min(0.55,(state.T-60)/160):0;
+  if(chipG.userData.chip) chipG.userData.chip.material.emissive.setRGB(em,em*0.15,0);
+  /* 温控屏 */
+  tg.fillStyle='#04121e'; tg.fillRect(0,0,256,110);
+  tg.strokeStyle='#123a56'; tg.strokeRect(3,3,250,104);
+  if(!state.tcLink){ tg.fillStyle='#3a5568'; tg.font='16px Microsoft YaHei'; tg.textAlign='center'; tg.fillText('温控未接入',128,58); }
+  else{
+    tg.font='26px Consolas'; tg.textAlign='left';
+    tg.fillStyle='#7fd4ff'; tg.fillText('T='+fmt(state.T,1)+'℃',14,40);
+    tg.fillStyle='#ffd27a'; tg.fillText('SET '+fmt(state.Tg,0)+'℃',14,74);
+    tg.fillStyle=state.tmode===1?'#57e389':(state.tmode===-1?'#7fb8ff':'#c0554a');
+    tg.font='15px Consolas';
+    tg.fillText(state.tmode===1?'正接·升温':(state.tmode===-1?'反接·降温':'功率断'),140,40);
+    const st=Math.abs(state.T-state.Tg)<0.3;
+    tg.fillStyle=st?'#57e389':'#ffb454'; tg.fillText(st?'● 恒温稳定':'… 调温中',140,74);
+  }
+  tcTex.needsUpdate=true;
+}
+/* 开关盒拨杆动画 */
+function updLevers(){
+  levS.userData.rod.rotation.z=state.isSw>0? 0.5 : (state.isSw<0? -0.5 : 0);
+  levM.userData.rod.rotation.z=state.imSw>0? 0.5 : (state.imSw<0? -0.5 : 0);
+}
+
+/* ================= 面板刷新 ================= */
+function updPanel(){
+  const connN=state.conn.filter(Boolean).length;
+  $('#vIs').textContent=fmt(state.Is,2)+' mA';
+  $('#vIm').textContent=fmt(state.Im,0)+' mA';
+  $('#vB').textContent=fmt(Bof(state.Im),1)+' mT';
+  $('#btnRange').textContent='当前 ±'+state.range+' mV（点击切换）';
+  $('#btnRange').classList.toggle('on',state.range===200);
+  const u=readU(), ov=ovf(u);
+  $('#rdShow').innerHTML='I_S：'+(state.isSw===0?'<span class="ovf">断开</span>':'<b>'+fmt(state.Is*state.isSw,2)+' mA</b>')
+    +'　U_H：'+(ov?'<span class="ovf">超量程！切 ±200 mV</span>':(state.isSw===0?'<b>0.00 mV</b>':'<b>'+fmt(u,2)+' mV</b>'))
+    +'<br>I_M：'+(state.imSw===0?'<span class="ovf">断开</span>':'<b>'+fmt(state.Im*state.imSw,0)+' mA</b>')
+    +'　B='+fmt(Bof(state.Im*state.imSw),1)+' mT'
+    +(state.power&&!state.warmed?'　<span style="color:#ffb454">预热中…</span>':'');
+  document.querySelectorAll('[data-iss]').forEach(b=>b.classList.toggle('on',+b.dataset.iss===state.isSw));
+  document.querySelectorAll('[data-ims]').forEach(b=>b.classList.toggle('on',+b.dataset.ims===state.imSw));
+  const ks=Object.keys(state.pend);
+  $('#pendShow').innerHTML='暂存组合：'+(ks.length?ks.map(k=>({['1,1']:'+B,+I',['-1,1']:'−B,+I',['-1,-1']:'−B,−I',['1,-1']:'+B,−I'}[k]||k)).map(s=>'<span class="badge ok">'+s+'</span>').join(''):'—')
+    +'（已存 '+ks.length+'/4）';
+  const canRec=state.power&&state.warmed&&state.conn.every(Boolean);
+  $('#btnRec').disabled=!canRec; $('#btnAuto4').disabled=!canRec;
+  $('#btnRow').disabled=!(Object.keys(state.pend).length===4&&canRec);
+  $('#btnPower').textContent='电源：'+(state.power?'开':'关');
+  $('#btnPower').classList.toggle('on',state.power);
+  $('#btnPower').disabled=!(state.conn.every(Boolean)&&!state.power);
+  $('#c1').classList.toggle('on',state.conn[0]); $('#c2').classList.toggle('on',state.conn[1]);
+  $('#c3').classList.toggle('on',state.conn[2]); $('#c4').classList.toggle('on',state.conn[3]);
+  const en=state.power;
+  document.querySelectorAll('[data-is],[data-im],[data-iss],[data-ims]').forEach(b=>b.disabled=!en);
+  $('#btnRange').disabled=!en;
+  $('#btnTC').classList.toggle('on',state.tcLink); $('#btnTC').disabled=false;
+  document.querySelectorAll('[data-tg]').forEach(b=>b.disabled=!state.tcLink);
+  $('#btnHeat').disabled=!state.tcLink; $('#btnCool').disabled=!state.tcLink;
+  $('#btnHeat').classList.toggle('on',state.tmode===1); $('#btnCool').classList.toggle('on',state.tmode===-1);
+  $('#vT').textContent=fmt(state.T,1)+' ℃'; $('#vTg').textContent=fmt(state.Tg,0)+' ℃';
+  $('#tcShow').textContent=!state.tcLink?'温控未接入'
+    :('组件：'+(state.comp==='n'?'n 型（U_H<0）':'p 型（U_H>0）')+'　当前 '+fmt(state.T,1)+' ℃ → 目标 '+fmt(state.Tg,0)+' ℃　'+(Math.abs(state.T-state.Tg)<0.3?'<b style="color:#57e389">恒温稳定可测量</b>':'调温中'));
+  $('#btnN').classList.toggle('on',state.comp==='n'); $('#btnP').classList.toggle('on',state.comp==='p');
+  $('#benchRead').innerHTML='C='+CC+' mT/A　d='+fmt((state.comp==='n'?DN:DP)*1e6,2)+' μm　'+({['1,1']:'+B,+I',['-1,1']:'−B,+I',['-1,-1']:'−B,−I',['1,-1']:'+B,−I'}[state.isSw+','+state.imSw]||(state.isSw===0?'I_S 断开':(state.imSw===0?'I_M 断开':'—')))
+    +'<br>B=<b>'+fmt(Bof(state.Im*state.imSw),1)+' mT</b>　T=<b>'+fmt(state.T,1)+' ℃</b>　组件：<b>'+(state.comp==='n'?'n 型':'p 型')+'</b>';
+  $('#warmShow').innerHTML=!state.power?'未开机':(state.warmed?'✓ 预热完成，光输出稳定；请记录 C='+CC+' mT/A、d=1.00 μm'
+    :'预热中 <b id="wpct">'+fmt(Math.min(100,state.warmT/5*100),0)+'%</b>（预热后方可测量）');
+}
+
+/* ================= 交互：接线/开机 ================= */
+let wireOn=false;
+const connTexts=['✓ 测试仪 → 开关盒（输入）','✓ 开关盒 I_S → 组件 1,3','✓ 开关盒 I_M → 电磁铁 1,3','✓ 开关盒 → 组件 4,2（U_H）'];
+for(let i=0;i<4;i++){
+  $('#c'+(i+1)).onclick=()=>{
+    const need=i===0||state.conn[i-1];
+    if(!need){ toast('⚠ 请按面板文字与符号提示<b>依次</b>连接（上一步尚未完成）'); return; }
+    if(state.conn[i]) return;
+    state.conn[i]=true;
+    wires[i].visible=true; wireOn=true;
+    updPanel(); drawIns(); checkSteps();
+    toast('✓ '+connTexts[i]);
+  };
+}
+$('#btnPower').onclick=()=>{
+  if(state.power){ toast('⚠ 测量过程中不要随意断电；如需复位请重置实验'); return; }
+  state.Is=0; state.Im=0; state.power=true; state.warmT=0; updPanel(); drawIns();
+  toast('✓ 电源已开（电流旋钮已置于最小）。正在预热…');
+};
+
+/* ================= 交互：测试仪 ================= */
+$('#btnRange').onclick=()=>{ state.range=state.range===20?200:20; updPanel(); drawIns();
+  toast('✓ 霍尔电压量程切至 ±'+state.range+' mV'+(state.range===200?'（高量程，适用于 I_M=400 mA 等大信号）':'')); };
+document.querySelectorAll('[data-is]').forEach(b=>b.onclick=()=>{
+  if(!state.power){ toast('⚠ 请先开机'); return; }
+  state.Is=Math.max(0,Math.min(10,+(state.Is+ +b.dataset.is).toFixed(2)));
+  state.pend={}; updPanel(); drawIns(); refreshRowBtn();
+});
+document.querySelectorAll('[data-im]').forEach(b=>b.onclick=()=>{
+  if(!state.power){ toast('⚠ 请先开机'); return; }
+  state.Im=Math.max(0,Math.min(1000,state.Im+ +b.dataset.im));
+  updPanel(); drawIns(); refreshRowBtn();
+});
+
+/* ================= 交互：开关盒 ================= */
+document.querySelectorAll('[data-iss]').forEach(b=>b.onclick=()=>{
+  if(!state.power){ return; }
+  state.isSw=+b.dataset.iss;
+  updPanel(); updLevers(); drawIns();
+  if(state.isSw===0) toast('I_S 已断开：恒流源无输出（工作电流表为 0）');
+});
+document.querySelectorAll('[data-ims]').forEach(b=>b.onclick=()=>{
+  if(!state.power){ return; }
+  state.imSw=+b.dataset.ims; updPanel(); updLevers(); drawIns();
+});
+$('#btnRec').onclick=()=>{
+  const u=readU();
+  if(!state.isSw||!state.imSw){ toast('⚠ 请将 I_S 与 I_M 开关均置于正向或反向（不能断开）'); return; }
+  if(ovf(u)){ toast('⚠ 超量程！数显屏首位闪"1"，请将电压量程切至 ±200 mV'); return; }
+  const k=state.isSw+','+state.imSw;
+  if(state.pend[k]!==undefined){ toast('该组合已记录，请换下一组换向'); return; }
+  state.pend[k]=+u.toFixed(2);
+  updPanel(); drawIns(); refreshRowBtn();
+  toast('✓ 已记录 '+({['1,1']:'+B,+I',['-1,1']:'−B,+I',['-1,-1']:'−B,−I',['1,-1']:'+B,−I'}[k])+' → U='+fmt(u,2)+' mV（'+Object.keys(state.pend).length+'/4）');
+};
+$('#btnAuto4').onclick=()=>{
+  if(state.pendHasAuto) return;
+  const seq=[[1,1],[-1,1],[-1,-1],[1,-1]];
+  let i=0;
+  toast('⚡ 自动换向测量中：+B,+I → −B,+I → −B,−I → +B,−I');
+  const iv=setInterval(()=>{
+    if(i>=4){ clearInterval(iv); updPanel(); refreshRowBtn(); return; }
+    const [a,b]=seq[i]; state.isSw=a; state.imSw=b;
+    updLevers(); updPanel(); drawIns();
+    const k=a+','+b, u=readU();
+    if(!ovf(u)) state.pend[k]=+u.toFixed(2);
+    i++;
+  },500);
+};
+function refreshRowBtn(){
+  const inList=ISLIST.some(v=>Math.abs(v-state.Is)<0.01);
+  const notDone=!state.t1rows.some(r=>Math.abs(r.Is-state.Is)<0.01);
+  $('#btnRow').disabled=!(Object.keys(state.pend).length===4&&inList&&notDone&&state.power&&state.warmed&&state.conn.every(Boolean));
+}
+$('#btnRow').onclick=()=>{
+  if(!state.conn.every(Boolean)||!state.warmed){ toast('⚠ 请先完成连线与开机预热'); return; }
+  const inList=ISLIST.find(v=>Math.abs(v-state.Is)<0.01);
+  if(!inList){ toast('⚠ I_S 应依次取 '+ISLIST.join('、')+' mA'); return; }
+  if(state.t1rows.some(r=>Math.abs(r.Is-state.Is)<0.01)){ toast('⚠ 该 I_S 已记录过'); return; }
+  if(state.lockIM===null){
+    if(Math.abs(state.Im-400)>2){ toast('⚠ 步骤②要求保持 I_M=400 mA（当前 '+fmt(state.Im,0)+' mA），请先调励磁电流'); return; }
+    state.lockIM=state.Im;
+    $('#t1meta').textContent='C='+CC+' mT/A，d=1.00 μm，I_M=400 mA → B='+fmt(Bof(400),1)+' mT（已锁定）';
+  } else if(Math.abs(state.Im-state.lockIM)>2){
+    toast('⚠ I_M 已在步骤②锁定为 '+state.lockIM+' mA，须保持不变（如需改变请重置实验）'); return; }
+  const U1=state.pend['1,1'], U2=state.pend['-1,1'], U3=state.pend['-1,-1'], U4=state.pend['1,-1'];
+  const uh=(U1-U2+U3-U4)/4;
+  state.t1rows.push({Is:state.Is,U1,U2,U3,U4,Uh:+uh.toFixed(2)});
+  state.pend={}; renderTables(); updPanel(); refreshRowBtn(); checkSteps();
+  toast('✓ I_S='+fmt(state.Is,1)+' mA 行已填：U_H=(U₁−U₂+U₃−U₄)/4='+fmt(uh,2)+' mV（'+state.t1rows.length+'/6 行）');
+};
+
+/* ================= 交互：温控与组件 ================= */
+$('#btnTC').onclick=()=>{
+  if(state.tcLink) return;
+  state.tcLink=true; updPanel(); drawIns();
+  toast('✓ 温度传感器/功率电源接口已接，DC12V 风扇工作。注意：正接升温、反接降温，先从低温开始测试');
+};
+document.querySelectorAll('[data-tg]').forEach(b=>b.onclick=()=>{
+  state.Tg=Math.max(-25,Math.min(145,state.Tg+ +b.dataset.tg)); updPanel(); drawIns();
+  if(state.tmode===-1&&state.Tg>state.T) toast('⚠ 反接为降温：当前目标高于组件温度，请正接升温或把目标调低');
+  if(state.tmode===1&&state.Tg<state.T) toast('⚠ 正接为升温：当前目标低于组件温度，请反接降温或把目标调高');
+});
+$('#btnHeat').onclick=()=>{ if(!state.tcLink) return; state.tmode=1; updPanel(); drawIns();
+  toast('✓ 功率电源正接：升温模式'); };
+$('#btnCool').onclick=()=>{ if(!state.tcLink) return; state.tmode=-1; updPanel(); drawIns();
+  toast('✓ 功率电源反接：降温模式'); };
+$('#btnN').onclick=()=>{ if(state.comp==='n') return;
+  state.comp='n'; state.T=25; state.Tg=25; state.tmode=0; chipG.userData.chip.material=M(0x2244aa,{roughness:.4});
+  updPanel(); drawIns(); checkSteps();
+  toast('✓ 已换装 n 型组件（d=1.00 μm），组件温度回到室温 25 ℃'); };
+$('#btnP').onclick=()=>{ if(state.comp==='p') return;
+  state.comp='p'; state.T=25; state.Tg=25; state.tmode=0; chipG.userData.chip.material=M(0xaa3344,{roughness:.4});
+  updPanel(); drawIns(); checkSteps();
+  toast('✓ 已换装 p 型组件（d=1.00 μm）。注意观察 U_H 极性反转；大励磁电流时注意量程'); };
+
+/* ================= 变温记录 ================= */
+function recTempRow(list,rows,btnName){
+  if(!state.tcLink){ toast('⚠ 请先接温控电源'); return; }
+  if(Math.abs(state.T-state.Tg)>=0.3){ toast('⚠ 温度未稳定（当前 '+fmt(state.T,1)+' ℃），请等恒温后再测量'); return; }
+  const t=list.find(v=>Math.abs(v-state.T)<0.6);
+  if(t===undefined){ toast('⚠ 请把目标温度调到 '+list.join('、')+' ℃ 系列点上'); return; }
+  if(rows.some(r=>Math.abs(r.t-t)<0.6)){ toast('⚠ 该温度点已记录'); return; }
+  if(state.comp==='n'){ if(Math.abs(state.Is-2)>0.05||Math.abs(state.Im-50)>1){ toast('⚠ n 型变温要求 I_S=2 mA、I_M=50 mA（当前 '+fmt(state.Is,2)+'/'+fmt(state.Im,0)+'）'); return; } }
+  else { if(Math.abs(state.Is-0.5)>0.05||Math.abs(state.Im-1000)>5){ toast('⚠ p 型变温要求 I_S=0.5 mA、I_M=1000 mA（当前 '+fmt(state.Is,2)+'/'+fmt(state.Im,0)+'）'); return; } }
+  const uChk=readU();
+  if(ovf(uChk)){ toast('⚠ 超量程！请先将电压量程切至 ±200 mV（若已在高量程仍超，请检查 I_S/I_M 设置）'); return; }
+  /* 自动完成四组换向（保存当前开关状态，测完恢复） */
+  const sv=[state.isSw,state.imSw], seq=[[1,1],[-1,1],[-1,-1],[1,-1]], us=[];
+  seq.forEach(([a,b])=>{ state.isSw=a; state.imSw=b; us.push(+readU().toFixed(2)); });
+  [state.isSw,state.imSw]=sv;
+  const uh=(us[0]-us[1]+us[2]-us[3])/4;
+  rows.push({t,U1:us[0],U2:us[1],U3:us[2],U4:us[3],Uh:+uh.toFixed(2)});
+  renderTables(); updPanel(); drawIns(); checkSteps();
+  toast('✓ '+state.comp+' 型 '+t+' ℃（四组换向）：U_H='+fmt(uh,2)+' mV（'+rows.length+'/'+list.length+' 点）');
+}
+$('#btnRec2').onclick=()=>{ if(state.comp!=='n'){ toast('⚠ 当前是 p 型组件，请点表 2.4.3 的记录按钮'); return; } recTempRow(TLIST2,state.t2rows); };
+$('#btnRec3').onclick=()=>{ if(state.comp!=='p'){ toast('⚠ 当前是 n 型组件，请点表 2.4.2 的记录按钮'); return; } recTempRow(TLIST3,state.t3rows); };
+
+/* ================= 表格与曲线 ================= */
+function tRowHtml(rows,head1){
+  return '<table><tr><th>'+head1+'</th><th>U₁/mV<br>(+B,+I)</th><th>U₂/mV<br>(−B,+I)</th><th>U₃/mV<br>(−B,−I)</th><th>U₄/mV<br>(+B,−I)</th><th>U_H/mV</th></tr>'
+    +rows.map(r=>'<tr><td class="num">'+(head1==='I_S/mA'?fmt(r.Is,1):fmt(r.t,0))+'</td><td class="num">'+fmt(r.U1,2)+'</td><td class="num">'+fmt(r.U2,2)+'</td><td class="num">'+fmt(r.U3,2)+'</td><td class="num">'+fmt(r.U4,2)+'</td><td class="num"><b>'+fmt(r.Uh,2)+'</b></td></tr>').join('')+'</table>';
+}
+function drawChart(cv,series,fit){
+  const g=cv.getContext('2d'), W=cv.width, H=cv.height;
+  g.fillStyle='#0a0f16'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#1a2432'; for(let i=0;i<=8;i++){ g.beginPath(); g.moveTo(i*W/8,0); g.lineTo(i*W/8,H); g.stroke(); }
+  for(let j=0;j<=6;j++){ g.beginPath(); g.moveTo(0,j*H/6); g.lineTo(W,j*H/6); g.stroke(); }
+  if(!series.length||!series.some(s=>s.pts.length)) return;
+  const all=series.flatMap(s=>s.pts);
+  let xmin=Math.min(...all.map(p=>p[0])), xmax=Math.max(...all.map(p=>p[0]));
+  let ymin=Math.min(...all.map(p=>p[1])), ymax=Math.max(...all.map(p=>p[1]));
+  if(fit){ xmin=Math.min(xmin,fit.x0); xmax=Math.max(xmax,fit.x1); ymin=Math.min(ymin,fit.y0,fit.y1); ymax=Math.max(ymax,fit.y0,fit.y1); }
+  const pad=(xmax-xmin)*0.08||1, pady=(ymax-ymin)*0.12||1; xmin-=pad; xmax+=pad; ymin-=pady; ymax+=pady;
+  const X=x=>40+(x-xmin)/(xmax-xmin)*(W-60), Y=y=>H-24-(y-ymin)/(ymax-ymin)*(H-44);
+  g.strokeStyle='#3a4656'; g.beginPath(); g.moveTo(40,Y(0)||H-24); g.lineTo(W-20,Y(0)||H-24); g.stroke();
+  g.beginPath(); g.moveTo(X(0)||40,10); g.lineTo(X(0)||40,H-24); g.stroke();
+  series.forEach(s=>{
+    g.strokeStyle=s.c; g.fillStyle=s.c; g.lineWidth=1.6;
+    if(fit&&s.fit){ g.beginPath(); g.moveTo(X(fit.x0),Y(fit.y0)); g.lineTo(X(fit.x1),Y(fit.y1)); g.stroke(); }
+    s.pts.forEach(p=>{ g.beginPath(); g.arc(X(p[0]),Y(p[1]),3,0,7); g.fill(); });
+    if(s.line&&s.pts.length>1){ g.beginPath(); s.pts.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke(); }
+  });
+  g.fillStyle='#8b98a9'; g.font='11px Consolas'; g.textAlign='left';
+  g.fillText(series[0].xl||'',W-120,H-6); g.fillText(series[0].yl||'',6,14);
+  series.forEach((s,i)=>{ g.fillStyle=s.c; g.fillText('■ '+s.name,44+i*140,14); });
+}
+function renderTables(){
+  $('#tbl1').innerHTML=state.t1rows.length?tRowHtml(state.t1rows,'I_S/mA'):'<div class="info">尚无数据。依次设 I_S=0.5~3.0 mA，每档用开关盒完成四组换向记录后点「计算 U_H 填表」。</div>';
+  $('#tbl2').innerHTML=state.t2rows.length?tRowHtml(state.t2rows,'t/℃'):'<div class="info">n 型：接温控后从 −20 ℃ 起每 20 ℃ 记录一点（I_S=2 mA，I_M=50 mA）。</div>';
+  $('#tbl3').innerHTML=state.t3rows.length?tRowHtml(state.t3rows,'t/℃'):'<div class="info">p 型：换装后从 −5 ℃ 起每 20 ℃ 记录一点（I_S=0.5 mA，I_M=1000 mA，注意量程）。</div>';
+  const done1=state.t1rows.length===6;
+  if(done1&&state.t1RH===null){
+    /* 最小二乘 U_H = k·I_S + b → R_H = k·d/B（k: mV/mA → V/A） */
+    const xs=state.t1rows.map(r=>r.Is), ys=state.t1rows.map(r=>r.Uh);
+    const n=xs.length, mx=xs.reduce((a,b)=>a+b)/n, my=ys.reduce((a,b)=>a+b)/n;
+    const k=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/xs.reduce((s,x)=>s+(x-mx)**2,0);
+    /* k[mV/mA] = U[V]/I[A]（系数恰为 1）→ R_H=k·d/B */
+    const B=Bof(400)/1000, d=DN, RH=k*d/B;               // m³/C
+    state.t1RH=RH; state.t1n=1/(Math.abs(RH)*ECH); state.t1k=k;
+    $('#t1res').innerHTML='拟合斜率 k=dU_H/dI_S='+fmt(k,2)+' mV/mA　→　R_H=k·d/B='+RH.toExponential(2)+' m³/C（'+(RH<0?'负号 → n 型（电子导电）':'正号 → p 型')+'）　→　n=|R_H|⁻¹/e='+state.t1n.toExponential(2)+' m⁻³';
+  }
+  if(state.t1RH!==null){
+    const k=state.t1k, B=Bof(400)/1000, d=DN;
+    drawChart($('#cv1'),[
+      {name:'U_H 实测',c:'#5dff8a',pts:state.t1rows.map(r=>[r.Is,r.Uh])},
+      {name:'线性拟合',c:'#4aa3ff',pts:[],fit:true,line:true}
+    ],{x0:0,x1:3.2,y0:k*0.2,y1:k*3.2});
+    drawChart.n1fit={k,B,d};
+  } else { const g=$('#cv1').getContext('2d'); g.clearRect(0,0,420,180); }
+  /* n-t 曲线（对数纵轴）：n=I_S·B/(|U_H|·e·d) */
+  const mk=(rows,im,c,name)=>rows.map(r=>[r.t,Math.log10(Math.abs(r.Is*1e-3)*(Bof(im)/1000)/(DP)/(Math.abs(r.Uh)*1e-3*ECH))]);
+  const p2=mk(state.t2rows,50,'#5dff8a','n 型 n(t)'), p3=mk(state.t3rows,1000,'#ffb454','p 型 n(t)');
+  drawChart($('#cv2'),[
+    {name:'n 型 n(t)',c:'#5dff8a',pts:p2,line:true,yl:'log₁₀(n/m⁻³)',xl:'t/℃'},
+    {name:'p 型 n(t)',c:'#ffb454',pts:p3,line:true}
+  ],null);
+  const d1=state.t1rows.length===6, d2=state.t2rows.length===TLIST2.length, d3=state.t3rows.length===TLIST3.length;
+  if(d1){
+    let html='<div class="info">① 室温（20 ℃）n 型组件：R_H='+state.t1RH.toExponential(2)+' m³/C（负号→电子导电），n='+state.t1n.toExponential(2)+' m⁻³；U_H-I_S 为过原点直线（斜率 '+fmt(state.t1k,2)+' mV/mA），验证 U_H∝I_S。</div>';
+    if(d2&&d3){
+      const n20=nN(20), n120=nN(120), npmin=Math.min(...state.t3rows.map(r=>Math.abs(r.Is*1e-3)*(Bof(1000)/1000)/(DP)/(Math.abs(r.Uh)*1e-3*ECH)));
+      html+='<div class="info">② n 型：n 从 '+n20.toExponential(1)+' m⁻³（20 ℃）升至 '+n120.toExponential(1)+' m⁻³（120 ℃），随温度指数增长——本征激发逐渐成为主要来源；U_H 随温度升高而减小。<br>'
+        +'③ p 型：n-t 曲线呈 <b>U 形</b>（最低 n≈'+npmin.toExponential(1)+' m⁻³）——低温杂质电离→杂质耗尽 n 下降→高温本征激发 n 回升，与图 2.4.3 一致；p 型 U_H 极性与 n 型相反（R_H>0，空穴导电）。<br>'
+        +'④ 换向法 U_H=(U₁−U₂+U₃−U₄)/4 有效消除了不等位电压等副效应（对比 U₁ 与 U₃ 可见 U_0 的影响被抵消）。</div>';
+    }
+    $('#conclude').innerHTML=html;
+  }
+}
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  Object.assign(state,{conn:[true,true,true,true],power:true,warmed:true,warmT:5,range:200,
+    Is:2,Im:400,isSw:1,imSw:1,tcLink:true,tmode:1,T:20,Tg:20,comp:'n',
+    lockIM:400,t1RH:null,t1n:null,t1k:null});
+  wires.forEach(w=>w.visible=true);
+  $('#t1meta').textContent='C='+CC+' mT/A，d=1.00 μm，I_M=400 mA → B='+fmt(Bof(400),1)+' mT（已锁定）';
+  /* 表 2.4.1：6 行 */
+  state.t1rows=ISLIST.map(Is=>{
+    const uh=RHof(20)*(Is*1e-3)*(Bof(400)/1000)/DN*1000, u0=0.4*Is;
+    const U1=+(uh+u0+noiseOf(Is+'11')).toFixed(2), U2=+(-uh+u0+noiseOf(Is+'-11')).toFixed(2),
+          U3=+(uh-u0+noiseOf(Is+'-1-1')).toFixed(2), U4=+(-uh-u0+noiseOf(Is+'1-1')).toFixed(2);
+    return {Is,U1,U2,U3,U4,Uh:+((U1-U2+U3-U4)/4).toFixed(2)};
+  });
+  /* 表 2.4.2：n 型 8 点 */
+  state.t2rows=TLIST2.map(t=>{
+    const uh=RHof(t)*(2e-3)*(Bof(50)/1000)/DN*1000, u0=0.8;
+    const U1=+(uh+u0).toFixed(2), U2=+(-uh+u0).toFixed(2), U3=+(uh-u0).toFixed(2), U4=+(-uh-u0).toFixed(2);
+    return {t,U1,U2,U3,U4,Uh:+((U1-U2+U3-U4)/4).toFixed(2)};
+  });
+  /* 表 2.4.3：p 型 8 点 */
+  state.t3rows=TLIST3.map(t=>{
+    const uh=1/(nP(t)*ECH)*(0.5e-3)*(Bof(1000)/1000)/DP*1000, u0=0.3;
+    const U1=+(uh+u0).toFixed(2), U2=+(-uh+u0).toFixed(2), U3=+(uh-u0).toFixed(2), U4=+(-uh-u0).toFixed(2);
+    return {t,U1,U2,U3,U4,Uh:+((U1-U2+U3-U4)/4).toFixed(2)};
+  });
+  renderTables(); updPanel(); drawIns(); updLevers(); checkSteps();
+  toast('已填入示例数据：表 2.4.1 六行换向数据、n 型（−20~120 ℃）与 p 型（−5~135 ℃）变温数据。请在「测量记录」页查看曲线与结论。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(state,{conn:[false,false,false,false],power:false,warmed:false,warmT:0,
+    range:20,Is:0,Im:0,isSw:0,imSw:0,pend:{},t1rows:[],lockIM:null,t1RH:null,t1n:null,t1k:null,
+    tcLink:false,T:25,Tg:25,tmode:0,comp:'n',t2rows:[],t3rows:[],pendT:{},
+    done1:false,done2:false,done3:false,done4:false});
+  wires.forEach(w=>w.visible=false);
+  $('#t1meta').textContent='C=—，d=—'; $('#t1res').textContent='';
+  $('#conclude').innerHTML='完成表 2.4.1 后自动给出 R_H、n；完成两个变温表后给出 n-t 曲线对比结论。';
+  chipG.userData.chip.material=M(0x2244aa,{roughness:.4});
+  renderTables(); updPanel(); drawIns(); updLevers(); checkSteps();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const s=[
+    state.conn.every(Boolean)&&state.warmed,
+    state.t1rows.length===6,
+    state.t2rows.length===TLIST2.length,
+    state.t3rows.length===TLIST3.length
+  ];
+  const tips=['请按序完成 4 步连线并开机预热。','表 2.4.1 完成。接下来接温控电源做 n 型变温（表 2.4.2）。','n 型变温完成。换 p 型组件做表 2.4.3（I_S=0.5 mA、I_M=1000 mA）。','p 型变温完成，全部测量结束！'];
+  [0,1,2,3].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+  $('#st5').classList.toggle('done',s[0]&&s[1]&&s[2]&&s[3]);
+}
+
+/* ================= 预热与温度逼近 ================= */
+function tick(){
+  if(state.power&&!state.warmed){
+    state.warmT+=0.1;
+    if(state.warmT>=5){ state.warmed=true; toast('✓ 预热完成。请记录 C='+CC+' mT/A、霍尔组件厚度 d=1.00 μm，开始表 2.4.1 测量'); checkSteps(); }
+    updPanel();
+  }
+  if(state.tcLink&&state.tmode!==0){
+    const rate=6;
+    if(state.tmode===1){ if(state.T<state.Tg) state.T=Math.min(state.Tg,state.T+rate*0.1);
+      if(state.T>=147.5){ state.tmode=0; toast('⚠ 达到保护温度 +148 ℃，功率输出已停止！'); } }
+    else { if(state.T>state.Tg) state.T=Math.max(state.Tg,state.T-rate*0.1);
+      if(state.T<=-24.5){ state.tmode=0; toast('⚠ 已达制冷下限 −25 ℃'); } }
+    $('#vT').textContent=fmt(state.T,1)+' ℃';
+  }
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0, scrT=0, tickT=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  const now=performance.now();
+  if(now-tickT>100){ tickT=now; tick(); }
+  if(state.tcLink) fanG.rotation.z-=0.35;          // DC12V 风扇旋转
+  scrT+=1/60;
+  if(scrT>0.12){ scrT=0; drawIns(); }
+  controls.update(); renderer.render(scene,camera);
+}
+renderTables(); updPanel(); drawIns(); updLevers(); checkSteps();
+loop();
+</script>
+</body>
+</html>

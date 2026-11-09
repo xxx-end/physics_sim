@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验12 · 声速测量</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:385px;flex:0 0 385px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--accent)}
+.val{flex:0 0 74px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#scopeBox{position:absolute;right:14px;bottom:14px;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#scopeBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#scopeBox .bar b{color:var(--text);font-weight:600;flex:1}
+#scope2d{width:100%;height:190px;display:block;}   /* 背景由绘制函数提供，勿设 CSS 背景（避免合成器错位伪影） */
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.good{color:var(--ok)} .info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv b{color:var(--accent);font-variant-numeric:tabular-nums}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验12 · 声速测量</h1>
+  <span class="tag">SV-DH 声速测定仪 · <b>共振干涉法 + 相位比较法</b> · 逐差法</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="scopeBox">
+    <div class="bar"><b>双踪示波器</b><span id="scopeMode" style="font-size:11px">CH1: 接收信号</span></div>
+    <canvas id="scope2d" width="278" height="190"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div>打开<b>信号发生器</b>与<b>示波器</b>电源开关（测量操作页）</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div>换能器间距 L≈5cm，微调输出频率至<b>谐振状态</b>（约 40kHz，示波器信号最大），记录 f</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>共振干涉法</b>：单向转动手摇鼓轮，依次记录 <b>10 个相邻极大值</b>位置 x₁…x₁₀</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>相位比较法</b>：观察李萨如图形，每当图形变为<b>直线</b>记录一次位置，共 10 次</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>逐差法求 λ 与声速 v，与理论值 <b>v₀√(T/T₀)</b> 比较，计算相对误差</div></div>
+    </section>
+    <section>
+      <h4>注意事项（教材 p.95）</h4>
+      <div class="info">① 电源接通时，两换能器<b>不得接触</b>；实验过程必须保持严格平行；② 接收端移动时，手摇鼓轮应向<b>同一方向</b>旋转，以避免<b>回程差</b>；到端点时避免鼓轮卡死；③ 接收换能器与示波器的连线应选用屏蔽线。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>仪器电源</h4>
+      <button class="b" id="btnGen">信号发生器电源</button>
+      <button class="b" id="btnScope">示波器电源</button>
+      <span class="info" id="pwrState">均未开机</span>
+    </section>
+    <section>
+      <h4>信号源与声场参数</h4>
+      <div class="row"><label>输出频率 f</label><input type="range" id="sF" min="38" max="42" step="0.01" value="38.50"><span class="val" id="vF">38.50 kHz</span></div>
+      <div class="row"><label>环境温度 t</label><input type="range" id="sT" min="0" max="35" step="0.5" value="20"><span class="val" id="vT">20.0 °C</span></div>
+      <div class="info">理论声速 v = 331.45×√(T/T₀)。<span id="vThShow"></span></div>
+    </section>
+    <section>
+      <h4>接收换能器 S₂ 位置（手摇鼓轮）</h4>
+      <div class="row"><label>间距 L</label><input type="range" id="sL" min="50" max="250" step="0.01" value="50"><span class="val" id="vL">50.00 mm</span></div>
+      <div class="info">数显游标卡尺分辨率 0.01mm。请<b>始终单向</b>（自左向右增大）转动鼓轮，避免回程差。</div>
+    </section>
+    <section>
+      <h4>测量方法与记录</h4>
+      <div class="row"><label>测量方法</label>
+        <select id="selM">
+          <option value="int">共振干涉法（驻波法）</option>
+          <option value="pha">相位比较法（李萨如图形）</option>
+        </select>
+      </div>
+      <button class="b" id="btnRec">记录当前位置</button>
+      <button class="b" id="btnClr">清除本方法记录</button>
+      <div class="info" id="recShow">已记录 0 / 10 个位置</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.12.1 实验数据测量表（逐差法）</h4>
+      <div id="tblInt" class="info">共振干涉法：尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>相位比较法数据</h4>
+      <div id="tblPha" class="info">相位比较法：尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>结果比较</h4>
+      <div id="tblCmp" class="info">完成两种方法测量后自动计算。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>声波在空气中的传播速度</h4>
+      <p class="info">声波按频率分为次声波（&lt;20Hz）、可听声（20~20000Hz）、超声波（&gt;20kHz）。理想气体中：</p>
+      <div class="formula">v = √(γRT/μ)</div>
+      <p class="info">干燥空气中（T₀=273.15K 时 v₀=331.45 m/s）：</p>
+      <div class="formula">v = v₀·√(T/T₀)，　T = (t+273.15) K</div>
+      <p class="info">考虑空气湿度修正（Pₛ 为 t℃ 时饱和蒸气压）：</p>
+      <div class="formula">v = 331.45·√(T/T₀)·(1+0.31·Pₛ/P)</div>
+    </section>
+    <section>
+      <h4>超声压电换能器</h4>
+      <p class="info">纵向振动换能器由压电陶瓷片+变幅杆+辐射头组成。发射器利用<b>逆压电效应</b>将电信号转为机械振动发射平面超声波；接收器利用<b>压电效应</b>将声压转为电信号送入示波器。谐振频率约 40kHz（频率高、波长短、方向性好）。</p>
+    </section>
+    <section>
+      <h4>共振干涉法（驻波法）</h4>
+      <div class="formula">v = f·λ</div>
+      <p class="info">S₂ 同时反射部分声波，与入射波叠加形成<b>驻波场</b>：S₂ 处接收信号幅度按 |cos(2πL/λ)| 周期变化。相邻两次极大值之间距离 = <b>λ/2</b>。</p>
+      <div class="info">逐差法处理 10 个位置：λ/2 = Σ(xᵢ₊₅−xᵢ)/25。</div>
+    </section>
+    <section>
+      <h4>相位比较法</h4>
+      <div class="formula">Δφ = 2πL/λ</div>
+      <p class="info">发射信号接示波器 X 轴、接收信号接 Y 轴，观察<b>李萨如图形</b>：Δφ 每变化 π，图形由斜直线经椭圆、圆再回到反斜直线，对应距离变化 <b>λ/2</b>。</p>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 状态与物理真值 ================= */
+const F0=40.00;                       // 换能器谐振频率 kHz
+const CFG={
+  gen:false, scope:false,
+  f:38.50, tC:20, L:50,               // 频率 kHz / 温度 ℃ / 间距 mm
+  method:'int', dir:+1, lastDir:0,    // 鼓轮方向（回程差检测）
+  recInt:[], recPha:[]                // 记录的位置 mm
+};
+function vAir(t){ return 331.45*Math.sqrt((t+273.15)/273.15); }   // 理论声速 m/s
+function lambdaMM(){ return vAir(CFG.tC)/(CFG.f*1000)*1000; }      // 当前声波波长 mm
+function res(){ const d=CFG.f-F0; return 1/(1+(d/0.3)**2); }       // 谐振因子（洛伦兹）
+function envelope(){ return Math.abs(Math.cos(2*Math.PI*CFG.L/lambdaMM())); } // 驻波包络
+function dPhi(){ return 2*Math.PI*CFG.L/lambdaMM(); }              // 相位差
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,420,900);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(60,70,150);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,25,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.75));
+const dLight=new THREE.DirectionalLight(0xffffff,1.25); dLight.position.set(120,220,130); scene.add(dLight);
+const dLight2=new THREE.DirectionalLight(0x6688cc,.35); dLight2.position.set(-100,60,-150); scene.add(dLight2);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.userData={title,text};
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d')); return c; }
+
+/* ---- 实验台 ---- */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(170,8,120), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-70,-48],[70,-48],[-70,48],[70,48]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,66,9), M(0x3a2e20));
+  leg.position.set(p[0],-41,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-74; scene.add(floor);
+
+/* ---- SV-DH 声速测定仪（坐标：mm/10 → cm，1单位=1cm） ---- */
+/* S₁ 固定在 x=-14（L=0 基准），S₂ 位于 x=-14+L/10 */
+const railY=8;
+const base=new THREE.Mesh(new THREE.BoxGeometry(34,3,9), M(0x39424e,{metalness:.4}));
+base.position.set(0,railY-1.5,0); scene.add(base);
+tag(base,'SV-DH 声速测定仪','由声速测试架与信号发生器组成。丝杆+手摇鼓轮驱动接收换能器移动，数显游标卡尺读出间距。');
+const rail=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,30,12), M(0x8b98a9,{metalness:.7,roughness:.3}));
+rail.rotation.z=Math.PI/2; rail.position.set(0,railY+2.2,-2.5); scene.add(rail);
+tag(rail,'丝杆','精密丝杆带动接收换能器支架平移。手摇鼓轮应同一方向旋转，避免回程差。');
+/* 刻度尺 */
+const scaleTex=canvasTex(1024,64,g=>{
+  g.fillStyle='#e8edf2'; g.fillRect(0,0,1024,64);
+  g.fillStyle='#222'; g.font='20px Consolas,monospace'; g.textAlign='center';
+  for(let mm=0;mm<=300;mm+=10){
+    const x=mm/300*1024; const h=mm%50===0?24:12;
+    g.fillRect(x,64-h,2,h);
+    if(mm%50===0) g.fillText(mm+'',x,22);
+  }
+});
+const scale=new THREE.Mesh(new THREE.BoxGeometry(30,1.6,.2), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(scaleTex)}));
+scale.position.set(0,railY+1.2,4.6); scene.add(scale);
+tag(scale,'刻度尺','配合数显游标卡尺确定换能器间距（教材用数显游标卡尺，分辨率 0.01mm）。');
+/* 手摇鼓轮 */
+const wheel=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.4,1.6,24), M(0xc9a24a,{metalness:.75,roughness:.35}));
+wheel.rotation.z=Math.PI/2; wheel.position.set(17,railY+2.2,-2.5); scene.add(wheel);
+const wheelSpoke=new THREE.Mesh(new THREE.BoxGeometry(1,7,1.4), M(0x9a7d33));
+wheelSpoke.position.set(17.9,railY+2.2,-2.5); scene.add(wheelSpoke);
+tag(wheel,'手摇鼓轮','转动鼓轮经丝杆移动接收换能器。应向同一方向旋转以避免回程差；到端点时避免鼓轮卡死。');
+
+/* 换能器造型：压电陶瓷片+变幅杆+喇叭辐射头 */
+function makeTransducer(mirror){
+  const g=new THREE.Group();
+  const back=new THREE.Mesh(new THREE.CylinderGeometry(3,3,2.4,20), M(0x46536b,{metalness:.5}));
+  back.rotation.z=Math.PI/2; back.position.x=mirror?1.2:-1.2; g.add(back);          // 压电陶瓷+外壳
+  const cer=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,1,20), M(0xc9a24a,{metalness:.7}));
+  cer.rotation.z=Math.PI/2; cer.position.x=mirror?.5:-.5; g.add(cer);                // 压电陶瓷片
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1,3.4,16), M(0x9aa7b5,{metalness:.8,roughness:.25}));
+  rod.rotation.z=Math.PI/2; rod.position.x=mirror?-2.9:2.9; g.add(rod);              // 变幅杆
+  const horn=new THREE.Mesh(new THREE.CylinderGeometry(4.4,1.4,2.6,24), M(0xb9c4d0,{metalness:.75,roughness:.3}));
+  horn.rotation.z=Math.PI/2; horn.position.x=mirror?-5.9:5.9; g.add(horn);           // 辐射头（喇叭）
+  return g;
+}
+/* 发射换能器 S₁（固定） */
+const S1=makeTransducer(false); S1.position.set(-14,railY+2.2,0); scene.add(S1);
+tag(S1,'发射换能器 S₁','压电陶瓷换能器：逆压电效应把数万赫兹电信号转换为平面超声波发射。固定不动。');
+/* 接收换能器 S₂（随滑块移动） */
+const S2=makeTransducer(true);
+const s2Car=new THREE.Group(); scene.add(s2Car);
+s2Car.add(S2);
+const carriage=new THREE.Mesh(new THREE.BoxGeometry(5,4,6), M(0x46536b,{metalness:.5}));
+carriage.position.set(0,-1.4,-2.5); s2Car.add(carriage);
+/* 数显游标卡尺窗口 */
+const calCanvas=document.createElement('canvas'); calCanvas.width=128; calCanvas.height=64;
+const calTex=new THREE.CanvasTexture(calCanvas);
+const calScr=new THREE.Mesh(new THREE.PlaneGeometry(4.4,2.2), new THREE.MeshBasicMaterial({map:calTex}));
+calScr.position.set(0,1.2,-2.6); s2Car.add(calScr);
+tag(carriage,'数显游标卡尺','实时显示换能器间距 L，分辨率 0.01mm。');
+tag(S2,'接收换能器 S₂','压电效应将接收的声压转换为电信号送入示波器；其平面同时反射声波，与入射波干涉形成驻波。');
+function drawCal(){
+  const g=calCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,128,64);
+  g.fillStyle='#57e389'; g.font='bold 22px Consolas,monospace'; g.textAlign='center';
+  g.fillText(CFG.L.toFixed(2),64,30);
+  g.font='11px Consolas,monospace'; g.fillStyle='#8bd8a8'; g.fillText('mm',64,52);
+  calTex.needsUpdate=true;
+}
+
+/* ---- 声场可视化（驻波竖杆） ---- */
+const waveBars=[];
+const barGeo=new THREE.BoxGeometry(.5,1,.5);
+for(let i=0;i<52;i++){
+  const b=new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({color:0x4cc2ff,transparent:true,opacity:.5}));
+  b.position.y=railY+2.2; b.userData.k=i; scene.add(b); waveBars.push(b);
+}
+function updateWaves(time){
+  const lam=lambdaMM(), Lcm=CFG.L/10;
+  const x1=-14+5.5, x2=-14+Lcm-4.6;                 // 两辐射头之间
+  const amp=res()*3.2;
+  waveBars.forEach(b=>{
+    const visible=CFG.gen&&x2-x1>1;
+    b.visible=visible;
+    if(!visible) return;
+    const t=b.userData.k/51;
+    const x=x1+t*(x2-x1);
+    const env=Math.abs(Math.cos(2*Math.PI*(x+14)*10/lam));   // 包络（单位换算 mm）
+    b.position.x=x;
+    const osc=(0.35+0.65*env)*Math.abs(Math.sin(2*Math.PI*(time*2.2)+x/lam*10*2*Math.PI*0.15));
+    b.scale.y=Math.max(.08, env*amp*osc);
+    b.material.opacity=.25+.55*env*res();
+  });
+}
+
+/* ---- 信号发生器 ---- */
+const genBox=new THREE.Mesh(new THREE.BoxGeometry(24,13,13), M(0x2c3648,{roughness:.5}));
+genBox.position.set(-46,6.5,-38); scene.add(genBox);
+const genCanvas=document.createElement('canvas'); genCanvas.width=256; genCanvas.height=96;
+const genTex=new THREE.CanvasTexture(genCanvas);
+const genScr=new THREE.Mesh(new THREE.PlaneGeometry(20,7.2), new THREE.MeshBasicMaterial({map:genTex}));
+genScr.position.set(-46,8.5,-31.4); scene.add(genScr);
+tag(genBox,'信号发生器','提供频率为数十千赫兹的正弦电信号（电压输出）至发射换能器 S₁。微调频率使换能器处于谐振状态（示波器信号最大）。');
+function drawGen(){
+  const g=genCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,256,96);
+  if(!CFG.gen){ g.fillStyle='#666'; g.font='16px Consolas,monospace'; g.textAlign='center'; g.fillText('POWER OFF',128,52); }
+  else{
+    g.fillStyle='#57e389'; g.font='bold 24px Consolas,monospace'; g.textAlign='center';
+    g.fillText(CFG.f.toFixed(2)+' kHz',128,36);
+    g.strokeStyle='#2f6e4a'; g.beginPath();
+    for(let x=0;x<=200;x++){ const y=48+16*Math.sin(x/200*4*Math.PI); x===0?g.moveTo(28+x,y):g.lineTo(28+x,y); }
+    g.stroke();
+    g.fillStyle=res()>.88?'#ffb454':'#667';
+    g.font='12px sans-serif';
+    g.fillText(res()>.88?'谐振指示 ●':'输出',128,86);
+  }
+  genTex.needsUpdate=true;
+}
+
+/* ---- 示波器（3D 外壳 + 2D 浮动窗口共用绘制） ---- */
+const scopeBox=new THREE.Mesh(new THREE.BoxGeometry(30,20,13), M(0x2c3648,{roughness:.5}));
+scopeBox.position.set(46,10,-38); scene.add(scopeBox);
+const scopeCanvas=document.createElement('canvas'); scopeCanvas.width=278; scopeCanvas.height=190;
+const scopeTex=new THREE.CanvasTexture(scopeCanvas);
+const scope3D=new THREE.Mesh(new THREE.PlaneGeometry(24,16), new THREE.MeshBasicMaterial({map:scopeTex}));
+scope3D.position.set(46,12,-31.4); scene.add(scope3D);
+tag(scopeBox,'双踪示波器','共振干涉法：观察接收信号幅度（幅度按 |cos(2πL/λ)| 周期变化）；相位比较法：X 轴接发射、Y 轴接接收信号，观察李萨如图形。');
+function drawScope(){
+  const g=scopeCanvas.getContext('2d'), W=278, H=190;
+  g.fillStyle='#04140c'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#0e3320'; g.lineWidth=1;
+  for(let x=0;x<=W;x+=27.8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); }
+  for(let y=0;y<=H;y+=19){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  if(!CFG.scope){ g.fillStyle='#5a7a68'; g.font='16px Consolas,monospace'; g.textAlign='center'; g.fillText('POWER OFF',W/2,H/2); }
+  else if(CFG.method==='int'){
+    const A=envelope()*res();
+    g.strokeStyle='#5dffb0'; g.lineWidth=2; g.beginPath();
+    const n=3;
+    for(let x=0;x<=W;x++){
+      const ph=x/W*2*Math.PI*n;
+      const y=H/2 - A*0.42*H*Math.sin(ph);
+      x===0?g.moveTo(x,y):g.lineTo(x,y);
+    }
+    g.stroke();
+    g.fillStyle='#8bd8a8'; g.font='12px sans-serif'; g.textAlign='left';
+    g.fillText('CH1  V(D2)= '+fmt(A*0.9,2)+' V',8,16);
+  }else{
+    /* 李萨如图形：x=sin, y=A·sin(+Δφ) */
+    const A=envelope()*res();
+    g.strokeStyle='#5dffb0'; g.lineWidth=2; g.beginPath();
+    for(let i=0;i<=240;i++){
+      const t=i/240*2*Math.PI;
+      const px=W/2+0.38*W*Math.sin(t);
+      const py=H/2-0.42*H*A*Math.sin(t+dPhi());
+      i===0?g.moveTo(px,py):g.lineTo(px,py);
+    }
+    g.stroke();
+    g.fillStyle='#8bd8a8'; g.font='12px sans-serif'; g.textAlign='left';
+    g.fillText('X-Y  Δφ = '+fmt(dPhi()%(2*Math.PI),2)+' rad',8,16);
+  }
+  scopeTex.needsUpdate=true;
+  const c2=$('#scope2d'); c2.getContext('2d').drawImage(scopeCanvas,0,0);
+  $('#scopeMode').textContent = CFG.method==='int'?'CH1: 接收信号（幅度包络）':'X-Y 李萨如图形（相位比较）';
+}
+
+/* ================= 交互绑定 ================= */
+$('#btnGen').onclick=()=>{ CFG.gen=!CFG.gen; $('#btnGen').classList.toggle('on',CFG.gen); pwrState(); checkSteps(); };
+$('#btnScope').onclick=()=>{ CFG.scope=!CFG.scope; $('#btnScope').classList.toggle('on',CFG.scope); pwrState(); checkSteps(); };
+function pwrState(){
+  const s=CFG.gen&&CFG.scope?'均已开机':(CFG.gen?'信号发生器已开机':(CFG.scope?'示波器已开机':'均未开机'));
+  $('#pwrState').textContent=s;
+}
+$('#sF').oninput=e=>{ CFG.f=+e.target.value; $('#vF').textContent=CFG.f.toFixed(2)+' kHz'; checkSteps(); };
+$('#sT').oninput=e=>{ CFG.tC=+e.target.value; $('#vT').textContent=CFG.tC.toFixed(1)+' °C'; updateVTh(); renderData(); };
+function updateVTh(){ $('#vThShow').innerHTML='当前温度理论声速 v = <b>'+fmt(vAir(CFG.tC),2)+' m/s</b>'; }
+$('#sL').oninput=e=>{
+  const nv=+e.target.value;
+  const d=Math.sign(nv-CFG.L)||CFG.dir;
+  if(d!==0&&d!==CFG.lastDir&&CFG.lastDir!==0&&CFG.recInt.length+CFG.recPha.length>0){
+    toast('<b style="color:var(--warn)">回程差警告</b>：鼓轮应始终同一方向旋转！反向移动后记录的位置存在回程误差。');
+  }
+  CFG.lastDir=d; CFG.L=nv;
+  $('#vL').textContent=CFG.L.toFixed(2)+' mm';
+};
+$('#selM').onchange=e=>{ CFG.method=e.target.value; showRec(); };
+$('#btnRec').onclick=()=>{
+  if(!CFG.gen||!CFG.scope){ toast('请先打开<b>信号发生器与示波器</b>电源'); return; }
+  const arr=CFG.method==='int'?CFG.recInt:CFG.recPha;
+  if(arr.length>=10){ toast('本方法已记录满 10 个位置，切到另一方法或查看数据处理'); return; }
+  if(arr.length&&CFG.L<=arr[arr.length-1]+0.005){ toast('<b style="color:var(--warn)">记录位置必须沿同一方向递增</b>（避免回程差）'); return; }
+  if(CFG.method==='int'){
+    if(envelope()<0.96){ toast('当前不是<b>极大值</b>位置（幅度未达最大）。请微调 L 使示波器信号最大后再记录。'); return; }
+  }else{
+    const dp=dPhi()%Math.PI;                       // 与最近直线的偏差
+    const dev=Math.min(dp,Math.PI-dp);
+    if(dev>0.16){ toast('李萨如图形还不是<b>直线</b>（Δφ 未变化 π）。请微调 L 至图形变为直线再记录。'); return; }
+  }
+  arr.push(+CFG.L.toFixed(2));
+  toast('已记录 x'+arr.length+' = <b>'+CFG.L.toFixed(2)+' mm</b>（'+(CFG.method==='int'?'共振干涉法':'相位比较法')+'）');
+  showRec(); checkSteps(); renderData();
+};
+$('#btnClr').onclick=()=>{
+  if(CFG.method==='int'){ CFG.recInt=[]; }else{ CFG.recPha=[]; }
+  showRec(); renderData(); toast('已清除本方法记录');
+};
+function showRec(){
+  const arr=CFG.method==='int'?CFG.recInt:CFG.recPha;
+  $('#recShow').textContent='已记录 '+arr.length+' / 10 个位置'+(arr.length?'：'+arr.map(v=>v.toFixed(2)).join(', '):'');
+}
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const s=[];
+  s[0]=CFG.gen&&CFG.scope;
+  s[1]=s[0]&&Math.abs(CFG.f-F0)<=0.05;                     // 频率微调至谐振点(约40kHz)
+  s[2]=CFG.recInt.length>=10;
+  s[3]=CFG.recPha.length>=10;
+  const tips=['仪器已就绪！','已达谐振状态，开始用共振干涉法记录 10 个极大值位置。','共振干涉法 10 点已记录，切到相位比较法。','两种方法均已记录，查看数据处理页的计算结果。','数据处理完成，与理论值比较！'];
+  CFG._s=s;
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+  CFG._s=s;
+}
+
+/* ================= 数据处理（逐差法） ================= */
+function halfLambda(arr){                 // 逐差法 λ/2
+  let sum=0; for(let i=0;i<5;i++) sum+=arr[i+5]-arr[i];
+  return sum/25;
+}
+function renderData(){
+  const out={};
+  [['int',CFG.recInt,'#tblInt','共振干涉法'],['pha',CFG.recPha,'#tblPha','相位比较法']].forEach(([k,arr,sel,name])=>{
+    if(arr.length<10){ $(sel).innerHTML=name+'：已记录 '+arr.length+' / 10 个位置。'; return; }
+    const lh=halfLambda(arr), lam=2*lh, v=CFG.f*lam;     // f kHz × λ mm → m/s
+    out[k]={lam,v};
+    const cells=arr.map(x=>`<td class="num">${x.toFixed(2)}</td>`).join('');
+    $(sel).innerHTML=`<table>
+      <tr><th>位置</th>${arr.map((_,i)=>`<th>x${i+1}</th>`).join('')}</tr>
+      <tr><th>x /mm</th>${cells}</tr></table>
+      <div class="info">逐差法：λ/2 = Σ(xᵢ₊₅−xᵢ)/25 = ${lh.toFixed(3)} mm　⇒　λ = ${lam.toFixed(3)} mm　⇒　v = f·λ = ${fmt(v,2)} m/s</div>`;
+  });
+  if(out.int||out.pha){
+    const vt=vAir(CFG.tC);
+    let rows='';
+    if(out.int) rows+=`<tr><td>共振干涉法</td><td class="num">${fmt(out.int.lam,3)}</td><td class="num">${fmt(out.int.v,2)}</td><td class="num ${Math.abs(out.int.v-vt)/vt<0.02?'good':''}">${fmt(Math.abs(out.int.v-vt)/vt*100,2)} %</td></tr>`;
+    if(out.pha) rows+=`<tr><td>相位比较法</td><td class="num">${fmt(out.pha.lam,3)}</td><td class="num">${fmt(out.pha.v,2)}</td><td class="num ${Math.abs(out.pha.v-vt)/vt<0.02?'good':''}">${fmt(Math.abs(out.pha.v-vt)/vt*100,2)} %</td></tr>`;
+    $('#tblCmp').innerHTML=`<table><tr><th>方法</th><th>λ /mm</th><th>v 实验值 /(m/s)</th><th>相对误差（对理论值 ${fmt(vt,2)}）</th></tr>${rows}</table>`;
+  } else $('#tblCmp').innerHTML='完成两种方法测量后自动计算。';
+  CFG._done=!!(out.int&&out.pha);
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.gen=true; CFG.scope=true;
+  $('#btnGen').classList.add('on'); $('#btnScope').classList.add('on');
+  CFG.f=F0; $('#sF').value=F0; $('#vF').textContent=F0.toFixed(2)+' kHz';
+  const lam=lambdaMM();
+  CFG.recInt=[]; CFG.recPha=[];
+  for(let i=0;i<10;i++){ CFG.recInt.push(+(50.00+i*lam/2).toFixed(2)); CFG.recPha.push(+(50.00+i*lam/2).toFixed(2)); }
+  $('#sL').value=CFG.recPha[9]; $('#vL').textContent=CFG.recPha[9].toFixed(2)+' mm'; CFG.L=CFG.recPha[9];
+  showRec(); pwrState(); checkSteps(); renderData();
+  toast('已自动完成全部测量（f='+F0.toFixed(2)+'kHz，t='+CFG.tC+'℃，理论 v='+fmt(vAir(CFG.tC),2)+' m/s）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.gen=CFG.scope=false; $('#btnGen').classList.remove('on'); $('#btnScope').classList.remove('on');
+  CFG.recInt=[]; CFG.recPha=[]; CFG.f=38.50; CFG.L=50;
+  $('#sF').value=38.5; $('#vF').textContent='38.50 kHz';
+  $('#sL').value=50; $('#vL').textContent='50.00 mm';
+  pwrState(); showRec(); renderData(); checkSteps();
+  $('#tblInt').innerHTML='共振干涉法：尚未记录数据。'; $('#tblPha').innerHTML='相位比较法：尚未记录数据。';
+  $('#tblCmp').innerHTML='完成两种方法测量后自动计算。';
+  toast('实验已重置');
+};
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,time=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){        // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let lcdT=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  time+=1/60;
+  s2Car.position.set(-14+CFG.L/10,0,0);
+  updateWaves(time);
+  wheel.rotation.x-= (0.5/lambdaMM())*0.06;   // 鼓轮示意性转动（随位置变化）
+  lcdT+=1/60;
+  if(lcdT>0.12){ lcdT=0; drawCal(); drawGen(); drawScope(); }
+  controls.update(); renderer.render(scene,camera);
+}
+updateVTh(); showRec(); checkSteps();
+loop();
+</script>
+</body>
+</html>

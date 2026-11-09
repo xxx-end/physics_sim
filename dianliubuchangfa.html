@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验24 · 用电流补偿法测电源电动势及内阻</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:400px;flex:0 0 400px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.val{flex:0 0 90px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#lcdBox{position:absolute;right:14px;bottom:14px;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#lcdBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#lcdBox .bar b{color:var(--text);font-weight:600;flex:1}
+#lcd2d{width:100%;height:140px;display:block}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+#esVal,#rVal{font-size:18px;color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+canvas.plot{width:100%;background:#10161f;border:1px solid var(--line);border-radius:8px}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验24 · 用电流补偿法测电源电动势及内阻</h1>
+  <span class="tag">U = E − I·r · <b>I_g = I₁ + I = 0</b> · r = E/I_s</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="lcdBox">
+    <div class="bar"><b>补偿监测</b><span style="color:var(--muted)">E_x 待测 · E_s 补偿</span></div>
+    <canvas id="lcd2d" width="278" height="140"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>连路</b>：按图 2.24.4 连接电路（取 E_s&gt;E_x），R₁ 赋 16 kΩ，保护电阻 R₀ 调至最大</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>补偿平衡</b>：配合调节 E_s 输出电压与可调电阻 R，使灵敏电流计指零；随读数减小将 R₀ 逐渐减为 0，仍指零</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>记录</b>：记下电流表读数 I，此时待测电源端电压 U = I·R₁</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div>依次改变 R₁（8/4/2/1/0.5 kΩ）重复，共 6 组（表 2.24.1）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>绘 U-I 曲线，线性趋势外推求电动势 E、短路电流 I_s，并计算内阻 r = E/I_s</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 开始时 A、A' 两点电位可能不等，会有较大电流通过灵敏电流计，<b>必须先将 R₀ 调至最大</b>，随读数减小逐渐减为 0；② 记录数据前须确认 R₀=0 且电流计指零（|n|≤0.1 格）；③ 平衡判据：I_g = I₁ + I = 0，此时 A、A' 等电位，补偿支路等效为一只内阻为零的电流表；④ U-I 图为直线，I=0 处截距即 E，U=0 处即短路电流 I_s。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 负载电阻 R₁（表 2.24.1 六挡）</h4>
+      <div class="row"><label>R₁</label><select id="selR1">
+        <option value="16000">16 kΩ</option><option value="8000">8 kΩ</option><option value="4000">4 kΩ</option>
+        <option value="2000">2 kΩ</option><option value="1000">1 kΩ</option><option value="500">0.5 kΩ</option></select></div>
+      <div class="info" id="colShow">当前列：R₁ = 16 kΩ（未记录）</div>
+    </section>
+    <section>
+      <h4>② 补偿电源 E_s（直流稳压电源）</h4>
+      <div style="text-align:center;margin:2px 0"><span id="esVal">—</span><span class="info"> V</span></div>
+      <input type="range" id="sES" min="0" max="2" step="0.001" value="0.5" style="width:100%">
+      <div><button class="b" data-e="-0.1">−0.1</button><button class="b" data-e="-0.01">−0.01</button><button class="b" data-e="-0.001">−0.001</button>
+      <button class="b" data-e="0.001">+0.001</button><button class="b" data-e="0.01">+0.01</button><button class="b" data-e="0.1">+0.1</button></div>
+    </section>
+    <section>
+      <h4>③ 可调电阻 R（补偿支路）</h4>
+      <div style="text-align:center;margin:2px 0"><span id="rVal">—</span><span class="info"> Ω</span></div>
+      <input type="range" id="sR" min="0" max="11000" step="1" value="5000" style="width:100%">
+      <div><button class="b" data-r="-10">−10</button><button class="b" data-r="-1">−1</button><button class="b" data-r="-0.1">−0.1</button>
+      <button class="b" data-r="0.1">+0.1</button><button class="b" data-r="1">+1</button><button class="b" data-r="10">+10</button></div>
+      <div class="info">平衡时应有 R = E_s·(R₁+r_x)/E_x − R_A（参考原理页）</div>
+    </section>
+    <section>
+      <h4>④ 保护电阻 R₀（灵敏电流计串联）</h4>
+      <div>
+        <button class="b" data-r0="100000">100 kΩ（最大）</button><button class="b" data-r0="10000">10 kΩ</button>
+        <button class="b" data-r0="1000">1 kΩ</button><button class="b" data-r0="0">0（工作）</button>
+      </div>
+      <div class="info" id="r0Show">R₀ = 100 kΩ（保护状态，G 偏转被压缩）</div>
+    </section>
+    <section>
+      <h4>⑤ 测量</h4>
+      <button class="b" id="btnSw">电源开关</button><span class="info" id="swState">接通</span><br>
+      <button class="b" id="btnRec">记录本列 I 与 U=I·R₁（指零且 R₀=0 时）</button>
+      <div class="info" id="measShow">电流计偏转：—</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.24.1 补偿法测电流的数据记录表</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>U-I 曲线与线性外推</h4>
+      <canvas class="plot" id="plot" width="370" height="250"></canvas>
+      <div id="fitOut" class="info">完成全部 6 组后自动最小二乘拟合。</div>
+    </section>
+    <section>
+      <h4>对比：直接串联电流表的系统误差</h4>
+      <div id="cmpOut" class="info">若把电流表（内阻 R_A）直接串入待测回路，I'=E_x/(R₁+r_x+R_A)，电流偏小。完成测量后自动对比。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>实际电压源与伏安特性</h4>
+      <p class="info">理想电压源输出电压与电流无关（内阻 r=0）。实际电压源可等效为电动势 E 的理想电源与内阻 r 串联，输出电压：</p>
+      <div class="formula">U = E − I·r　（2.24.1）</div>
+      <p class="info">U-I 特性为直线：I=0 处 U=E（电动势），U=0 处 I=I_s（短路电流），内阻 r = E/I_s。只要测出不同负载下的 (I, U)，即可由线性趋势外推求出 E、I_s 与 r。</p>
+    </section>
+    <section>
+      <h4>电流补偿法原理</h4>
+      <p class="info">在电路中串联电流表测量电流时，电流表内阻 R_A 会分压，使电流偏小（系统误差）。补偿法：将待测回路（E_x、R₁）与补偿支路（电流表 A、补偿电源 E_s、可调电阻 R）通过 A、A' 两点并联，中间接灵敏电流计 G。配合调节 E_s 和 R，当 A、A' 两点等电位时，流经 G 的电流满足：</p>
+      <div class="formula">I_g = I₁ + I = 0　（2.24.2）</div>
+      <p class="info">此时 G 支路电流为零，从 A、A' 看进去，虚框内（电流表+补偿电源+R）等效为一个<b>内阻为零的电流表</b>：电流表读数 I 恰等于待测回路的真实电流 I₁ = E_x/(R₁+r_x)，电流表内阻不再引起系统误差。</p>
+      <div class="formula">平衡条件：E_s/(R_A+R) = E_x/(R₁+r_x)</div>
+    </section>
+    <section>
+      <h4>本仿真参数与思考题</h4>
+      <div class="info">E_x=1.500 V（真值），内阻 r_x=45.0 Ω（真值）；电流表内阻 R_A=5.0 Ω、量程 5 mA；灵敏电流计 S_i=1.0×10⁵ div/A、内阻 R_g=100 Ω、量程 ±60 格；保护电阻 R₀=0~100 kΩ。<br><br>
+      【思考题】(1) 电流补偿法和电压补偿法有什么区别？<br>(2) 为什么 A、A' 两点电位相等时，虚框内电路等效为一只内阻为零的理想电流表？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+const D2R=Math.PI/180, R2D=180/Math.PI;
+
+/* ================= 物理参数与状态 ================= */
+const PHYS={ Ex:1.500, rx:45.0, RA:5.0, Rg:100, Si:1.0e5, RANGE:60 };  // 真值：E_x、r_x；电流表内阻；电流计
+const CFG={ Es:0.5, R:5000, R0:100000, R1:16000, sw:true,
+  balanced:false, rec:{} };                                            // rec[R1] = {I,U,Idir}
+const R1S=[16000,8000,4000,2000,1000,500];
+
+/* 三支路节点方程精确求解（A' 为参考地）：
+   (E_x−V)/(r_x+R₁) = V/(R_g+R₀) + (V+E_s)/(R_A+R)   */
+function solve(){
+  const a=PHYS.rx+CFG.R1, b=PHYS.RA+CFG.R, c=PHYS.Rg+CFG.R0;
+  const V=(PHYS.Ex/a - CFG.Es/b)/(1/a+1/b+1/c);      // A 点电位（相对 A'）
+  const I1=(PHYS.Ex-V)/a;                            // 待测回路电流（A'→A）
+  const Ig=V/c;                                      // 检流计电流
+  const I=(V+CFG.Es)/b;                              // 补偿支路电流（A→A'，即流过电流表）
+  return {V,I1,Ig,I};
+}
+function ndiv(){ let n=PHYS.Si*solve().Ig; if(CFG.sw) n+=(Math.random()-0.5)*0.04; return n; }
+function clampN(n){ return Math.max(-PHYS.RANGE,Math.min(PHYS.RANGE,n)); }
+const balancedNow=()=>CFG.sw&&Math.abs(solve().Ig*PHYS.Si)<0.1;
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,560,1200);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(12,88,158);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,6,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.15); dl.position.set(120,220,150); scene.add(dl);
+scene.add(new THREE.DirectionalLight(0x6688cc,.3).translateX(-120).translateY(60).translateZ(-160));
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+function makeLabel(draw,w,h,sx,sy){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  sp.scale.set(sx,sy,1);
+  sp.userData.redraw=(...a)=>{ draw(c.getContext('2d'),w,h,...a); tex.needsUpdate=true; };
+  sp.userData.redraw();
+  return sp;
+}
+
+/* 实验台 */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(200,8,90), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-88,-34],[88,-34],[-88,34],[88,34]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,64,9), M(0x3a2e20));
+  leg.position.set(p[0],-40,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-72; scene.add(floor);
+
+/* 待测电源 E_x（干电池组） */
+const exBox=new THREE.Mesh(new THREE.BoxGeometry(16,7,10), M(0x7a4a20,{roughness:.5}));
+exBox.position.set(-72,3.5,20); scene.add(exBox);
+tag(exBox,'待测电源 E_x','实际电压源：E=1.500 V，内阻 r（待求）。其端电压 U=E−I·r 随负载电流增大而降低。');
+const exLb=makeLabel((g,w,h)=>{ g.clearRect(0,0,w,h); g.fillStyle='#ffd9a0'; g.font='bold 42px Consolas,monospace';
+  g.textAlign='center'; g.fillText('E_x 1.5V',w/2,h/2+15); },256,64,15,3.75);
+exLb.position.set(-72,11,20); scene.add(exLb);
+
+/* 开关 */
+const swBase=new THREE.Mesh(new THREE.BoxGeometry(8,2,6), M(0x2c3648));
+swBase.position.set(-52,1,20); scene.add(swBase);
+const lever=new THREE.Group(); lever.position.set(-52,2.2,20); scene.add(lever);
+const lv=new THREE.Mesh(new THREE.BoxGeometry(6,.8,1.2), M(0xd0d6de,{metalness:.6})); lv.position.x=2.2; lever.add(lv);
+const knobTip=new THREE.Mesh(new THREE.SphereGeometry(1,10,8), M(0xc0392b)); knobTip.position.x=5; lever.add(knobTip);
+tag(swBase,'电源开关','接通/断开整个补偿测量电路。');
+function setLever(on){ lever.rotation.z=on?-0.9:0.55; }
+
+/* 负载电阻 R₁（电阻箱） */
+const r1Box=new THREE.Mesh(new THREE.BoxGeometry(16,7,11), M(0x31405a,{roughness:.45}));
+r1Box.position.set(-30,3.5,20); scene.add(r1Box);
+tag(r1Box,'负载电阻 R₁','待测回路的负载电阻，按表 2.24.1 依次取 16/8/4/2/1/0.5 kΩ。');
+const r1Lb=makeLabel((g,w,h,v)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 42px Consolas,monospace';
+  g.textAlign='center'; g.fillText('R₁='+fmt(v/1000,v>=1000?0:1)+'kΩ',w/2,h/2+15); },256,64,17,4.2);
+r1Lb.position.set(-30,11.5,20); scene.add(r1Lb);
+
+/* 节点 A / A' */
+function node(x,y,z,name){ const s=new THREE.Mesh(new THREE.SphereGeometry(.9,12,10), M(0xd4af37,{metalness:.7}));
+  s.position.set(x,y,z); scene.add(s); tag(s,'节点 '+name,name==="A"?'补偿点 A：待测回路、检流计支路与补偿支路的公共连接点。':'补偿点 A\'：三条支路的另一公共连接点。A、A\' 等电位即补偿平衡。'); return s; }
+node(-8,5,20,'A'); node(-8,3,8,'A\'');
+
+/* 灵敏电流计 G（后中） + 保护电阻 R₀ */
+const gBox=new THREE.Mesh(new THREE.BoxGeometry(22,22,10), M(0x39424e,{roughness:.5}));
+gBox.position.set(-8,11,38); scene.add(gBox);
+tag(gBox,'灵敏电流计 G','检零计：I_g = I₁ + I = 0 时指零，表明 A、A\' 等电位、补偿平衡。S_i=1.0×10⁵ div/A，量程 ±60 格。');
+const dialCv=document.createElement('canvas'); dialCv.width=512; dialCv.height=256;
+(function(){ const g=dialCv.getContext('2d');
+  g.fillStyle='#f2ead8'; g.fillRect(0,0,512,256);
+  g.strokeStyle='#333'; g.lineWidth=3; g.beginPath(); g.arc(256,250,215,Math.PI,2*Math.PI); g.stroke();
+  g.fillStyle='#222'; g.font='bold 22px Consolas,monospace'; g.textAlign='center';
+  for(let d=-60;d<=60;d+=10){ const r1=d%20?0.94:0.86;
+    const x1=256+Math.sin(-d*D2R)*215*r1, y1=250-Math.cos(-d*D2R)*215*r1;
+    const x2=256+Math.sin(-d*D2R)*215,   y2=250-Math.cos(-d*D2R)*215;
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    if(d%20===0) g.fillText(String(Math.abs(d)),256+Math.sin(-d*D2R)*175,250-Math.cos(-d*D2R)*175+8);
+  }
+  g.font='16px Microsoft YaHei'; g.fillStyle='#555'; g.fillText('灵敏电流计（格）',256,150);
+})();
+const dial=new THREE.Mesh(new THREE.PlaneGeometry(20,10), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(dialCv)}));
+dial.position.set(-8,13,43.2); scene.add(dial);
+const needle=new THREE.Group(); needle.position.set(-8,12.4,43.4); scene.add(needle);
+const ndl=new THREE.Mesh(new THREE.BoxGeometry(.35,9,.2), M(0xc0392b,{emissive:0x220000}));
+ndl.position.y=4.2; needle.add(ndl);
+
+const r0Box=new THREE.Mesh(new THREE.BoxGeometry(10,5,8), M(0x50406a,{roughness:.45}));
+r0Box.position.set(8,2.5,30); scene.add(r0Box);
+tag(r0Box,'保护电阻 R₀','与检流计串联。开始时调至最大，防止 A、A\' 电位不等时大电流打表；随偏转减小逐渐降为 0。');
+const r0Lb=makeLabel((g,w,h,v)=>{ g.clearRect(0,0,w,h); g.fillStyle='#d9c9ff'; g.font='bold 42px Consolas,monospace';
+  g.textAlign='center'; g.fillText('R₀='+(v>=1000?(v/1000)+'k':v)+'Ω',w/2,h/2+15); },256,64,12,3);
+r0Lb.position.set(8,9,30); scene.add(r0Lb);
+
+/* 电流表 A（补偿支路，数字式） */
+const amBox=new THREE.Mesh(new THREE.BoxGeometry(14,9,8), M(0x2c3648,{roughness:.5}));
+amBox.position.set(28,4.5,20); scene.add(amBox);
+tag(amBox,'电流表 A（内阻 R_A=5Ω）','接在补偿支路中。平衡时其读数即待测回路真实电流（等效内阻为零的电流表接入待测回路）。');
+const amLcd=makeLabel((g,w,h,ma)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 44px Consolas,monospace'; g.textAlign='center';
+  g.fillText(ma+' mA',w/2,h/2+15); },256,64,12,3);
+amLcd.position.set(28,9.5,24.2); scene.add(amLcd);
+
+/* 补偿电源 E_s（直流稳压电源） */
+const esBox=new THREE.Mesh(new THREE.BoxGeometry(24,16,12), M(0x2c3648,{roughness:.5}));
+esBox.position.set(52,8,20); scene.add(esBox);
+tag(esBox,'直流稳压电源（补偿电源 E_s）','提供补偿电压，配合 R 调节使 A、A\' 等电位。开始操作应取 E_s > E_x 以保证补偿能力。');
+const esLcd=makeLabel((g,w,h,v)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 40px Consolas,monospace'; g.textAlign='center';
+  g.fillText('E_s = '+(+v).toFixed(3)+' V',w/2,h/2+14); },256,64,15,3.75);
+esLcd.position.set(52,13,26.2); scene.add(esLcd);
+
+/* 可调电阻 R（电阻箱） */
+const rBox=new THREE.Mesh(new THREE.BoxGeometry(16,7,11), M(0x31405a,{roughness:.45}));
+rBox.position.set(76,3.5,20); scene.add(rBox);
+tag(rBox,'可调电阻 R','补偿支路的调节电阻。平衡时 R = E_s(R₁+r_x)/E_x − R_A。');
+const rLb=makeLabel((g,w,h,v)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 42px Consolas,monospace';
+  g.textAlign='center'; g.fillText('R='+fmt(v,1)+'Ω',w/2,h/2+15); },256,64,17,4.2);
+rLb.position.set(76,11.5,20); scene.add(rLb);
+
+/* 导线：三支路（branch1 待测回路 / branch2 检流计 / branch3 补偿支路） */
+function wire(pts,color){
+  const curve=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve,48,.28,8), M(color,{roughness:.5})));
+}
+/* 支路1：A' → E_x → 开关 → R₁ → A（红） */
+wire([[-8,3,8],[-30,3,4],[-72,2,6],[-72,6,14]],0xff5555);
+wire([[-72,7,14],[-52,4,16],[-40,5,17],[-30,6,17]],0xff5555);
+wire([[-22,6,17],[-8,5,20]],0xff5555);
+/* 支路2：A → G → R₀ → A'（黄） */
+wire([[-8,5,20],[-8,8,28],[-12,11,34]],0xd4af37);
+wire([[-4,11,36],[6,10,32],[8,5,30]],0xd4af37);
+wire([[8,2,30],[4,1,16],[-8,3,8]],0xd4af37);
+/* 支路3：A → 电流表 → E_s → R → A'（蓝） */
+wire([[-8,5,20],[10,6,16],[21,6,17]],0x6fa8ff);
+wire([[35,6,17],[44,7,15],[52,9,14]],0x6fa8ff);
+wire([[60,7,14],[68,6,17],[76,6,17]],0x6fa8ff);
+wire([[76,3,12],[80,2,4],[-8,2,2],[-8,3,8]],0x6fa8ff);
+
+/* ================= 浮动液晶窗 ================= */
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=278; lcdCanvas.height=140;
+function drawLCD(){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#04140c'; g.fillRect(0,0,278,140);
+  const s=solve(); const n=CFG.sw?PHYS.Si*s.Ig:0, an=Math.abs(clampN(n));
+  const status=!CFG.sw?'电源断开':(an>PHYS.RANGE?'打表!':(Math.abs(PHYS.Si*s.Ig)<0.1?'指 零（补偿平衡）':'偏转'));
+  g.font='14px Consolas,monospace'; g.textAlign='left';
+  g.fillStyle='#57e389';
+  g.fillText('R₁='+fmt(CFG.R1/1000,1)+'kΩ  R₀='+(CFG.R0>=1000?CFG.R0/1000+'k':CFG.R0)+'Ω  R='+fmt(CFG.R,1),10,24);
+  g.fillText('E_s = '+fmt(CFG.Es,3)+' V',10,44);
+  g.fillText('A点电位 V_A = '+(CFG.sw?fmt(s.V*1000,3):'0.000')+' mV',10,64);
+  g.fillStyle=an>PHYS.RANGE?'#ff5555':'#57e389';
+  g.fillText('I_g = '+(CFG.sw?fmt(s.Ig*1e6,3):'0.000')+' μA',10,84);
+  g.fillText('偏转 n = '+(CFG.sw?(n>=0?'+':'')+fmt(clampN(n),2):'0.00')+' 格  ['+status+']',10,104);
+  g.fillStyle='#8fb7a0';
+  g.fillText('电流表 I = '+(CFG.sw?fmt(Math.abs(s.I)*1000,3):'0.000')+' mA   平衡判据 |n|≤0.1',10,124);
+  $('#lcd2d').getContext('2d').drawImage(lcdCanvas,0,0);
+}
+
+/* ================= 交互 ================= */
+function updateEs(v){
+  CFG.Es=Math.max(0,Math.min(2,Math.round(v*1000)/1000));
+  $('#esVal').textContent=fmt(CFG.Es,3); $('#sES').value=CFG.Es;
+  esLcd.userData.redraw(CFG.Es);
+  if(!CFG.rec[CFG.R1]) CFG.balanced=false;
+  updUI();
+}
+function updateR(v){
+  CFG.R=Math.max(0,Math.min(11000,Math.round(v*10)/10));
+  $('#rVal').textContent=fmt(CFG.R,1); $('#sR').value=CFG.R;
+  rLb.userData.redraw(CFG.R);
+  if(!CFG.rec[CFG.R1]) CFG.balanced=false;
+  updUI();
+}
+function updateR0(v){
+  CFG.R0=v;
+  r0Lb.userData.redraw(v);
+  document.querySelectorAll('[data-r0]').forEach(b=>b.classList.toggle('on',+b.dataset.r0===v));
+  $('#r0Show').textContent='R₀ = '+(v>=1000?(v/1000)+' kΩ':v+' Ω')+(v>0?'（保护状态，G 偏转被压缩）':'（工作状态，G 全灵敏度）');
+  updUI();
+}
+$('#sES').oninput=e=>updateEs(+e.target.value);
+$('#sR').oninput=e=>updateR(+e.target.value);
+document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>updateEs(CFG.Es+ +b.dataset.e));
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>updateR(CFG.R+ +b.dataset.r));
+document.querySelectorAll('[data-r0]').forEach(b=>b.onclick=()=>updateR0(+b.dataset.r0));
+$('#selR1').onchange=e=>{
+  CFG.R1=+e.target.value;
+  r1Lb.userData.redraw(CFG.R1);
+  const has=!!CFG.rec[CFG.R1];
+  CFG.balanced=has;
+  $('#colShow').textContent='当前列：R₁ = '+fmt(CFG.R1/1000,1)+' kΩ'+(has?'（已记录 ✓）':'（未记录）');
+  toast('R₁ 已换为 <b>'+fmt(CFG.R1/1000,1)+' kΩ</b>'+(has?'，该列已有数据':'，请重新补偿平衡后再记录'));
+  checkSteps(); updUI();
+};
+$('#btnSw').onclick=()=>{
+  CFG.sw=!CFG.sw; setLever(CFG.sw);
+  $('#btnSw').classList.toggle('on',CFG.sw);
+  $('#swState').textContent=CFG.sw?'接通':'断开';
+  if(CFG.sw&&Math.abs(PHYS.Si*solve().Ig)>PHYS.RANGE&&CFG.R0===0)
+    toast('<b style="color:var(--warn)">电流计打表！</b>请先把 R₀ 调大再调平衡');
+  updUI();
+};
+$('#btnRec').onclick=()=>{
+  if(!CFG.sw){ toast('<b style="color:var(--warn)">请先接通电源</b>'); return; }
+  if(CFG.R0>0){ toast('<b style="color:var(--warn)">记录前须将 R₀ 减为 0</b>（教材要求：随读数减小逐渐减小为 0）'); return; }
+  const s=solve();
+  if(Math.abs(PHYS.Si*s.Ig)>=0.1){ toast('电流计偏转 <b>'+fmt(PHYS.Si*s.Ig,2)+' 格</b>，未指零（判据 |n|≤0.1）。请继续配合调节 E_s 与 R。'); return; }
+  /* 记录（电流表读数叠加 ±0.3% 测量噪声） */
+  const Inoise=s.I1*(1+(Math.random()-0.5)*0.003);
+  CFG.rec[CFG.R1]={I:Inoise*1000, U:Inoise*CFG.R1, Idir:PHYS.Ex/(CFG.R1+PHYS.rx+PHYS.RA)*1000};
+  CFG.balanced=true;
+  const idx=R1S.indexOf(CFG.R1)+1;
+  toast('第 '+idx+'/6 组已记录：I = '+fmt(Inoise*1000,3)+' mA，U = I·R₁ = '+fmt(Inoise*CFG.R1,4)+' V');
+  renderData(); checkSteps();
+};
+
+function updUI(){
+  const s=solve();
+  const n=CFG.sw?PHYS.Si*s.Ig:0;
+  $('#measShow').textContent='电流计偏转：'+(CFG.sw?fmt(clampN(n),2)+' 格　电流表 '+fmt(Math.abs(s.I)*1000,3)+' mA':'—（电源断开）');
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  let head='<tr><th>R₁/kΩ</th>', rowI='<tr><td><b>I/mA</b></td>', rowU='<tr><td><b>U/V</b></td>', rowC='<tr><td><b>I直/mA</b></td>';
+  R1S.forEach(r1=>{
+    head+=`<th>${fmt(r1/1000,1)}</th>`;
+    const r=CFG.rec[r1];
+    rowI+=`<td class="num">${r?r.I.toFixed(3):'—'}</td>`;
+    rowU+=`<td class="num">${r?r.U.toFixed(4):'—'}</td>`;
+    rowC+=`<td class="num">${r?r.Idir.toFixed(3):'—'}</td>`;
+  });
+  $('#tbl1').innerHTML=`<table>${head+'</tr>'+rowI+'</tr>'+rowU+'</tr>'}</table>
+    <div class="info">U = I·R₁ 为待测电源端电压。U-I 应为一直线（图 2.24.1(b)）。</div>`;
+  const all=R1S.map(r1=>CFG.rec[r1]).filter(Boolean);
+  if(all.length<6){
+    $('#fitOut').innerHTML='完成全部 6 组后自动最小二乘拟合。（已完成 '+all.length+'/6）';
+    $('#cmpOut').innerHTML='若把电流表（内阻 R_A）直接串入待测回路，I\'=E_x/(R₁+r_x+R_A)，电流偏小。完成测量后自动对比。';
+    return;
+  }
+  /* 最小二乘拟合 U = a + b·I */
+  const n=all.length, sx=all.reduce((s,r)=>s+r.I,0), sy=all.reduce((s,r)=>s+r.U,0);
+  const sxx=all.reduce((s,r)=>s+r.I*r.I,0), sxy=all.reduce((s,r)=>s+r.I*r.U,0);
+  const b=(n*sxy-sx*sy)/(n*sxx-sx*sx), a=(sy-b*sx)/n;
+  const E=a, r=-b*1000, Is=E/r*1000;   // I 以 mA 记录：斜率 V/mA ×1000 才是 Ω；I_s=E/r(A)→mA
+  $('#fitOut').innerHTML=`<table>
+    <tr><th>物理量</th><th>拟合结果</th><th>真值</th><th>相对误差</th></tr>
+    <tr><td>电动势 E（I=0 截距）</td><td class="num">${E.toFixed(4)} V</td><td class="num">1.5000 V</td><td class="num">${fmt(Math.abs(E-1.5)/1.5*100,2)}%</td></tr>
+    <tr><td>内阻 r = −斜率</td><td class="num">${r.toFixed(2)} Ω</td><td class="num">45.00 Ω</td><td class="num">${fmt(Math.abs(r-45)/45*100,2)}%</td></tr>
+    <tr><td>短路电流 I_s = E/r</td><td class="num">${Is.toFixed(2)} mA</td><td class="num">33.33 mA</td><td class="num">${fmt(Math.abs(Is-33.33)/33.33*100,2)}%</td></tr></table>
+    <div class="info">线性趋势外推：U-I 直线与 U 轴交点即 E，与 I 轴交点即 I_s，r = E/I_s。</div>`;
+  /* 对比直接串联电流表 */
+  let cmp='<table><tr><th>R₁/kΩ</th><th>补偿法 I/mA</th><th>直接串联 I\'/mA</th><th>偏小</th></tr>';
+  R1S.forEach(r1=>{ const rc=CFG.rec[r1];
+    cmp+=`<tr><td>${fmt(r1/1000,1)}</td><td class="num">${rc.I.toFixed(3)}</td><td class="num">${rc.Idir.toFixed(3)}</td><td class="num">${fmt((rc.I-rc.Idir)/rc.I*100,2)}%</td></tr>`; });
+  $('#cmpOut').innerHTML=cmp+'</table><div class="info">R₁ 越小（电流越大），电流表内阻 R_A 引起的系统误差越明显——这正是补偿法要消除的误差。</div>';
+  drawPlot(all,E,b,Is);
+}
+function drawPlot(all,a,b,Is){
+  const cv=$('#plot'), g=cv.getContext('2d'), W=cv.width, H=cv.height;
+  g.fillStyle='#10161f'; g.fillRect(0,0,W,H);
+  const Imin=0, Imax=Is*1.08, Umin=0, Umax=Math.max(a,...all.map(r=>r.U))*1.15;
+  const X=i=>40+(i-Imin)/(Imax-Imin)*(W-60), Y=u=>H-30-(u-Umin)/(Umax-Umin)*(H-55);
+  g.strokeStyle='#2a3341'; g.lineWidth=1;
+  for(let k=0;k<=5;k++){ const u=Umin+k/5*(Umax-Umin); g.beginPath(); g.moveTo(X(Imin),Y(u)); g.lineTo(X(Imax),Y(u)); g.stroke(); }
+  g.strokeStyle='#8b98a9'; g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(X(Imin),Y(Umin)); g.lineTo(X(Imax),Y(Umin)); g.stroke();
+  g.beginPath(); g.moveTo(X(Imin),Y(Umin)); g.lineTo(X(Imin),Y(Umax)); g.stroke();
+  g.fillStyle='#8b98a9'; g.font='11px Consolas,monospace';
+  g.fillText('I/mA',W-46,Y(Umin)-6); g.fillText('U/V',X(Imin)-30,Y(Umax)+4);
+  g.fillText(fmt(Umax,2),4,Y(Umax)+10); g.fillText(fmt(Is,1)+' (I_s)',X(Is)-18,Y(Umin)+16);
+  /* 拟合直线（外推至 U=0 与 I=0） */
+  g.strokeStyle='#4cc2ff'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(X(0),Y(a)); g.lineTo(X(Is),Y(0)); g.stroke();
+  /* 数据点 */
+  g.fillStyle='#3ad17e';
+  all.forEach(r=>{ g.beginPath(); g.arc(X(r.I),Y(r.U),4,0,7); g.fill(); });
+  /* 截距标注 */
+  g.fillStyle='#ffb454'; g.beginPath(); g.arc(X(0),Y(a),4,0,7); g.fill();
+  g.fillText('E='+a.toFixed(3)+'V',X(0)+6,Y(a)-6);
+}
+
+/* ================= 示例数据 / 重置 ================= */
+function measureAll(){
+  const Es=0.800;
+  R1S.forEach(r1=>{
+    const I=PHYS.Ex/(PHYS.rx+r1);
+    const Inoise=I*(1+(Math.random()-0.5)*0.003);
+    CFG.rec[r1]={I:Inoise*1000, U:Inoise*r1, Idir:PHYS.Ex/(r1+PHYS.rx+PHYS.RA)*1000};
+  });
+  updateR0(0);
+  renderData(); checkSteps();
+  toast('已自动填入 6 组示例数据（E_s=0.800V 逐列配平）。查看「数据处理」页拟合结果。');
+}
+$('#btnSample').onclick=measureAll;
+$('#btnReset').onclick=()=>{
+  CFG.Es=0.5; CFG.R=5000; CFG.R0=100000; CFG.R1=16000; CFG.sw=true; CFG.rec={}; CFG.balanced=false;
+  $('#selR1').value='16000'; $('#sES').value=0.5; $('#sR').value=5000;
+  $('#btnSw').classList.add('on'); $('#swState').textContent='接通';
+  setLever(true); updateEs(0.5); updateR(5000); updateR0(100000);
+  $('#colShow').textContent='当前列：R₁ = 16 kΩ（未记录）';
+  renderData(); checkSteps();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const done=Object.keys(CFG.rec).length;
+  const has=!!CFG.rec[CFG.R1];
+  const s=[true, has||CFG.balanced, has, done>=6, done>=6];
+  const tips=['电路已连接、R₀ 已置最大。','本列补偿平衡（R₀=0 指零），可记录数据。','本列已记录，切换 R₁ 继续下一列。','全部 6 组完成！查看数据处理页的 U-I 外推结果。','全部 6 组完成，U-I 曲线已绘出！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')&&tips[i]&&i>0) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+  $('#colShow').textContent='当前列：R₁ = '+fmt(CFG.R1/1000,1)+' kΩ'+(has?'（已记录 ✓）':'（未记录）');
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,lcdT=1;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  const target=CFG.sw?clampN(ndiv()):0;
+  needle.rotation.z+=(target*D2R-needle.rotation.z)*0.25;
+  amLcd.userData.redraw(CFG.sw?fmt(Math.abs(solve().I)*1000,3):'0.000');
+  lcdT+=1/60;
+  if(lcdT>0.12){ lcdT=0; drawLCD(); updUI(); }
+  controls.update(); renderer.render(scene,camera);
+}
+setLever(true); updateEs(0.5); updateR(5000); updateR0(100000);
+renderData(); checkSteps(); drawLCD();
+loop();
+</script>
+</body>
+</html>

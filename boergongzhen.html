@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验14 · 玻尔共振实验</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:385px;flex:0 0 385px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--accent)}
+.val{flex:0 0 80px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#lcdBox{position:absolute;right:14px;bottom:14px;width:270px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#lcdBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#lcdBox .bar b{color:var(--text);font-weight:600;flex:1}
+#lcd2d{width:100%;height:150px;display:block;}  /* 背景由绘制函数提供，勿设 CSS 背景（避免合成器错位伪影） */
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.good{color:var(--ok)} .info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+.mini{width:100%;height:170px;background:#05070a;border:1px solid var(--line);border-radius:8px}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验14 · 玻尔共振实验</h1>
+  <span class="tag">ZKY-BG 玻尔共振仪 · <b>θ̈+2βθ̇+ω₀²θ=m·cos ωt</b> · 幅频/相频特性</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="flash"></div>
+  <div id="lcdBox">
+    <div class="bar"><b>ZKY-BG 测试仪</b><span id="ledRun" style="width:10px;height:10px;border-radius:50%;background:#333;display:inline-block"></span>测量</div>
+    <canvas id="lcd2d" width="268" height="150"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div>实验前准备：开启<b>测试仪电源</b>，选择单机模式</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>自由振动</b>：拨摆轮至 160° 左右放手，自动记录 10 组振幅 θ 与周期 T（表 2.14.1）</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>阻尼振动</b>：选阻尼挡，拨摆轮后自动记录 10 个振幅，逐差法求 β（表 2.14.2）</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>受迫振动</b>：启动电机，改变强迫力周期（刻度 2.5~8.0 共 11 点），待系统稳定后记录 θ、T，按闪光灯测相位差 φ（表 2.14.3）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>绘制<b>幅频特性曲线</b>与<b>相频特性曲线</b>，确定共振点及共振时固有周期近似值 T₀</div></div>
+    </section>
+    <section>
+      <h4>注意事项（教材 p.102）</h4>
+      <div class="info">① 实验中尽量避免外界振动干扰；② 受迫振动时需待<b>电机与摆轮周期相同</b>（末位数差异≤1）即系统稳定后方可记录，每次改变强迫力周期都要重新等待稳定；③ 闪光灯采用按钮式开关，仅在测量相位差时按下，以保护闪光灯管。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>测试仪电源</h4>
+      <button class="b" id="btnPwr">电源开关</button>
+      <span class="info" id="pwrState">关机</span>
+    </section>
+    <section>
+      <h4>实验方式与阻尼</h4>
+      <div class="row"><label>实验方式</label>
+        <select id="selMode">
+          <option value="free">自由振动</option>
+          <option value="damp">阻尼振动</option>
+          <option value="forced">受迫振动</option>
+        </select>
+      </div>
+      <div class="row"><label>阻尼挡位</label>
+        <select id="selDamp">
+          <option value="0">阻尼 0（无电磁阻尼）</option>
+          <option value="1">阻尼 1</option>
+          <option value="2">阻尼 2</option>
+          <option value="3">阻尼 3</option>
+        </select>
+      </div>
+      <button class="b" id="btnFlick">拨摆轮至 160° 放手</button>
+      <span class="info">（自由/阻尼振动用）</span>
+    </section>
+    <section>
+      <h4>受迫振动控制</h4>
+      <div class="row"><label>强迫力周期</label><input type="range" id="sScale" min="2.5" max="8" step="0.5" value="2.5"><span class="val" id="vScale">刻度 2.5</span></div>
+      <button class="b" id="btnMotor">电机启动/停止</button>
+      <button class="b" id="btnStrobe">按住闪光灯（测 φ）</button>
+      <button class="b" id="btnRecF">记录本组数据</button>
+      <div class="info" id="forceState">电机未启动</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.14.1 振幅 θ 与周期 T₀ 关系（自由振动）</h4>
+      <div id="tblFree" class="info">尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>表 2.14.2 测定阻尼系数 β</h4>
+      <div id="tblDamp" class="info">尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>表 2.14.3 幅频特性和相频特性测量</h4>
+      <div id="tblForced" class="info">尚未记录数据。</div>
+    </section>
+    <section>
+      <h4>幅频特性曲线（θ–ω）</h4>
+      <canvas id="plotAmp" class="mini" width="355" height="170"></canvas>
+    </section>
+    <section>
+      <h4>相频特性曲线（φ–ω）</h4>
+      <canvas id="plotPha" class="mini" width="355" height="170"></canvas>
+      <div id="resShow" class="info">完成受迫振动测量后自动绘图。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>受迫振动方程</h4>
+      <p class="info">摆轮受弹性回复力矩 −kθ、阻尼力矩 −b(dθ/dt) 与周期性强迫外力矩 M₀cos ωt：</p>
+      <div class="formula">J·θ̈ = −kθ − b·θ̇ + M₀cos ωt　（2.14.1）</div>
+      <div class="formula">θ̈ + 2βθ̇ + ω₀²θ = m·cos ωt　（2.14.2）</div>
+      <p class="info">其中 ω₀²=k/J（固有角频率），2β=b/J（阻尼系数），m=M₀/J。</p>
+    </section>
+    <section>
+      <h4>稳态受迫振动</h4>
+      <div class="formula">θ₂ = m / √((ω₀²−ω²)² + 4β²ω²)　（2.14.4）</div>
+      <div class="formula">φ = arctan[ 2βω / (ω₀²−ω²) ]　（2.14.5）</div>
+      <p class="info">振幅与相位差取决于 m、ω、ω₀、β 四个因素，与初始状态无关。位移滞后于强迫力矩 0→π。</p>
+    </section>
+    <section>
+      <h4>共振</h4>
+      <div class="formula">ωᵣ = √(ω₀² − 2β²)，　θᵣ = m / (2β√(ω₀²−2β²))</div>
+      <p class="info">β 越小，共振角频率 ωᵣ 越接近固有角频率 ω₀，共振振幅 θᵣ 越大。无阻尼时共振相位差为 90°。</p>
+    </section>
+    <section>
+      <h4>阻尼系数的测定</h4>
+      <div class="formula">ln(θ₀/θₙ) = nβT　→　β = (1/5T̄)·ln(θᵢ/θᵢ₊₅)（逐差平均）　（2.14.8/9）</div>
+      <p class="info">阻尼振动时振幅按 e^(−βt) 衰减；T̄ 为阻尼振动周期平均值。</p>
+    </section>
+    <section>
+      <h4>相位差的频闪测量</h4>
+      <p class="info">闪光灯受摆轮长凹槽光电门控制：每当长凹槽通过平衡位置即闪光。稳定受迫振动下频闪照射时，角度读数盘的指针好像"停"在某刻度处，直接读出<b>相位差 φ</b>（误差≤2°）。</p>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+const D2R=Math.PI/180, R2D=180/Math.PI;
+
+/* ================= 物理参数与状态 ================= */
+const M0=65;                                  // 强迫力矩幅值 m（°/s²），共振振幅约150°
+const BETA=[0.012,0.05,0.08,0.12];            // 阻尼挡 0~3 (s⁻¹)
+const CFG={
+  pwr:false, mode:'free', damp:0,
+  theta:0, omega:0,                           // 摆轮角位移(°)与角速度(°/s)
+  ampEnv:0,                                   // 当前振幅包络（峰值平滑）
+  driveT:1.0, motor:false, flash:false,
+  scale:2.5,
+  recFree:[], recDamp:[], recForced:[],       // 各表数据
+  recOn:false, samples:[], lastCross:null, peakMax:0,
+  peaks:[], stable:false, driveT0:0, simT:0
+};
+function T0of(amp){ return 1.400+0.0004*amp; }               // 固有周期随振幅
+const W0F=2*Math.PI/T0of(140);                               // 受迫振动用固定固有角频率（线性、稳定）
+function betaNow(){ return BETA[CFG.damp]; }
+function scaleT(s){ return 1.0+(s-2.5)/5.5*0.7; }            // 电位器刻度→强迫力周期
+function phiAna(){                                           // 稳态相位差（θ 滞后，0→-180°）
+  const w=2*Math.PI/scaleT(CFG.scale), b=betaNow();
+  return Math.atan2(-2*b*w, W0F*W0F-w*w)*R2D;                // (-180°,0]
+}
+function ampAna(){                                           // 稳态振幅
+  const w=2*Math.PI/scaleT(CFG.scale), b=betaNow();
+  return M0/Math.sqrt((W0F*W0F-w*w)**2+4*b*b*w*w);
+}
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,520,1100);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(40,75,150);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,26,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.8));
+const dLight=new THREE.DirectionalLight(0xffffff,1.2); dLight.position.set(120,220,140); scene.add(dLight);
+const dLight2=new THREE.DirectionalLight(0x6688cc,.35); dLight2.position.set(-100,60,-150); scene.add(dLight2);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.userData={title,text};
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+
+/* ---- 实验台 ---- */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(180,8,100), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-76,-38],[76,-38],[-76,38],[76,38]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,66,9), M(0x3a2e20));
+  leg.position.set(p[0],-41,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-74; scene.add(floor);
+
+/* ---- 摆轮部分（左侧，轮面朝向观察者 = 轴沿 z） ---- */
+const pend=new THREE.Group(); scene.add(pend); pend.position.set(-32,26,0);
+/* 支架 */
+const postL=new THREE.Mesh(new THREE.BoxGeometry(4,40,4), M(0x46536b,{metalness:.5}));
+postL.position.set(-16,-6,0); pend.add(postL);
+const postR=new THREE.Mesh(new THREE.BoxGeometry(4,40,4), M(0x46536b,{metalness:.5}));
+postR.position.set(16,-6,0); pend.add(postR);
+const topBar=new THREE.Mesh(new THREE.BoxGeometry(36,4,4), M(0x46536b,{metalness:.5}));
+topBar.position.set(0,16,0); pend.add(topBar);
+tag(postL,'支架','支撑摆轮轴与涡卷弹簧。');
+/* 底座 */
+const pendBase=new THREE.Mesh(new THREE.BoxGeometry(44,4,14), M(0x39424e,{metalness:.4}));
+pendBase.position.set(0,-26,0); pend.add(pendBase);
+/* 摆轮轴（沿 z） */
+const axle=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,14,12), M(0x8b98a9,{metalness:.7}));
+axle.rotation.x=Math.PI/2; axle.position.z=2; pend.add(axle);
+/* 涡卷弹簧（中心螺旋） */
+const springPts=[];
+for(let i=0;i<=200;i++){ const t=i/200, a=t*6*Math.PI, r=1+t*4.5;
+  springPts.push(new THREE.Vector3(Math.cos(a)*r, Math.sin(a)*r, 2.2)); }
+const spring=new THREE.Line(new THREE.BufferGeometry().setFromPoints(springPts),
+  new THREE.LineBasicMaterial({color:0xc9a24a}));
+pend.add(spring);
+tag(spring,'涡卷弹簧','弹簧内端固定在摆轴上，外端被连杆周期性带动，提供弹性回复力矩 −kθ 与强迫力矩。');
+/* 摆轮组（随 θ 旋转） */
+const wheel=new THREE.Group(); pend.add(wheel); wheel.position.z=6;
+const rim=new THREE.Mesh(new THREE.TorusGeometry(22,1.8,12,60), M(0xb0793a,{metalness:.85,roughness:.35}));
+wheel.add(rim);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(3,3,3,16), M(0xb0793a,{metalness:.85}));
+hub.rotation.x=Math.PI/2; wheel.add(hub);
+for(let i=0;i<4;i++){                                       // 辐条
+  const sp=new THREE.Mesh(new THREE.BoxGeometry(40,2,1.6), M(0xb0793a,{metalness:.8,roughness:.4}));
+  sp.rotation.z=i*Math.PI/4; wheel.add(sp);
+}
+for(let i=0;i<9;i++){                                       // 9 个短凹槽标记（长凹槽单独）
+  const a=i/9*2*Math.PI+0.35;
+  const slot=new THREE.Mesh(new THREE.BoxGeometry(3,1.2,1), M(0x3a2a14));
+  slot.position.set(Math.cos(a)*22,Math.sin(a)*22,1.4); slot.rotation.z=a; wheel.add(slot);
+}
+const longSlot=new THREE.Mesh(new THREE.BoxGeometry(6,2.2,1.6), M(0xf2f2f2,{emissive:0x666666}));
+longSlot.position.set(22,0,1.4); wheel.add(longSlot);       // 长凹槽：θ=0 时指向 +x（平衡位置标记）
+tag(rim,'铜质摆轮','外圈有槽形缺口，其中一个长凹槽比其他长许多。长凹槽通过平衡位置时光电门受光，用于测振幅与周期；受迫振动时触发闪光灯。');
+/* 角度刻度盘（摆轮后方，量振幅） */
+const dialPts=[];
+for(let i=0;i<=32;i++){ const a=(-90+i*10)*D2R;
+  dialPts.push(new THREE.Vector3(Math.cos(a)*(26+(i%2?0:2)), Math.sin(a)*(26+(i%2?0:2)), -2.5)); }
+const dial=new THREE.Line(new THREE.BufferGeometry().setFromPoints(dialPts),
+  new THREE.LineBasicMaterial({color:0x8b98a9}));
+pend.add(dial);
+/* 阻尼线圈（U 型铁芯嵌摆轮底部边缘） */
+const coreL=new THREE.Mesh(new THREE.BoxGeometry(3,7,6), M(0x4a5568,{metalness:.6}));
+coreL.position.set(-24,-22.5,0); pend.add(coreL);
+const coreR=new THREE.Mesh(new THREE.BoxGeometry(3,7,6), M(0x4a5568,{metalness:.6}));
+coreR.position.set(-16,-22.5,0); pend.add(coreR);
+const coreB=new THREE.Mesh(new THREE.BoxGeometry(11,3,6), M(0x4a5568,{metalness:.6}));
+coreB.position.set(-20,-27,0); pend.add(coreB);
+tag(coreB,'阻尼线圈','带铁芯的线圈，摆轮嵌在铁芯空隙中。通直流电后摆轮受电磁阻尼；改变电流大小改变阻尼（阻尼1/2/3挡）。');
+/* 摆轮光电门（右侧，对准长凹槽过平衡位置处） */
+const gatePost=new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,18,10), M(0x46536b));
+gatePost.position.set(30,17,4); pend.add(gatePost);
+const gateBody=new THREE.Mesh(new THREE.BoxGeometry(3,5,3), M(0x313d50));
+gateBody.position.set(27.5,25,4); pend.add(gateBody);
+const gateLed=new THREE.Mesh(new THREE.SphereGeometry(1,10,8), new THREE.MeshBasicMaterial({color:0x331111}));
+gateLed.position.set(25.6,25,4); pend.add(gateLed);
+tag(gateBody,'光电门','对准长凹槽：长凹槽通过平衡位置时受光，与测试仪连接测量摆轮振幅角值与振动周期；受迫振动时触发闪光灯。');
+
+/* ---- 电机部分（右侧） ---- */
+const motor=new THREE.Group(); scene.add(motor); motor.position.set(34,26,0);
+const motorBase=new THREE.Mesh(new THREE.BoxGeometry(40,4,14), M(0x39424e,{metalness:.4}));
+motorBase.position.set(0,-26,0); motor.add(motorBase);
+const motorPost=new THREE.Mesh(new THREE.BoxGeometry(4,40,4), M(0x46536b,{metalness:.5}));
+motorPost.position.set(15,-6,-2); motor.add(motorPost);
+const motorBox=new THREE.Mesh(new THREE.BoxGeometry(10,8,10), M(0x2c3648,{roughness:.5}));
+motorBox.position.set(16,-20,0); motor.add(motorBox);
+tag(motorBox,'电动机','带动有机玻璃转盘匀速转动（30~45 r/min 连续可调），经连杆给涡卷弹簧施加周期性强迫力矩。');
+/* 角度读数盘（固定，0~360 刻度） */
+const dial2Pts=[];
+for(let i=0;i<=36;i++){ const a=i*10*D2R;
+  dial2Pts.push(new THREE.Vector3(Math.cos(a)*(17+(i%3?0:2.2)), Math.sin(a)*(17+(i%3?0:2.2))-0, -3)); }
+const dial2=new THREE.Line(new THREE.BufferGeometry().setFromPoints(dial2Pts),
+  new THREE.LineBasicMaterial({color:0x8b98a9}));
+motor.add(dial2);
+tag(dial2,'角度读数盘','闪光灯频闪下指针"停"在某一刻度处，直接读出摆轮与强迫力矩的相位差 φ（误差≤2°）。');
+/* 有机玻璃转盘（随电机旋转，带挡光片与指针） */
+const disc=new THREE.Group(); motor.add(disc); disc.position.z=0;
+const glass=new THREE.Mesh(new THREE.CylinderGeometry(15,15,.8,36), new THREE.MeshPhysicalMaterial({color:0xaad4ff,transparent:true,opacity:.18,roughness:.05}));
+glass.rotation.x=Math.PI/2; disc.add(glass);
+const needle=new THREE.Mesh(new THREE.BoxGeometry(.8,13,.6), M(0xff5555,{emissive:0x441111}));
+needle.position.y=6; disc.add(needle);
+const blade1=new THREE.Mesh(new THREE.BoxGeometry(2,4,1), M(0x222831));
+blade1.position.set(0,13.5,0); disc.add(blade1);
+const blade2=blade1.clone(); blade2.rotation.z=Math.PI; disc.add(blade2);
+tag(glass,'有机玻璃转盘','随电动机转动，装有两个挡光片（测强迫力矩周期）与指针（频闪读相位差）。');
+/* 电机光电门（盘中央上方90°处） */
+const gate2=new THREE.Mesh(new THREE.BoxGeometry(3,4,3), M(0x313d50));
+gate2.position.set(0,20,-1); motor.add(gate2);
+tag(gate2,'光电门（电机）','在角度读数盘中央上方90°处，与测试仪相连测量强迫力矩的周期。');
+/* 连杆：电机盘偏心点 → 弹簧根部 */
+const link=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,1,8), M(0x9aa7b5,{metalness:.7}));
+scene.add(link);
+const pin=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8), M(0xc9a24a,{metalness:.8}));
+motor.add(pin);
+tag(link,'连杆','把转盘的匀速转动转变为弹簧根部的周期性摆动，即施加强迫力矩 M₀cos ωt。');
+
+/* ---- 测试仪（台面前侧） ---- */
+const tester=new THREE.Mesh(new THREE.BoxGeometry(40,14,10), M(0x2c3648,{roughness:.5}));
+tester.position.set(-8,10,-42); scene.add(tester);
+tag(tester,'ZKY-BG 测试仪','液晶显示、方向控制键、确认/复位键、闪光灯开关、强迫力周期十圈电位器。');
+const knob=new THREE.Mesh(new THREE.CylinderGeometry(3,3,2,20), M(0xc9a24a,{metalness:.75}));
+knob.rotation.x=Math.PI/2; knob.position.set(-20,10,-36.8); scene.add(knob);
+tag(knob,'强迫力周期调节电位器','十圈电位器：改变电动机转速即改变强迫力矩周期。刻度仅供实验时参考。');
+
+/* ================= 测试仪液晶（浮动窗） ================= */
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=268; lcdCanvas.height=150;
+function drawLCD(){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#04140c'; g.fillRect(0,0,268,150);
+  g.font='13px Consolas,monospace'; g.textAlign='left';
+  if(!CFG.pwr){ g.fillStyle='#5a7a68'; g.textAlign='center'; g.font='16px Consolas,monospace'; g.fillText('POWER OFF',134,80); }
+  else{
+    const modeName={free:'自由振动',damp:'阻尼振动',forced:'受迫振动'}[CFG.mode];
+    g.fillStyle='#57e389';
+    g.fillText('实验: '+modeName+'   阻尼'+CFG.damp,10,24);
+    if(CFG.mode==='forced'){
+      g.fillText('周期×1= '+fmt(scaleT(CFG.scale),3)+' 秒(电动机)',10,46);
+      g.fillText('振幅 '+fmt(CFG.ampEnv,0)+'   相位差φ '+fmt(Math.abs(phiAna()),1)+'°',10,66);
+      g.fillStyle=CFG.stable?'#ffb454':'#667';
+      g.fillText(CFG.stable?'系统已稳定，可测量':'等待系统稳定...',10,88);
+      g.fillStyle='#57e389';
+      g.fillText('记录 '+CFG.recForced.length+' 组   闪光灯:'+(CFG.flash?'开':'关'),10,110);
+    }else{
+      const last=CFG.samples[CFG.samples.length-1];
+      g.fillText('周期×1= '+(last?fmt(last.T,4):'—')+' 秒(摆轮)',10,46);
+      g.fillText('阻尼'+CFG.damp+'   振幅 '+(last?fmt(last.amp,0):'—'),10,66);
+      g.fillText('测量'+(CFG.recOn?'开':'关')+'  '+CFG.samples.length+'/10',10,88);
+      g.fillStyle=CFG.recOn?'#ffb454':'#57e389';
+      g.fillText(CFG.recOn?'测量中...':'已保存',10,110);
+    }
+  }
+  const c2=$('#lcd2d'); c2.getContext('2d').drawImage(lcdCanvas,0,0);
+}
+
+/* ================= 物理仿真（固定步长 1/240s，与渲染帧率解耦） ================= */
+function resetPendulum(){ CFG.theta=0; CFG.omega=0; CFG.ampEnv=0; CFG.samples=[]; CFG.peaks=[]; CFG.lastCross=null; CFG.peakMax=0; CFG.stable=false; }
+function flick(){                       // 拨摆轮至160°放手
+  if(!CFG.pwr){ toast('请先打开<b>测试仪电源</b>'); return; }
+  if(CFG.mode==='forced'){ toast('受迫振动请使用电机启动，不需手动拨摆轮'); return; }
+  resetPendulum();
+  CFG.theta=155; CFG.omega=0; CFG.ampEnv=155;
+  CFG.recOn=true; CFG.driveT0=CFG.simT;
+  toast('摆轮已拨至 160° 放手，测量状态"开"，开始记录…');
+  updForceUI();
+}
+const PH=1/240;                          // 物理步长
+function stepFix(){                      // 单个固定步：积分 + 过零检测
+  const h=PH, b=betaNow();
+  /* 受迫振动用固定 ω₀（线性系统，避免振幅反馈导致的参数不稳定）；自由/阻尼保留振幅-周期非线性 */
+  const w0=(CFG.mode==='forced')?W0F:2*Math.PI/T0of(CFG.ampEnv);
+  let acc=-2*b*CFG.omega-w0*w0*CFG.theta;
+  if(CFG.mode==='forced'&&CFG.motor) acc+=M0*Math.cos(2*Math.PI*CFG.simT/scaleT(CFG.scale));
+  CFG.omega+=acc*h; CFG.theta+=CFG.omega*h; CFG.simT+=h;
+  /* 长凹槽过平衡位置（θ 由负转正） */
+  if(CFG.theta>=0 && stepFix.prev<0 && CFG.omega>0){
+    if(CFG.lastCross===null){ CFG.lastCross=CFG.simT; CFG.peakMax=0; }  // 首次过零：建立计时基准
+    else onZeroCross();
+  }
+  stepFix.prev=CFG.theta;
+  if(Math.abs(CFG.theta)>CFG.peakMax) CFG.peakMax=Math.abs(CFG.theta);
+}
+let physAcc=0;
+function physLoop(dt){                   // 按真实时间累加固定步长
+  physAcc+=dt;
+  let n=0;
+  while(physAcc>=PH&&n<240){ physAcc-=PH; n++; stepFix(); }
+}
+function onZeroCross(){
+  const T=CFG.simT-CFG.lastCross;
+  const amp=CFG.peakMax;
+  CFG.ampEnv=CFG.ampEnv*.4+amp*.6;      // 振幅包络平滑
+  CFG.lastCross=CFG.simT; CFG.peakMax=0;
+  /* 光电门 LED 闪 */
+  gateLed.material.color.setHex(0xff4444);
+  setTimeout(()=>gateLed.material.color.setHex(0x331111),120);
+  /* 闪光灯（受迫且按住） */
+  if(CFG.mode==='forced'&&CFG.motor&&CFG.flash){
+    flashAlpha=1;
+    disc._strobe=true;                  // 频闪时指针可见位置
+    setTimeout(()=>flashAlpha*=0, 60);
+  }
+  /* 受迫振动：峰值跟踪与稳定判定（不依赖 recOn） */
+  if(CFG.mode==='forced'){
+    CFG.peaks.push(amp);
+    if(CFG.peaks.length>6) CFG.peaks.shift();
+    if(CFG.peaks.length>=3&&Math.max(...CFG.peaks)-Math.min(...CFG.peaks)<2){
+      if(!CFG.stable){ CFG.stable=true; toast('<b style="color:var(--ok)">系统已稳定</b>（摆轮与电机周期相同），可记录数据或按闪光灯测 φ。'); }
+    }
+  }
+  if(!CFG.recOn) return;
+  if(CFG.mode==='free'||CFG.mode==='damp'){
+    /* 自由振动：振幅有效值 50°~160°（教材 p.101）；阻尼振动：直接记录衰减中的 10 个振幅 */
+    const ok=(CFG.mode==='free')?(amp>=50&&amp<=160):(amp>5);
+    if(ok&&T>0.5){
+      CFG.samples.push({amp:+amp.toFixed(0), T:+T.toFixed(4)});
+      if(CFG.samples.length>=10){
+        CFG.recOn=false;
+        if(CFG.mode==='free'){ CFG.recFree=CFG.samples.slice(); toast('<b>自由振动 10 组已记录</b>（表 2.14.1）'); }
+        else{ CFG.recDamp=CFG.samples.slice(); toast('<b>阻尼振动 10 组已记录</b>，β 已算出（表 2.14.2）'); }
+        renderData(); checkSteps();
+      }
+    }
+  }
+}
+let flashAlpha=0;
+
+/* ================= 交互 ================= */
+$('#btnPwr').onclick=()=>{ CFG.pwr=!CFG.pwr; $('#pwrState').textContent=CFG.pwr?'开机（单机模式）':'关机';
+  $('#btnPwr').classList.toggle('on',CFG.pwr); if(!CFG.pwr){CFG.motor=false;CFG.recOn=false;} updForceUI(); checkSteps(); };
+$('#selMode').onchange=e=>{ CFG.mode=e.target.value; resetPendulum(); CFG.recOn=false; CFG.motor=false; CFG.stable=false; updForceUI(); checkSteps(); };
+$('#selDamp').onchange=e=>{ CFG.damp=+e.target.value; };
+$('#btnFlick').onclick=flick;
+/* 初始化到近似稳态（模拟"系统已在运转、只需等待稳定"），残留 0.5% 暂态 */
+function initSteady(){
+  /* phiAna() 返回负的相位差（θ 滞后）：ph=-φ，稳态解 θ=θ₂cos(ωt-φ)=θ₂cos(ωt+ph) */
+  const A=ampAna()*0.995, ph=phiAna()/R2D, w=2*Math.PI/scaleT(CFG.scale);
+  CFG.theta=A*Math.cos(w*CFG.simT+ph);
+  CFG.omega=-A*w*Math.sin(w*CFG.simT+ph);
+  CFG.ampEnv=Math.abs(A);
+}
+$('#sScale').oninput=e=>{ CFG.scale=+e.target.value; $('#vScale').textContent='刻度 '+CFG.scale.toFixed(1);
+  if(CFG.motor){ CFG.stable=false; CFG.peaks=[]; CFG.ampEnv=ampAna(); initSteady(); } };
+$('#btnMotor').onclick=()=>{
+  if(!CFG.pwr){ toast('请先打开<b>测试仪电源</b>'); return; }
+  if(CFG.mode!=='forced'){ toast('请先在上方选择<b>受迫振动</b>方式'); return; }
+  CFG.motor=!CFG.motor;
+  if(CFG.motor){ resetPendulum(); CFG.ampEnv=ampAna(); CFG.driveT0=CFG.simT; CFG.peaks=[]; CFG.stable=false; initSteady(); }
+  updForceUI();
+};
+$('#btnStrobe').onclick=()=>{ CFG.flash=!CFG.flash; $('#btnStrobe').classList.toggle('on',CFG.flash);
+  if(CFG.flash) toast('闪光灯已按下：长凹槽过平衡位置时频闪，角度读数盘指针将"停"在相位差 φ 处。<b>仅测相位差时使用</b>'); };
+$('#btnRecF').onclick=()=>{
+  if(!CFG.pwr||CFG.mode!=='forced'||!CFG.motor){ toast('需在<b>受迫振动</b>且电机运转中'); return; }
+  if(!CFG.stable){ toast('<b style="color:var(--warn)">系统尚未稳定</b>：需待电机与摆轮周期相同（末位差异≤1）后再记录'); return; }
+  const row={scale:CFG.scale, T:+scaleT(CFG.scale).toFixed(4), phi:+Math.abs(phiAna()+((Math.random()-.5)*1.5)).toFixed(1),
+             amp:+CFG.ampEnv.toFixed(0), T0:+T0of(CFG.ampEnv).toFixed(4)};
+  row.w=+(2*Math.PI/row.T).toFixed(3);
+  const i=CFG.recForced.findIndex(r=>Math.abs(r.scale-row.scale)<0.01);
+  if(i>=0) CFG.recForced[i]=row; else CFG.recForced.push(row);
+  toast('已记录 刻度 '+row.scale.toFixed(1)+'：θ='+row.amp+'°，φ='+row.phi+'°　（改变刻度后系统将重新稳定）');
+  CFG.recForced.sort((a,b)=>a.scale-b.scale);
+  renderData(); checkSteps();
+};
+function updForceUI(){
+  $('#forceState').textContent=CFG.mode!=='forced'?'当前为'+{free:'自由振动',damp:'阻尼振动'}[CFG.mode]:
+    (CFG.motor?'电机运转中，刻度 '+CFG.scale.toFixed(1)+'，T='+fmt(scaleT(CFG.scale),3)+'s':'电机未启动');
+  $('#ledRun').style.background=(CFG.recOn||CFG.motor)?'#3ad17e':'#333';
+}
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const s=[];
+  s[0]=CFG.pwr;
+  s[1]=CFG.recFree.length>=10;
+  s[2]=CFG.recDamp.length>=10;
+  s[3]=CFG.recForced.length>=11;
+  s[4]=s[3];
+  const tips=['已开机，开始自由振动实验。','自由振动 10 组已记录，进行阻尼振动。','阻尼系数 β 已测得，进行受迫振动。','受迫振动 11 组已记录，查看幅频/相频曲线！','曲线已绘出，共振点已确定，实验完成！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 数据处理 ================= */
+function betaCalc(){
+  const arr=CFG.recDamp; if(arr.length<10) return null;
+  let sum=0;
+  for(let i=0;i<5;i++) sum+=Math.log(arr[i].amp/arr[i+5].amp);
+  const Tbar=arr.reduce((s,r)=>s+r.T,0)/10;
+  return {beta:sum/(25*Tbar), T10:arr.reduce((s,r)=>s+r.T,0), Tbar};
+}
+function renderData(){
+  /* 表2.14.1 */
+  if(CFG.recFree.length){
+    const a=CFG.recFree;
+    $('#tblFree').innerHTML=`<table><tr><th>序号</th>${a.map((_,i)=>`<th>${i+1}</th>`).join('')}</tr>
+      <tr><th>振幅 θ/(°)</th>${a.map(r=>`<td class="num">${r.amp}</td>`).join('')}</tr>
+      <tr><th>周期 T₀/s</th>${a.map(r=>`<td class="num">${r.T}</td>`).join('')}</tr></table>
+      <div class="info">振幅减小，固有周期随之减小（游丝弹簧非线性）。</div>`;
+  } else $('#tblFree').innerHTML='尚未记录数据。';
+  /* 表2.14.2 */
+  const B=betaCalc();
+  if(B){
+    const a=CFG.recDamp;
+    const ln=a.map((r,i)=>i<5?Math.log(r.amp/a[i+5].amp):null);
+    $('#tblDamp').innerHTML=`<table><tr><th>序号</th>${a.map((_,i)=>`<th>${i+1}</th>`).join('')}</tr>
+      <tr><th>振幅 θ/(°)</th>${a.map(r=>`<td class="num">${r.amp}</td>`).join('')}</tr></table>
+      <div class="info">逐差：ln(θᵢ/θᵢ₊₅) 平均 = ${fmt(ln.reduce((s,v)=>s+v,0)/5,4)}，10T=${fmt(B.T10,3)} s，T̄=${fmt(B.Tbar,4)} s
+      　⇒　<b>β = ${fmt(B.beta,4)} s⁻¹</b>（阻尼挡 ${CFG.damp||'（记录时挡位）'}）</div>`;
+  } else $('#tblDamp').innerHTML='尚未记录数据。';
+  /* 表2.14.3 */
+  if(CFG.recForced.length){
+    const a=CFG.recForced;
+    $('#tblForced').innerHTML=`<table><tr><th>电位器刻度</th>${a.map(r=>`<th>${r.scale.toFixed(1)}</th>`).join('')}</tr>
+      <tr><th>强迫力周期 T/s</th>${a.map(r=>`<td class="num">${r.T}</td>`).join('')}</tr>
+      <tr><th>相位差 φ/(°)</th>${a.map(r=>`<td class="num">${r.phi}</td>`).join('')}</tr>
+      <tr><th>振幅 θ/(°)</th>${a.map(r=>`<td class="num">${r.amp}</td>`).join('')}</tr>
+      <tr><th>固有周期 T₀/s</th>${a.map(r=>`<td class="num">${r.T0}</td>`).join('')}</tr>
+      <tr><th>ω/(rad/s)</th>${a.map(r=>`<td class="num">${r.w}</td>`).join('')}</tr></table>`;
+  } else $('#tblForced').innerHTML='尚未记录数据。';
+  /* 曲线 */
+  drawCurves();
+}
+function drawCurves(){
+  const pts=CFG.recForced;
+  const pa=$('#plotAmp'), pp=$('#plotPha');
+  [pa,pp].forEach(cv=>{ const g=cv.getContext('2d'); g.fillStyle='#05070a'; g.fillRect(0,0,cv.width,cv.height); });
+  $('#resShow').innerHTML=pts.length?'以 ω 为横轴绘制。':'完成受迫振动测量后自动绘图。';
+  if(pts.length<3) return;
+  const T0res=2*Math.PI/T0of(150);                        // 共振点附近固有角频率
+  const wMin=2*Math.PI/scaleT(8.5)-.3, wMax=2*Math.PI/scaleT(2.2)+.3;
+  const fMax=Math.max(...pts.map(p=>p.amp))*1.15+5;
+  function axes(cv,yLabel,yMin,yMax){
+    const g=cv.getContext('2d'), W=cv.width, H=cv.height;
+    const X=w=>(w-wMin)/(wMax-wMin)*(W-56)+44, Y=y=>H-26-(y-yMin)/(yMax-yMin)*(H-46);
+    g.strokeStyle='#3a4a5e'; g.beginPath(); g.moveTo(44,10); g.lineTo(44,H-26); g.lineTo(W-10,H-26); g.stroke();
+    g.fillStyle='#8b98a9'; g.font='11px sans-serif'; g.textAlign='center';
+    g.fillText('ω/(rad/s)',W/2,H-8);
+    g.save(); g.translate(12,H/2); g.rotate(-Math.PI/2); g.fillText(yLabel,0,0); g.restore();
+    return {X,Y,g,W,H};
+  }
+  /* 幅频 */
+  { const {X,Y,g,W,H}=axes(pa,'θ/(°)',0,fMax);
+    g.strokeStyle='#4cc2ff'; g.lineWidth=2; g.beginPath();
+    pts.forEach((p,i)=>{ i?g.lineTo(X(p.w),Y(p.amp)):g.moveTo(X(p.w),Y(p.amp)); }); g.stroke();
+    g.fillStyle='#5dffb0'; pts.forEach(p=>{ g.beginPath(); g.arc(X(p.w),Y(p.amp),3.5,0,7); g.fill(); });
+    const peak=pts.reduce((a,b)=>b.amp>a.amp?b:a);
+    g.strokeStyle='#ffb454'; g.setLineDash([4,4]); g.beginPath();
+    g.moveTo(X(peak.w),Y(peak.amp)); g.lineTo(X(peak.w),H-26); g.stroke(); g.setLineDash([]);
+    g.fillStyle='#ffb454'; g.fillText('共振 ω='+fmt(peak.w,2),X(peak.w),Y(peak.amp)-8);
+    $('#resShow').innerHTML=`共振点：ωᵣ=${fmt(peak.w,3)} rad/s，θᵣ=${peak.amp}°，共振时 T=1/ω 对应固有周期近似值 <b>T₀≈${fmt(2*Math.PI/peak.w,3)} s</b>（θ=${peak.amp}° 时 T₀=${fmt(T0of(peak.amp),4)} s）`;
+  }
+  /* 相频 */
+  { const {X,Y,g,W,H}=axes(pp,'φ/(°)',-185,10);
+    g.strokeStyle='#4cc2ff'; g.lineWidth=2; g.beginPath();
+    pts.forEach((p,i)=>{ i?g.lineTo(X(p.w),Y(-p.phi)):g.moveTo(X(p.w),Y(-p.phi)); }); g.stroke();
+    g.fillStyle='#5dffb0'; pts.forEach(p=>{ g.beginPath(); g.arc(X(p.w),Y(-p.phi),3.5,0,7); g.fill(); });
+    g.strokeStyle='#3a4a5e'; g.setLineDash([3,3]); g.beginPath(); g.moveTo(44,Y(-90)); g.lineTo(W-10,Y(-90)); g.stroke(); g.setLineDash([]);
+    g.fillStyle='#8b98a9'; g.fillText('-90°',60,Y(-90)-6);
+  }
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.pwr=true; $('#btnPwr').classList.add('on'); $('#pwrState').textContent='开机（单机模式）';
+  CFG.recFree=[]; CFG.recDamp=[]; CFG.recForced=[];
+  let th=155;
+  for(let i=0;i<10;i++){ const T=T0of(th); CFG.recFree.push({amp:Math.round(th),T:+T.toFixed(4)}); th*=Math.exp(-0.012*T); }
+  CFG.damp=2; $('#selDamp').value='2';
+  th=155; for(let i=0;i<10;i++){ const T=T0of(th); CFG.recDamp.push({amp:Math.round(th),T:+T.toFixed(4)}); th*=Math.exp(-BETA[2]*T); }
+  for(let s=2.5;s<=8.01;s+=0.5){
+    CFG.scale=s; CFG.ampEnv=T0of(150)>0?150:150;
+    /* 用解析稳态值（振幅迭代两次近似） */
+    let ae=140;
+    for(let k=0;k<3;k++){ const w=2*Math.PI/scaleT(s), w0=2*Math.PI/T0of(ae), b=BETA[1];
+      ae=M0/Math.sqrt((w0*w0-w*w)**2+4*b*b*w*w); }
+    CFG.ampEnv=ae;
+    CFG.recForced.push({scale:+s.toFixed(1), T:+scaleT(s).toFixed(4),
+      phi:+Math.abs(phiAna()).toFixed(1), amp:+ae.toFixed(0), T0:+T0of(ae).toFixed(4), w:+(2*Math.PI/scaleT(s)).toFixed(3)});
+  }
+  CFG.recForced.sort((a,b)=>a.scale-b.scale);
+  renderData(); checkSteps();
+  toast('已自动填入示例数据（阻尼挡2，受迫振动用阻尼挡1特性）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.pwr=false; CFG.motor=false; CFG.recOn=false; CFG.flash=false; CFG.stable=false;
+  CFG.recFree=[]; CFG.recDamp=[]; CFG.recForced=[];
+  resetPendulum();
+  $('#btnPwr').classList.remove('on'); $('#btnMotor').classList.remove('on'); $('#btnStrobe').classList.remove('on');
+  $('#pwrState').textContent='关机'; $('#vScale').textContent='刻度 2.5'; $('#sScale').value=2.5; CFG.scale=2.5;
+  updForceUI(); renderData(); checkSteps();
+  $('#tblFree').innerHTML=$('#tblDamp').innerHTML=$('#tblForced').innerHTML='尚未记录数据。';
+  toast('实验已重置');
+};
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,lastT=performance.now();
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){        // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let lcdT=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  const dt=Math.min((performance.now()-lastT)/1000,.05); lastT=performance.now();
+  if(CFG.pwr){ physLoop(dt); }
+  /* 3D 动画 */
+  wheel.rotation.z=CFG.theta*D2R;
+  disc.rotation.z=-2*Math.PI*CFG.simT/scaleT(CFG.scale);   // 电机转盘匀速转
+  const pinA=2*Math.PI*CFG.simT/scaleT(CFG.scale);
+  pin.position.set(Math.cos(pinA)*9,Math.sin(pinA)*9,0);
+  /* 连杆：电机偏心点 → 弹簧根部 */
+  const px=34+Math.cos(pinA)*9, py=26+Math.sin(pinA)*9, jx=-32+16, jy=26-24;
+  const mx=(px+jx)/2, my=(py+jy)/2, len=Math.hypot(px-jx,py-jy);
+  link.position.set(mx,my,0);
+  link.scale.y=len;
+  link.rotation.z=Math.atan2(px-jx,-(py-jy))+Math.PI/2;
+  /* 频闪：按住闪光灯时摆轮仅在闪光瞬间清晰 */
+  const strobeOn=CFG.flash&&CFG.mode==='forced'&&CFG.motor&&CFG.pwr;
+  wheel.traverse(o=>{ if(o.material&&o.material.opacity!==undefined){ o.material.transparent=strobeOn; o.material.opacity=strobeOn?(flashAlpha>0?1:.12):1; } });
+  if(flashAlpha>0){ $('#flash').style.opacity=flashAlpha*.55; flashAlpha=Math.max(0,flashAlpha-dt*6); }
+  else $('#flash').style.opacity=0;
+  lcdT+=dt;
+  if(lcdT>0.12){ lcdT=0; drawLCD(); }
+  controls.update(); renderer.render(scene,camera);
+}
+stepFix.prev=0;
+updForceUI(); checkSteps();
+loop();
+</script>
+</body>
+</html>

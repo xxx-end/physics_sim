@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验20 · 测定空气比热容比 · 3D交互仿真</title>
+<style>
+  /* ============ 全局（风格对齐范例 32/33） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas#scene { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs .tab { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; text-align: center; }
+  .tabs .tab.on { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .tabBody { display: none; }
+  .tabBody.on { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+  .muted { color: #6fa8dc; font-size: 12px; }
+  .good { color: #69f0ae; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+  .step.current { border-left: 3px solid #29d2ff; background: rgba(41,210,255,0.05); }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; margin: 3px 6px 3px 0; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* 记录表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border: 1px solid #1d3252; padding: 5px 5px; text-align: center;
+    font-variant-numeric: tabular-nums; }
+  th { background: rgba(41, 210, 255, 0.08); color: #7fd7ff; font-weight: 600; }
+  tr.hl td { color: #69f0ae; }
+
+  /* 结论格 */
+  .kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0;
+    color: #a9c6e8; }
+  .kv b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+
+  /* 视口叠加层 */
+  #meterHud { position: absolute; top: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #meterHud .big { font-size: 20px; color: #69f0ae; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; color: #ffd54f; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; max-width: 78%; }
+  #toast.show { display: block; }
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>实验20 · 测定空气比热容比</h1>
+  <span class="sub">振动钢球简谐振动 γ=64mV/(T²pd⁴) · 绝热过程 pV^γ=常数 · DH4602A 测定仪 + DHTC-3A 计时器 · V=1350cm³，d=10mm，m=4g，p=1.013×10⁵Pa</span>
+  <button id="btnSample">自动完成全部测量</button>
+  <button id="btnReset">重置实验</button>
+</header>
+<div id="main">
+  <!-- 左侧操作面板 -->
+  <div id="panel">
+    <div class="tabs">
+      <div class="tab on" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="meas">测量操作</div>
+      <div class="tab" data-tab="data">数据处理</div>
+      <div class="tab" data-tab="theory">原理</div>
+    </div>
+
+    <div class="tabBody on" id="tab-guide">
+      <div class="card">
+        <div class="step" id="st1"><div class="box"></div><div>按图 2.20.2 <b>安装并连接</b>实验设备（气泵→储气瓶→玻璃瓶容器，注意不漏气），<b>接通电源</b></div></div>
+        <div class="step" id="st2"><div class="box"></div><div>调节气泵<b>上气量调节旋钮</b>，使钢球在玻璃管中<b>以小孔为中心</b>上下稳定振动（气流过小球不振、过大冲出管口）</div></div>
+        <div class="step" id="st3"><div class="box"></div><div>打开计时器，<b>设置周期次数 N=50</b></div></div>
+        <div class="step" id="st4"><div class="box"></div><div><b>启动计时</b>，钢球经过光电门遮光触发，记录 50 个周期的<b>总时间 t</b>；<b>重复 5 次</b>记入表 2.20.2（T=t/50）</div></div>
+        <div class="step" id="st5"><div class="box"></div><div>求<b>平均周期 T̄</b></div></div>
+        <div class="step" id="st6"><div class="box"></div><div>计算 <b>γ=64mV/(T̄²pd⁴)</b>（V=1350cm³，d=10mm，m=4g，p=1.013×10⁵Pa），与空气标准值 <b>1.40</b> 比较（&lt;5%）</div></div>
+      </div>
+      <div class="card">
+        <h3>注意事项（教材 p.129）</h3>
+        <p>① 气流过大或过小钢球都不以小孔为中心振动；调节时<b>用手挡住玻璃管上方</b>，以免气流过大将钢球冲出管外；② 保持光束垂直通过玻璃管，防止散射影响光电门；③ 玻璃瓶容器<b>垂直放置</b>，以免钢球振动碰管壁；④ 连接软管<b>不要漏气</b>；⑤ 玻璃器皿易碎，勿随意移动装置。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-meas">
+      <div class="card">
+        <h3>① 安装与连接（按图 2.20.2，注意不漏气）</h3>
+        <button class="btn" id="btnBall">放入钢球 A（自玻璃管 B 上口放入）</button><br>
+        <button class="btn" id="btnHose" disabled>连接输气软管（气泵→储气瓶→细管 C）</button><br>
+        <button class="btn" id="btnPower" disabled>接通电源（气泵 · 计时器）</button>
+        <p class="muted" id="connState">未安装。先放钢球，再接气路，最后通电。</p>
+      </div>
+      <div class="card">
+        <h3>② 气量调节（使钢球稳定振动）</h3>
+        <div class="slider-row"><div class="lab"><span>气泵上气量调节旋钮</span><b id="vFlow">0 %</b></div>
+          <input type="range" id="sFlow" min="0" max="100" step="1" value="0" disabled></div>
+        <p class="muted" id="flowState">未通电</p>
+      </div>
+      <div class="card">
+        <h3>③④ 计时器 DHTC-3A（表2.20.2）</h3>
+        <div class="slider-row"><div class="lab"><span>周期次数 N（▲▼ 键设置，1~99）</span><b id="vN">1</b></div>
+          <input type="range" id="sN" min="1" max="99" step="1" value="1" disabled></div>
+        <button class="btn" id="btnSetN">确认设置（计时器待机）</button>
+        <button class="btn" id="btnStart" disabled>启动计时</button>
+        <button class="btn warn" id="btnFast" disabled>快速完成 ▶▶</button>
+        <p class="muted" id="runState">等待钢球稳定振动</p>
+      </div>
+      <div class="card">
+        <h3>⑤⑥ 平均周期与比热容比</h3>
+        <button class="btn" id="btnFit" disabled>计算平均周期与 γ</button>
+        <p class="muted" id="fitState">未处理。T̄=mean(t<sub>i</sub>/N)，γ=64mV/(T̄²pd⁴)。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-data">
+      <div class="card"><h3>表 2.20.2 周期测量数据表（设置测量周期次数 N=50）</h3><div id="tb2" class="muted">尚未完成测量。</div></div>
+      <div class="card"><h3>实验结论</h3><div id="concl" class="muted">完成 5 次计时后自动给出结论。</div></div>
+    </div>
+
+    <div class="tabBody" id="tab-theory">
+      <div class="card">
+        <h3>比热容比与自由度（式 2.20.1/2.20.2）</h3>
+        <p>定压比热容 C<sub>p</sub> 一般大于定容比热容 C<sub>V</sub>，比值 <b>γ=C<sub>p</sub>/C<sub>V</sub>&gt;1</b>。由气体运动论，γ 与分子自由度 f 有关：</p>
+        <span class="formula">γ = (f+2)/f　(2.20.2)</span>
+        <p>单原子气体（Ar、He）f=3 → 1.67；<b>双原子气体（N₂、H₂、O₂、空气）f=5 → 1.40</b>；多原子气体（CO₂、CH₄）f=6 → 1.33。</p>
+      </div>
+      <div class="card">
+        <h3>振动钢球模型（式 2.20.3~2.20.6）</h3>
+        <p>钢球 A（质量 m、半径 r）在玻璃管 B 中，瓶内压强满足力平衡：</p>
+        <span class="formula">p = p₀ + mg/(πr²)　(2.20.3)</span>
+        <p>注入气体使钢球在小孔上下做<b>简谐振动</b>。设偏离平衡位置 y 时瓶内压力变化 Δp，运动方程为 m·ÿ + πr²Δp = 0。振动很快近似<b>绝热过程</b>，对 pV<sup>γ</sup>=常数 求导：Δp = −γpΔV/V，ΔV=πr²y，代入得：</p>
+        <span class="formula">m·ÿ + π²r⁴γp·y/V = 0　(2.20.6) —— 简谐振动</span>
+      </div>
+      <div class="card">
+        <h3>比热容比公式（式 2.20.7）</h3>
+        <span class="formula">T = 2π√( mV / (γπ²r⁴p) )　→　γ = 64mV / (T²·p·d⁴)　(2.20.7)</span>
+        <p>测出振动周期 T（计时器测 N=50 个周期总时间 t，T=t/50），代入 m=4g、V=1350cm³、d=10mm、p=1.013×10⁵Pa 即得空气的 γ。</p>
+      </div>
+      <div class="card">
+        <h3>思考与拓展</h3>
+        <p>【思考】①空气中有水蒸气（湿度大）结果如何变化？②振动并非理想绝热过程，测得 γ 偏大还是偏小（热交换使有效过程更接近等温，回复力变小、周期变长 → 测得值偏小）？③注入气体流量对小球运动的影响（流量决定振动中心与振幅，过小不振、过大冲出）？<br>【拓展】空气比热容比用于保温与散热：大气层温室效应使地球昼夜温差不至过大（月球无大气层温差可达 300℃）；风冷用于发动机、CPU 降温与热能回收。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧 3D 视口 -->
+  <div id="view">
+    <canvas id="scene"></canvas>
+    <div id="meterHud">
+      <div class="big" id="hudFlow">气量 0 %</div>
+      <div class="row2" id="hudBall">钢球：静止</div>
+      <div class="row2" id="hudT">计时器：待机</div>
+    </div>
+    <canvas id="overlay" width="268" height="230"></canvas>
+    <div id="hint">鼠标左键旋转 · 滚轮缩放 · 点击部件查看说明</div>
+    <div id="toast"></div>
+  </div>
+</div>
+</div>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+const fmt=(v,n=3)=>(+v).toFixed(n);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.style.display='block';
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display='none',3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+
+/* ================= 状态与真值（自洽：T 由 γ=64mV/(T²pd⁴) 反推） ================= */
+const TRUE={ gamma:1.40, m:0.004, V:1.35e-3, p:1.013e5, d:0.010 };
+TRUE.T=Math.sqrt(64*TRUE.m*TRUE.V/(TRUE.gamma*TRUE.p*Math.pow(TRUE.d,4)));  // ≈0.4937 s
+const CFG={ ballIn:false, hoseOn:false, powerOn:false, flow:0, N:1, Nset:false, running:false, fast:false,
+  elapsed:0, tMeas:TRUE.T, k:0, escaped:false, rows:[],
+  Tbar:null, gamma:null, rel:null, steps:[false,false,false,false,false,false] };
+const gl={ phase:0 };
+/* 气量→钢球振动态：flow<25 静止；25~40 振动但中心偏下；40~70 以小孔为中心稳定振动；>70 冲出管口 */
+function vibCenter(flow){ const HOLE=0; return HOLE-0.020+Math.max(0,Math.min(1,(flow-25)/50))*0.035; }
+function vibAmp(flow){ return flow<25?0:0.005+Math.max(0,Math.min(1,(flow-25)/50))*0.010; }
+function flowOk(flow){ return flow>=40&&flow<=70; }
+/* 单次计时总时间：N·T ×(1±0.15% 气流波动噪声) */
+function sampleT(){ return CFG.N*TRUE.T*(1+0.0015*(Math.random()+Math.random()-1)); }
+
+/* ================================================================
+ *  三维场景（真实米制尺度 1单位=1m；建模风格对齐范例 32/33）
+ * ================================================================ */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x05080f);
+scene.fog=new THREE.Fog(0x05080f,5,16);
+const camera=new THREE.PerspectiveCamera(50,1,0.01,100);
+camera.position.set(0.20,1.16,0.98);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(-0.08,0.92,0);
+controls.enableDamping=true; controls.dampingFactor=.08;
+controls.minDistance=0.25; controls.maxDistance=8;
+scene.add(new THREE.AmbientLight(0x88aacc,0.5));
+const keyLight=new THREE.PointLight(0xffffff,0.92,20); keyLight.position.set(0.5,1.7,0.8); scene.add(keyLight);
+const fillLight=new THREE.PointLight(0x4fc3f7,0.35,14); fillLight.position.set(-0.8,1.1,1.4); scene.add(fillLight);
+const grid=new THREE.GridHelper(20,40,0x1d3252,0x122240);
+grid.position.y=-0.032; scene.add(grid);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function showInfo(title,text){ toast('<b style="color:#7fd7ff">'+title+'</b>　'+text); }
+function tag(mesh,title,text){ Object.assign(mesh.userData,{title,text}); }
+
+function makeTextSprite(text,color,w=0.3){
+  const fontSize=52,pad=16;
+  const measure=document.createElement('canvas').getContext('2d');
+  measure.font='bold '+fontSize+'px sans-serif';
+  const tw=Math.ceil(measure.measureText(text).width);
+  const cw=Math.min(1024,Math.max(128,tw+pad*2));
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=128;
+  const c=cv.getContext('2d');
+  c.font='bold '+fontSize+'px sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillStyle=color; c.shadowColor=color; c.shadowBlur=14;
+  c.fillText(text,cw/2,66);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
+  sp.scale.set((w/2)*cw/128,w/2,1);
+  return sp;
+}
+
+/* ---- 实验桌 ---- */
+const tableTop=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.05,0.8),
+  M(0x1b2436,{metalness:.4,roughness:.6}));
+tableTop.position.set(0,0.755,0); scene.add(tableTop);
+tag(tableTop,'实验桌','DH4602A 气体比热容比测定仪：气泵、储气瓶（缓冲瓶）、实验玻璃瓶容器、激光光电门与 DHTC-3A 计时器。');
+for(const p of [[-1.05,-0.32],[1.05,-0.32],[-1.05,0.32],[1.05,0.32]]){
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.026,0.73,12),
+    M(0x1a2434,{metalness:.5,roughness:.5}));
+  leg.position.set(p[0],0.365,p[1]); scene.add(leg);
+}
+
+/* ---- 实验玻璃瓶容器（球形瓶 + 竖直玻璃管 B + 小孔）---- */
+const BX=-0.5, TUBE_BOT=0.905, TUBE_TOP=1.09, HOLE_Y=1.00;
+const glassMat=new THREE.MeshStandardMaterial({color:0xbfe3f5,transparent:true,opacity:0.32,
+  roughness:0.08,metalness:0.15,side:THREE.DoubleSide,emissive:0xbfe3f5,emissiveIntensity:0.05});
+const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.055,24,18),glassMat);
+bulb.position.set(BX,0.868,0); scene.add(bulb);
+tag(bulb,'实验玻璃瓶容器（有效体积 V=1350cm³）','钢球振动压缩瓶内气体，振动很快近似绝热过程 pV^γ=常数。');
+const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,TUBE_TOP-TUBE_BOT,16,1,true),glassMat);
+tube.position.set(BX,(TUBE_BOT+TUBE_TOP)/2,0); scene.add(tube);
+tag(tube,'玻璃管 B（中央开有小孔）','钢球 A 在管内以小孔为中心上下做简谐振动；细管 C 由瓶侧注入气体。');
+const holeDot=new THREE.Mesh(new THREE.TorusGeometry(0.0022,0.0008,8,16),
+  M(0xffca28,{emissive:0xffca28,emissiveIntensity:.6}));
+holeDot.rotation.x=Math.PI/2; holeDot.position.set(BX,HOLE_Y,0.0075); scene.add(holeDot);
+const portC=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.02,10),
+  M(0x90a4ae,{metalness:.6,roughness:.4}));
+portC.rotation.z=Math.PI/2; portC.position.set(BX-0.062,0.845,0); scene.add(portC);
+tag(portC,'细管 C','气泵经储气瓶通过细管 C 向瓶内持续注入小气压的气流。');
+/* 万能夹 */
+const clampPost=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.009,0.34,12),
+  M(0x37474f,{metalness:.7,roughness:.35}));
+clampPost.position.set(BX-0.13,0.93,0.05); scene.add(clampPost);
+const clampArm=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.012,0.012),
+  M(0x37474f,{metalness:.7,roughness:.35}));
+clampArm.position.set(BX-0.065,1.055,0.05); scene.add(clampArm);
+const clampJaw=new THREE.Mesh(new THREE.TorusGeometry(0.011,0.0025,8,20),
+  M(0x546e7a,{metalness:.7,roughness:.35}));
+clampJaw.rotation.x=Math.PI/2; clampJaw.position.set(BX,1.055,0.05); scene.add(clampJaw);
+tag(clampJaw,'万能夹','夹持玻璃管使其垂直放置，以免钢球振动时碰到管壁造成误差。');
+/* 钢球 A */
+const ball=new THREE.Mesh(new THREE.SphereGeometry(0.006,18,14),
+  M(0xcfd8dc,{metalness:.95,roughness:.15,emissive:0xcfd8dc,emissiveIntensity:.1}));
+ball.position.set(BX,HOLE_Y-0.03,0); ball.visible=false; scene.add(ball);
+tag(ball,'钢球 A（m=4g，d=10mm）','瓶内压强 p=p₀+mg/(πr²) 时处于平衡；注入气体使其在小孔上下做简谐振动，周期 T=2π√(mV/γπ²r⁴p)。');
+
+/* ---- 激光光电门（对射式，正对小孔高度）---- */
+const pgPost=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.008,0.30,12),
+  M(0x37474f,{metalness:.7,roughness:.35}));
+pgPost.position.set(BX+0.10,0.91,0); scene.add(pgPost);
+const pgArm=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.010,0.010),
+  M(0x37474f,{metalness:.7,roughness:.35}));
+pgArm.position.set(BX+0.055,HOLE_Y,0); scene.add(pgArm);
+const pgTx=new THREE.Mesh(new THREE.BoxGeometry(0.014,0.02,0.014),
+  M(0x263238,{metalness:.5,roughness:.4,emissive:0x330000,emissiveIntensity:.4}));
+pgTx.position.set(BX-0.045,HOLE_Y,0); scene.add(pgTx);
+const pgRx=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.018,0.012),
+  M(0x263238,{metalness:.5,roughness:.4,emissive:0x003300,emissiveIntensity:.4}));
+pgRx.position.set(BX+0.045,HOLE_Y,0); scene.add(pgRx);
+const beamMatPG=new THREE.MeshBasicMaterial({color:0xff5252,transparent:true,opacity:0.55,
+  blending:THREE.AdditiveBlending,depthWrite:false});
+const pgBeam=new THREE.Mesh(new THREE.CylinderGeometry(0.0008,0.0008,0.09,6),beamMatPG);
+pgBeam.rotation.z=Math.PI/2; pgBeam.position.set(BX,HOLE_Y,0); scene.add(pgBeam);
+tag(pgTx,'激光光电门','激光水平穿过玻璃管，钢球每次经过遮断光束 → 触发计时器计数（信号指示灯闪暗）。');
+
+/* ---- 气泵 + 旋钮 + 储气瓶（缓冲瓶）+ 软管 ---- */
+const pumpGrp=new THREE.Group(); scene.add(pumpGrp);
+const pumpBox=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.09,0.11),
+  M(0x232f3c,{metalness:.5,roughness:.45}));
+pumpBox.position.set(0.42,0.805,0.12); pumpGrp.add(pumpBox);
+const pumpLampM=new THREE.MeshBasicMaterial({color:0x123a24});
+const pumpLamp=new THREE.Mesh(new THREE.SphereGeometry(0.005,10,8),pumpLampM);
+pumpLamp.position.set(0.37,0.842,0.12); pumpGrp.add(pumpLamp);
+const flowKnob=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.010,16),
+  M(0xcfa54b,{metalness:.8,roughness:.3}));
+flowKnob.rotation.x=Math.PI/2; flowKnob.position.set(0.42,0.805,0.181); pumpGrp.add(flowKnob);
+const pumpNozzle=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.02,10),
+  M(0x90a4ae,{metalness:.7,roughness:.35}));
+pumpNozzle.rotation.z=Math.PI/2; pumpNozzle.position.set(0.33,0.79,0.12); pumpGrp.add(pumpNozzle);
+tag(pumpGrp,'气泵（上气量调节旋钮）','控制注入气流大小：过小球不振、过大钢球冲出管口（调节时用手挡住玻璃管上方）。');
+const tank=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.13,18),
+  M(0x3b6ea5,{metalness:.6,roughness:.35}));
+tank.rotation.z=Math.PI/2; tank.position.set(-0.02,0.80,0.12); scene.add(tank);
+const tankStand=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.02,0.06),
+  M(0x37474f,{metalness:.6,roughness:.4}));
+tankStand.position.set(-0.02,0.765,0.12); scene.add(tankStand);
+tag(tank,'储气瓶（缓冲瓶，约 2500cm³）','缓冲气流脉动，使进入玻璃瓶的气流平稳。');
+/* 软管：气泵→储气瓶→玻璃瓶（流动粒子沿路径） */
+const hoseMat=new THREE.MeshStandardMaterial({color:0x1a2634,roughness:.7,metalness:.2});
+const hoseMatOn=new THREE.MeshStandardMaterial({color:0x2a3f58,roughness:.6,metalness:.3});   // 接好后
+const hoseMatDim=new THREE.MeshStandardMaterial({color:0x1a2634,roughness:.8,metalness:.2,transparent:true,opacity:.22});
+const curve1=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0.33,0.79,0.12),new THREE.Vector3(0.18,0.80,0.155),
+  new THREE.Vector3(0.05,0.815,0.13)]);
+const hose1=new THREE.Mesh(new THREE.TubeGeometry(curve1,20,0.004,8),hoseMatDim); scene.add(hose1);
+const curve2=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-0.085,0.80,0.12),new THREE.Vector3(-0.28,0.82,0.09),
+  new THREE.Vector3(-0.40,0.82,0.04),new THREE.Vector3(BX-0.062,0.845,0)]);
+const hose2=new THREE.Mesh(new THREE.TubeGeometry(curve2,24,0.004,8),hoseMatDim); scene.add(hose2);
+tag(hose1,'输气软管','连接气泵→储气瓶→玻璃瓶容器，连接时注意不要漏气。');
+const flowDots=[];
+for(let i=0;i<5;i++){
+  const d=new THREE.Mesh(new THREE.SphereGeometry(0.0016,8,6),
+    new THREE.MeshBasicMaterial({color:0x8be9fd,transparent:true,opacity:.9}));
+  scene.add(d); flowDots.push(d);
+}
+const fullCurve=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0.33,0.79,0.12),new THREE.Vector3(0.18,0.80,0.155),
+  new THREE.Vector3(0.05,0.815,0.13),new THREE.Vector3(-0.02,0.815,0.12),
+  new THREE.Vector3(-0.085,0.80,0.12),new THREE.Vector3(-0.28,0.82,0.09),
+  new THREE.Vector3(-0.40,0.82,0.04),new THREE.Vector3(BX-0.062,0.845,0)]);
+
+/* ---- DHTC-3A 多功能计时器 ---- */
+const timBox=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.10,0.13),
+  M(0x232f3c,{metalness:.5,roughness:.45}));
+timBox.position.set(0.20,0.81,-0.16); scene.add(timBox);
+const timLcdCanvas=document.createElement('canvas'); timLcdCanvas.width=192; timLcdCanvas.height=88;
+const timLcdTexture=new THREE.CanvasTexture(timLcdCanvas);
+const timLcd=new THREE.Mesh(new THREE.PlaneGeometry(0.15,0.068),
+  new THREE.MeshBasicMaterial({map:timLcdTexture}));
+timLcd.position.set(0.175,0.818,-0.093); timLcd.rotation.y=-0.42; scene.add(timLcd);
+tag(timBox,'DHTC-3A 多功能计时器','设置周期次数 N=50；钢球遮断光电门触发计数，显示总时间（分辨率 0.1ms）。T=t/50。');
+const btnKeyM=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.006,0.012),
+  M(0x455a64,{metalness:.4,roughness:.5}));
+btnKeyM.position.set(0.14,0.762,-0.115); scene.add(btnKeyM);
+
+/* ---- 标注 ---- */
+const lbl1=makeTextSprite('实验玻璃瓶容器','#81d4fa',0.085);
+lbl1.position.set(BX-0.09,0.795,0.06); scene.add(lbl1);
+const lbl2=makeTextSprite('激光光电门','#ff8a80',0.075);
+lbl2.position.set(BX+0.10,1.045,0); scene.add(lbl2);
+const lbl3=makeTextSprite('气泵（气量旋钮）','#ffcc80',0.085);
+lbl3.position.set(0.42,0.87,0.12); scene.add(lbl3);
+const lbl4=makeTextSprite('储气瓶（缓冲瓶）','#90caf9',0.08);
+lbl4.position.set(-0.02,0.735,0.12); scene.add(lbl4);
+const lbl5=makeTextSprite('DHTC-3A 计时器','#69f0ae',0.085);
+lbl5.position.set(0.20,0.875,-0.16); scene.add(lbl5);
+const lbl6=makeTextSprite('钢球 m=4g','#e0e0e0',0.055);
+lbl6.position.set(BX+0.045,0.945,0); scene.add(lbl6);
+
+/* ================= 计时器面板（右上叠加层 + 3D LCD） ================= */
+function ballY(){ return HOLE_Y+vibCenter(CFG.flow)+vibAmp(CFG.flow)*Math.sin(gl.phase); }
+function blocked(){ return ball.visible&&Math.abs(ball.position.y-HOLE_Y)<0.0025; }
+function drawTimer(){
+  const g=$('#overlay').getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,268,230);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,262,222);
+  g.font='12px "Microsoft YaHei",sans-serif'; g.fillStyle='#6fa8dc'; g.textAlign='left';
+  g.fillText('DHTC-3A 多功能计时器',14,22);
+  g.fillStyle=blocked()?'#ff5252':'#69f0ae';            // 信号指示灯：遮光暗一次
+  g.beginPath(); g.arc(248,17,5,0,7); g.fill();
+  /* 周期数显示窗 */
+  g.fillStyle='#0a1626'; g.fillRect(14,32,110,34); g.strokeStyle='#29d2ff'; g.strokeRect(14,32,110,34);
+  g.fillStyle='#7fd7ff'; g.font='bold 20px Consolas,monospace'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(CFG.Nset?('N = '+CFG.N):'N = --',69,49);
+  /* 计时显示窗 */
+  g.fillStyle='#0a1626'; g.fillRect(132,32,122,34); g.strokeRect(132,32,122,34);
+  g.fillStyle='#57e389'; g.font='bold 18px Consolas,monospace';
+  const tShow=CFG.running?CFG.elapsed:(CFG.rows.length?CFG.rows[CFG.rows.length-1].t:0);
+  g.fillText(tShow.toFixed(4)+' s',193,49);
+  /* 进度条 */
+  g.fillStyle='#0a1626'; g.fillRect(14,76,240,16); g.strokeStyle='#1d3252'; g.strokeRect(14,76,240,16);
+  g.fillStyle='#29d2ff'; g.fillRect(15,77,238*CFG.k/CFG.N,14);
+  g.fillStyle='#04070c'; g.font='bold 11px Consolas,monospace';
+  g.fillText('周期 '+CFG.k+' / '+CFG.N,134,84);
+  /* 状态与记录数 */
+  g.font='12px "Microsoft YaHei",sans-serif'; g.textAlign='left'; g.fillStyle='#9fc3e8';
+  g.fillText('状态：'+(CFG.running?(CFG.fast?'计时中（6×速）':'计时中'):(CFG.rows.length>=5?'5 次记录完成':'待机')),14,112);
+  g.fillText('已记录：'+CFG.rows.length+' / 5 次',14,130);
+  g.fillStyle='#6fa8dc';
+  g.fillText('启动后钢球每次遮断光电门触发计数，',14,152);
+  g.fillText('满 50 个周期自动停止并记录总时间 t。',14,168);
+  g.fillStyle='#ffd54f';
+  g.fillText('T = t / '+CFG.N+' ，γ = 64mV/(T̄²pd⁴)',14,192);
+  /* 左上 HUD 同步 */
+  $('#hudFlow').textContent='气量 '+CFG.flow.toFixed(0)+' %';
+  $('#hudBall').textContent='钢球：'+(CFG.escaped?'冲出管口！':(CFG.flow<25?'静止（孔下）':
+    (flowOk(CFG.flow)?'稳定振动（中心≈小孔）':'振动不稳（中心偏离小孔）')));
+  $('#hudT').textContent='计时器：'+(CFG.running?CFG.elapsed.toFixed(2)+' s（'+CFG.k+'/50）':
+    (CFG.rows.length?'上次 '+CFG.rows[CFG.rows.length-1].t.toFixed(3)+' s':'待机'));
+}
+function drawLCD(){
+  const g=timLcdCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,192,88);
+  g.strokeStyle='#1d5a38'; g.strokeRect(2,2,188,84);
+  g.fillStyle='#7fd7ff'; g.font='bold 16px Consolas,monospace'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(CFG.Nset?'N=50':'N=--',40,22);
+  g.fillStyle='#57e389';
+  const tShow=CFG.running?CFG.elapsed:(CFG.rows.length?CFG.rows[CFG.rows.length-1].t:0);
+  g.font='bold 15px Consolas,monospace';
+  g.fillText(tShow.toFixed(3)+' s',120,22);
+  g.fillStyle=blocked()?'#ff5252':'#69f0ae';
+  g.beginPath(); g.arc(16,66,5,0,7); g.fill();
+  g.fillStyle='#8bd8a8'; g.font='11px Consolas,monospace';
+  g.fillText(CFG.k+'/'+CFG.N+' 周期',96,66);
+  timLcdTexture.needsUpdate=true;
+}
+
+/* ================= 交互 ================= */
+/* ① 安装三步：放钢球 → 接软管 → 通电 */
+$('#btnBall').onclick=()=>{
+  if(CFG.ballIn){ toast('钢球已在玻璃管中'); return; }
+  CFG.ballIn=true; ball.visible=true; ball.position.y=HOLE_Y-0.03;
+  $('#btnHose').disabled=false;
+  $('#connState').textContent='钢球已放入。接下来按图 2.20.2 连接输气软管（注意不要漏气）。';
+  toast('<b>钢球 A 已放入玻璃管 B</b>（m=4g，d=10mm）。下一步连接软管');
+  checkSteps();
+};
+$('#btnHose').onclick=()=>{
+  if(CFG.hoseOn){ toast('软管已连接'); return; }
+  if(!CFG.ballIn){ toast('请先放入钢球'); return; }
+  CFG.hoseOn=true;
+  hose1.material=hoseMatOn; hose2.material=hoseMatOn;
+  $('#btnPower').disabled=false;
+  $('#connState').textContent='软管已连接（气泵→储气瓶→细管 C）。最后接通电源。';
+  toast('<b>软管已连接</b>：气泵→储气瓶（缓冲瓶）→细管 C，检查不漏气');
+  checkSteps();
+};
+$('#btnPower').onclick=()=>{
+  if(CFG.powerOn){ toast('电源已接通'); return; }
+  if(!CFG.hoseOn){ toast('请先连接软管'); return; }
+  CFG.powerOn=true; pumpLampM.color.setHex(0x00ff66);
+  $('#sFlow').disabled=false;
+  $('#connState').innerHTML='<span class="good">✔ 安装完成：钢球已放入、气路已接（无漏气）、电源已接通</span>';
+  toast('<b>电源已接通</b>：请调节「上气量调节旋钮」，使钢球在玻璃管中以小孔为中心上下振动');
+  checkSteps();
+};
+$('#sFlow').oninput=e=>{
+  const v=+e.target.value;
+  if(CFG.running){ toast('计时进行中，气量旋钮已锁定'); e.target.value=CFG.flow; return; }
+  CFG.flow=v; $('#vFlow').textContent=v.toFixed(0)+' %';
+  flowKnob.rotation.y=v*0.06;
+  if(v>70&&!CFG.escaped){
+    CFG.escaped=true; ball.visible=false;
+    toast('<b style="color:#ff8a80">气流过大，钢球被冲出管口！</b>（教材注意事项：调节时应用手挡住玻璃管上方）请调小气量');
+    if(CFG.running){ CFG.running=false; CFG.fast=false; toast('计时中止：本次数据不计入'); }
+  } else if(v<=70&&CFG.escaped){
+    CFG.escaped=false; ball.visible=true; gl.phase=-Math.PI/2;
+    toast('钢球已回到玻璃管中');
+  }
+  checkSteps();
+};
+/* ③ N 设置（▲▼ 键滑块 1~99） */
+$('#sN').oninput=e=>{
+  CFG.N=+e.target.value; $('#vN').textContent=CFG.N;
+};
+$('#btnSetN').onclick=()=>{
+  if(CFG.Nset){ toast('周期次数已确认：N='+CFG.N+'（按 R 键复位可重设）'); return; }
+  if(CFG.N<1||CFG.N>99){ toast('N 超出 1~99 范围'); return; }
+  CFG.Nset=true; $('#sN').disabled=true;
+  toast('<b>周期次数已设置：N='+CFG.N+'</b>（计时器待机，等待启动）'+(CFG.N!==50?'　⚠ 教程要求 N=50，请按 R 复位后重设':''));
+  checkSteps();
+};
+$('#btnStart').onclick=()=>{
+  if(!(flowOk(CFG.flow)&&!CFG.escaped)){ toast('请先将钢球调至以小孔为中心稳定振动'); return; }
+  if(!CFG.Nset){ toast('请先设置周期次数 N=50'); return; }
+  if(CFG.rows.length>=5){ toast('5 次记录已完成，请点击「计算平均周期与 γ」'); return; }
+  if(CFG.running){ CFG.running=false; CFG.fast=false; toast('计时已中止，本次数据不计入'); return; }
+  CFG.tMeas=sampleT(); CFG.elapsed=0; CFG.k=0; CFG.fast=false; CFG.running=true;
+  toast('<b>计时开始</b>（第 '+(CFG.rows.length+1)+'/5 次）：钢球遮断光电门触发计数，满 50 个周期自动停止。预计 '+(CFG.tMeas).toFixed(1)+' s，可点「快速完成 ▶▶」加速');
+  checkSteps();
+};
+$('#btnFast').onclick=()=>{ if(CFG.running) CFG.fast=true; };
+$('#btnFit').onclick=()=>{
+  if(CFG.rows.length<5){ toast('计时记录不足 5 次，请继续测量'); return; }
+  let s=0; for(const r of CFG.rows) s+=r.T;
+  CFG.Tbar=s/CFG.rows.length;
+  CFG.gamma=64*TRUE.m*TRUE.V/(CFG.Tbar*CFG.Tbar*TRUE.p*Math.pow(TRUE.d,4));
+  CFG.rel=Math.abs(CFG.gamma-TRUE.gamma)/TRUE.gamma*100;
+  $('#fitState').innerHTML='平均周期 T̄=<b>'+CFG.Tbar.toFixed(4)+' s</b>（5 次）<br>γ=64mV/(T̄²pd⁴)=<b>'+CFG.gamma.toFixed(3)+'</b>，相对误差 <b>'+CFG.rel.toFixed(2)+' %</b>';
+  toast('<b>计算完成</b>：T̄='+CFG.Tbar.toFixed(4)+' s，γ='+CFG.gamma.toFixed(3)+'（相对误差 '+CFG.rel.toFixed(2)+'%）');
+  renderData(); checkSteps();
+};
+
+/* ================= 步骤判定 ================= */
+const TIPS=['安装与连接完成！','钢球已以小孔为中心稳定振动！','周期次数 N='+CFG.N+' 已设置！','5 次计时记录完成！','平均周期已求出！','空气比热容比计算完成，与标准值一致！'];
+function checkSteps(){
+  const s=CFG.steps, installed=CFG.ballIn&&CFG.hoseOn&&CFG.powerOn;
+  s[0]=installed;
+  s[1]=installed&&flowOk(CFG.flow)&&!CFG.escaped;
+  s[2]=s[1]&&CFG.Nset;
+  s[3]=s[2]&&CFG.rows.length>=5;
+  s[4]=s[3]&&CFG.Tbar!=null;
+  s[5]=s[4]&&CFG.rel!=null&&CFG.rel<5;
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+TIPS[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+  $('#btnBall').disabled=CFG.ballIn;
+  $('#btnHose').disabled=CFG.hoseOn||!CFG.ballIn;
+  $('#btnPower').disabled=CFG.powerOn||!CFG.hoseOn;
+  $('#sFlow').disabled=!CFG.powerOn||CFG.running;
+  $('#sN').disabled=!s[1]||CFG.Nset;
+  $('#btnSetN').disabled=!s[1]||CFG.Nset;
+  $('#btnStart').disabled=!(s[1]&&CFG.Nset)||CFG.rows.length>=5;
+  $('#btnStart').textContent=CFG.running?'停止计时':'启动计时';
+  $('#btnFast').disabled=!CFG.running;
+  $('#btnFit').disabled=CFG.rows.length<5;
+  if(!CFG.powerOn) $('#flowState').textContent='未通电';
+  else if(CFG.escaped) $('#flowState').innerHTML='<span style="color:#ff8a80">钢球冲出管口！请调小气量</span>';
+  else if(CFG.flow<25) $('#flowState').textContent='气流不足：钢球静止在孔下方，请增大气量';
+  else if(!flowOk(CFG.flow)) $('#flowState').innerHTML='<span style="color:#ff8a80">钢球振动中心偏离小孔：观察 3D 中球心与小孔的相对位置，继续微调气量</span>';
+  else $('#flowState').innerHTML='<span class="good">✔ 钢球以小孔为中心稳定振动（振幅 '+(vibAmp(CFG.flow)*1000).toFixed(1)+' mm）</span>';
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  $('#tb2').innerHTML=CFG.rows.length?`<table><tr><th>测量次数</th><th>总时间 t/s（N=${CFG.N}）</th><th>振动周期 T=t/N/s</th></tr>${
+    CFG.rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.t.toFixed(4)}</td><td>${r.T.toFixed(5)}</td></tr>`).join('')
+    }${CFG.Tbar!=null?`<tr class="hl"><td>平均值</td><td>—</td><td>T̄=${CFG.Tbar.toFixed(5)} s<br>γ=${CFG.gamma.toFixed(3)}</td></tr>`:''}</table>`:'尚未完成测量。';
+  if(CFG.gamma!=null){
+    const ok=CFG.rel<5;
+    $('#concl').innerHTML=
+      `<div class="kv"><span>平均周期 T̄（5 次，N=50）</span><b>${CFG.Tbar.toFixed(4)} s</b></div>`+
+      `<div class="kv"><span>γ=64mV/(T̄²pd⁴)（V=1350cm³，d=10mm，m=4g，p=1.013×10⁵Pa）</span><b>${CFG.gamma.toFixed(3)}</b></div>`+
+      `<div class="kv"><span>相对误差（空气标准值 γ=1.40，双原子 f=5）</span><b class="${ok?'good':''}">${CFG.rel.toFixed(2)} %</b></div>`+
+      (ok?'<div class="good">✔ 测得 γ=1.40±0.05 范围内，与空气标准值一致，实验成功</div>'
+         :'<div style="color:#ff8a80">✘ 偏差偏大：检查气量是否稳定、光电门对准、周期数设置</div>');
+  } else $('#concl').innerHTML='完成 5 次计时后自动给出结论。';
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.ballIn=true; CFG.hoseOn=true; CFG.powerOn=true;
+  ball.visible=true; ball.position.y=HOLE_Y-0.03;
+  hose1.material=hoseMatOn; hose2.material=hoseMatOn;
+  pumpLampM.color.setHex(0x00ff66);
+  $('#connState').innerHTML='<span class="good">✔ 已安装并通电（示例）</span>';
+  CFG.flow=57; $('#sFlow').value=57; $('#vFlow').textContent='57 %'; flowKnob.rotation.y=57*0.06; $('#sFlow').disabled=false;
+  CFG.N=50; CFG.Nset=true;
+  $('#sN').value=50; $('#vN').textContent='50'; $('#sN').disabled=true;
+  CFG.rows=[];
+  for(let i=0;i<5;i++){ const t=sampleT(); CFG.rows.push({t,T:t/CFG.N}); }
+  CFG.running=false; CFG.fast=false; CFG.k=CFG.N; CFG.elapsed=CFG.rows[4].t;
+  $('#btnFit').onclick();
+  $('#runState').textContent='示例：5 次计时已记录，γ 计算完成';
+  drawLCD(); drawTimer(); checkSteps(); renderData();
+  toast('<b>已自动完成全部测量</b>（5 次计时 + γ 计算）。查看「数据处理」页结论。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.ballIn=false; CFG.hoseOn=false; CFG.powerOn=false; CFG.flow=0; CFG.N=1; CFG.Nset=false;
+  CFG.running=false; CFG.fast=false;
+  CFG.elapsed=0; CFG.k=0; CFG.escaped=false; CFG.rows=[]; CFG.Tbar=null; CFG.gamma=null; CFG.rel=null;
+  gl.phase=0;
+  ball.visible=false;
+  hose1.material=hoseMatDim; hose2.material=hoseMatDim;
+  $('#sFlow').value=0; $('#vFlow').textContent='0 %'; flowKnob.rotation.y=0; $('#sFlow').disabled=true;
+  pumpLampM.color.setHex(0x123a24);
+  $('#sN').value=1; $('#vN').textContent='1'; $('#sN').disabled=true;
+  $('#connState').textContent='未安装。先放钢球，再接气路，最后通电。';
+  $('#runState').textContent='等待钢球稳定振动';
+  $('#fitState').textContent='未处理。T̄=mean(t<sub>i</sub>/N)，γ=64mV/(T̄²pd⁴)。';
+  drawLCD(); drawTimer(); checkSteps(); renderData();
+  toast('实验已重置');
+};
+
+/* ================= 3D 点击拾取（部件说明卡） ================= */
+canvas.addEventListener('pointerup',e=>{
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const pick=[[bulb,'实验玻璃瓶容器','有效体积 V=1350cm³。钢球振动压缩瓶内气体，过程很快近似绝热 pV^γ=常数。'],
+              [tube,'玻璃管 B','中央开有小孔；细管 C 注气使钢球在小孔上下做简谐振动。'],
+              [ball,'钢球 A','m=4g、d=10mm。平衡时 p=p₀+mg/(πr²)；T=2π√(mV/γπ²r⁴p)。'],
+              [pgTx,'激光光电门','激光水平穿过玻璃管，钢球每次经过遮断光束触发计时器计数。'],
+              [pumpGrp,'气泵','上气量调节旋钮控制气流：过小球不振、过大钢球冲出管口（用手挡住管口防冲出）。'],
+              [tank,'储气瓶（缓冲瓶）','约 2500cm³，缓冲气流脉动。'],
+              [timBox,'DHTC-3A 计时器','设置周期次数 N=50，测 50 个周期总时间 t（分辨率 0.1ms），T=t/50。'],
+              [hose1,'输气软管','气泵→储气瓶→玻璃瓶，连接时注意不要漏气。'],
+              [clampJaw,'万能夹','夹持玻璃管垂直放置，避免钢球振动碰管壁。']];
+  for(const [obj,title,text] of pick){
+    if(ray.intersectObject(obj,true).length){ showInfo(title,text); return; }
+  }
+  if(ray.intersectObjects(scene.children,true).length)
+    showInfo('DH4602A 气体比热容比测定仪','由气泵、储气瓶、实验玻璃瓶容器（振动钢球）、激光光电门与 DHTC-3A 计时器组成。');
+});
+
+/* ================= 主循环 ================= */
+/* 静态振动仿真：无刚性积分，仅帧率无关的状态渐近动画（等价固定小步长） */
+let lastT=performance.now();          // 时间源：performance.now()（禁 Date.now 混算）
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){   // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);        // 主循环首行，防冻屏
+  resize();
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;                  // 钳制切后台时间跳变
+  /* 钢球简谐振动（周期 = 当前测量周期的真值节奏） */
+  if(CFG.flow>=25&&!CFG.escaped){
+    const Tv=CFG.running?CFG.tMeas/CFG.N:TRUE.T;
+    const spd=CFG.fast?6:1;
+    gl.phase+=2*Math.PI*dt*spd/Tv;
+    ball.position.y=HOLE_Y+vibCenter(CFG.flow)+vibAmp(CFG.flow)*Math.sin(gl.phase);
+  } else if(!CFG.escaped){
+    ball.position.y=HOLE_Y-0.03;
+  }
+  /* 计时推进 */
+  if(CFG.running){
+    CFG.elapsed+=dt*(CFG.fast?6:1);
+    if(CFG.elapsed>=CFG.tMeas){
+      CFG.elapsed=CFG.tMeas; CFG.running=false; CFG.fast=false;
+      CFG.rows.push({t:CFG.elapsed,T:CFG.elapsed/CFG.N});
+      $('#runState').textContent='已记录 '+CFG.rows.length+'/5（t='+CFG.elapsed.toFixed(4)+' s，T='+(CFG.elapsed/CFG.N).toFixed(5)+' s）'+(CFG.rows.length<5?'，请再次启动计时':'，全部完成');
+      toast('<b>第 '+CFG.rows.length+'/5 次计时完成</b>：t=<b>'+CFG.elapsed.toFixed(4)+' s</b>，T=t/'+CFG.N+'=<b>'+(CFG.elapsed/CFG.N).toFixed(5)+' s</b>');
+      CFG.k=0; CFG.elapsed=0;
+      renderData(); checkSteps();
+    } else CFG.k=Math.min(CFG.N,Math.floor(CFG.elapsed/(CFG.tMeas/CFG.N)));
+  }
+  /* 光电门光束：钢球遮光时变暗 */
+  const blk=blocked();
+  pgBeam.material.opacity=blk?0.07:0.55;
+  pgRx.material.emissiveIntensity=blk?0.05:0.5;
+  /* 气路流动粒子 */
+  const showFlow=CFG.powerOn&&CFG.flow>0&&!CFG.escaped;
+  flowDots.forEach((d,i)=>{
+    d.visible=showFlow;
+    if(showFlow){
+      const u=((now*0.00006*(0.4+CFG.flow/80)+i/5)%1);
+      const p=fullCurve.getPointAt(u);
+      d.position.copy(p);
+      d.material.opacity=0.3+0.6*CFG.flow/100;
+    }
+  });
+  drawLCD(); drawTimer();
+  controls.update(); renderer.render(scene,camera);
+}
+/* 首帧初始化：先渲染有效首帧，再启动主循环 */
+checkSteps(); renderData(); drawLCD(); drawTimer();
+resize(); renderer.render(scene,camera);
+loop();
+
+/* 暴露状态供自查脚本轮询（轮询状态变量而非固定 sleep） */
+window.CFG=CFG; window.TRUE=TRUE; window.gl=gl;
+window.flowOk=flowOk; window.vibCenter=vibCenter; window.vibAmp=vibAmp; window.blocked=blocked; window.ballY=ballY;
+</script>
+</body>
+</html>

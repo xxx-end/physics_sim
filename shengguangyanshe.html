@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验 · 声光衍射测液体中的声速 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+  select { width: 100%; background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 6px; padding: 6px 8px; font-size: 12px; outline: none; }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.order { padding: 6px 10px; }
+  .btn.order.active { background: #00695c; border-color: #1de9b6; color: #a7ffeb; }
+
+  /* 记录表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border: 1px solid #1d3252; padding: 6px 6px; text-align: center;
+    font-variant-numeric: tabular-nums; }
+  th { background: rgba(41, 210, 255, 0.08); color: #7fd7ff; font-weight: 600; }
+  td.empty { color: #4a6a94; }
+
+  /* 视口叠加层 */
+  #meterHud { position: absolute; top: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #meterHud .big { font-size: 22px; color: #69f0ae; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; color: #ffd54f; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+  #fitChart { border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验 · 声光衍射测液体中的声速</h1>
+    <div class="sub">He-Ne 激光 632.8 nm ｜ 超声驻波光栅衍射（m = 0, ±1, ±2）｜ <b>v = Λ_s·f_s</b> ｜ ⚠ 换能器勿空载开机，避免超声发生器过载</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">仪器调节</button>
+        <button data-p="p3">测量记录</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开超声信号源，设定工作频率 f<sub>s</sub></span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 选择液体并注入液槽（含温度设定）</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 微调液槽平台，使激光垂直入射、驻波光栅清晰</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 选定观察级次 m，按「记录光斑间距 x̂<sub>m</sub>」填入表 1</span></div>
+          <div class="step" id="st5"><span class="box"></span><span>⑤ 完成 m=1、2 两个级次记录，到「数据处理」查看 Λ<sub>s</sub> 与 v</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>先开信号源再微调平台，衍射光斑未出现时检查是否<b>垂直入射</b>。</li>
+            <li>x̂<sub>m</sub> 为 +m 与 −m 级光斑中心之间的距离，随 m 线性增大。</li>
+            <li>频率 f<sub>s</sub> 越高，Λ<sub>s</sub> 越小，光斑间距越小、级次越密。</li>
+            <li>温度改变会修正声速 v = v₂₀ + A(t − 20)，注意与测量值比较。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 仪器调节 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>超声信号源</h3>
+          <button id="btnSrc" class="btn primary">打开信号源</button>
+          <span id="srcState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（信号源未开）</span>
+          <div class="slider-row">
+            <div class="lab"><span>超声频率 f_s (MHz)</span><b id="labFs">8.0</b></div>
+            <input type="range" id="sldFs" min="2" max="12" step="0.1" value="8">
+          </div>
+        </div>
+        <div class="card">
+          <h3>液体与温度</h3>
+          <select id="selLiquid">
+            <option value="" selected>— 请选择液体 —</option>
+            <option value="water">普通水 (v₂₀=1493 m/s, A=2.5)</option>
+            <option value="sea">海水 (v₂₀=1530 m/s)</option>
+            <option value="benzene">苯 (v₂₀=1326 m/s, A=−5.2)</option>
+            <option value="acetone">丙酮 (v₂₀=1192 m/s, A=−5.5)</option>
+            <option value="glycerin">甘油 (v₂₀=1923 m/s, A=−1.8)</option>
+            <option value="aniline">苯胺 (v₂₀=1656 m/s, A=−4.6)</option>
+          </select>
+          <div class="slider-row">
+            <div class="lab"><span>液体温度 t (℃)</span><b id="labTemp">20</b></div>
+            <input type="range" id="sldTemp" min="10" max="40" step="1" value="20">
+          </div>
+        </div>
+        <div class="card">
+          <h3>光路调节</h3>
+          <div class="slider-row">
+            <div class="lab"><span>液槽—光屏距离 L (m)</span><b id="labL">0.60</b></div>
+            <input type="range" id="sldL" min="0.2" max="1.2" step="0.01" value="0.6">
+          </div>
+          <button id="btnAlign" class="btn" disabled>微调平台：使激光垂直入射</button>
+          <p id="alignInfo" style="margin-top:8px;">信号源开启后才能进行平台微调。</p>
+        </div>
+        <div class="card">
+          <h3>观察级次（高亮对应光斑）</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn order" data-m="0">m=0</button>
+            <button class="btn order active" data-m="1">m=±1</button>
+            <button class="btn order" data-m="2">m=±2</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 测量记录 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">当前级次光斑间距 x̂_m</div><div class="v ok" id="rXm">--</div></div>
+            <div class="data-cell"><div class="k">超声波长 Λ_s</div><div class="v" id="rLam">--</div></div>
+            <div class="data-cell"><div class="k">声速 v（温修理论）</div><div class="v" id="rV">--</div></div>
+            <div class="data-cell"><div class="k">光栅状态</div><div class="v warn" id="rSt">--</div></div>
+          </div>
+          <p style="margin-top:8px;">x̂_m 为 +m 与 −m 级光斑中心间距，由测微目镜读出（含读数误差）。</p>
+        </div>
+        <div class="card">
+          <h3>表 1　光斑间距记录表</h3>
+          <table>
+            <thead><tr><th>衍射级次 m</th><th>x̂_m (mm)</th><th>sinθ_m</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div style="margin-top:10px;display:flex;gap:8px;">
+            <button id="btnRec" class="btn green">📋 记录当前级次 x̂_m</button>
+            <button id="btnClr" class="btn">清空记录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>x̂_m–m 关系图（最小二乘拟合）</h3>
+          <canvas id="fitChart" width="388" height="270"></canvas>
+        </div>
+        <div class="card">
+          <h3>拟合结果</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">斜率 k = x̂₁</div><div class="v" id="fK">--</div></div>
+            <div class="data-cell"><div class="k">超声波长 Λ_s测</div><div class="v" id="fLam">--</div></div>
+            <div class="data-cell"><div class="k">声速 v测 = Λ_s·f_s</div><div class="v ok" id="fV">--</div></div>
+            <div class="data-cell"><div class="k">相对误差 E</div><div class="v warn" id="fE">--</div></div>
+          </div>
+          <p id="fitMsg" style="margin-top:8px;">至少记录 m=1、2 两个级次后即可拟合。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>记录原理：超声驻波光栅</h3>
+          <p>超声驻波使液体密度与折射率周期性变化，形成"超声光栅"（光栅常数 = 超声波长 Λ_s）：</p>
+          <span class="formula">Δn(Z,t) = 2Δn·sinω_s t·sinK_s Z</span>
+          <p>平行激光垂直通过液槽时发生衍射，各极值方向满足光栅方程：</p>
+          <span class="formula">sinθ_m = ±mλ / Λ_s （m = 0, ±1, ±2…）</span>
+        </div>
+        <div class="card">
+          <h3>测量方法：光斑间距法</h3>
+          <p>光屏上 ±m 级光斑中心间距 x̂_m ≈ 2L·sinθ_m，故 x̂_m–m 为过原点直线：</p>
+          <span class="formula">斜率 k = x̂₁ = 2Lλ/Λ_s ⇒ Λ_s = 2Lλ/k</span>
+          <p>再由超声频率求得声速，并与温修理论值比较：</p>
+          <span class="formula">v = Λ_s·f_s ，v_理 = v₂₀ + A(t − 20)</span>
+          <p>标准激光波长 λ = 632.8 nm（He-Ne）。</p>
+        </div>
+        <div class="card">
+          <h3>注意事项</h3>
+          <ul>
+            <li>换能器必须在有液体时才能开机，防止空载损坏。</li>
+            <li>信号源频率应调至换能器谐振点附近，衍射光斑最亮。</li>
+            <li>液槽需避震，驻波不稳时光斑会闪烁或模糊。</li>
+            <li>激光勿直视，实验结束先关信号源再关激光器。</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="meterHud">
+        测微目镜读数
+        <div class="big" id="hudX">-- mm</div>
+        <div class="row2" id="hudFs">f_s = 8.0 MHz ｜ Λ_s = -- mm</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 观察超声光栅与衍射光斑 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const LASER_NM = 632.8;       // He-Ne 激光波长 nm
+const SCALE_Y = 250;          // 光斑位移场景纵向放大标定（便于观察 mm 级偏移）
+const ORDERS = [-2, -1, 0, 1, 2];
+
+// 液体声速表：v20 (m/s @20℃) 与温度系数 A (m/(s·K))
+const LIQUIDS = {
+  water:    { name: '普通水', v20: 1493, A: 2.5 },
+  sea:      { name: '海水',   v20: 1530, A: 0 },
+  benzene:  { name: '苯',     v20: 1326, A: -5.2 },
+  acetone:  { name: '丙酮',   v20: 1192, A: -5.5 },
+  glycerin: { name: '甘油',   v20: 1923, A: -1.8 },
+  aniline:  { name: '苯胺',   v20: 1656, A: -4.6 }
+};
+
+const state = {
+  srcOn: false,         // 超声信号源开关
+  aligned: false,       // 是否已调垂直入射
+  liquid: '',           // 液体种类（须由用户在步骤②选择）
+  temp: 20,             // 温度 ℃
+  fs: 8.0,              // 超声频率 MHz
+  L: 0.6,               // 液槽—光屏距离 m
+  obsM: 1,              // 当前观察级次
+  records: {},          // {m: x̂_m(mm)} 实验记录
+  t: 0,
+  lastTime: performance.now()   // 时间源：模块加载时刻
+};
+
+/** 声速（温度修正）m/s（未选液体时返回 0，所有读数显示为无效） */
+function soundV() {
+  const liq = LIQUIDS[state.liquid];
+  if (!liq) return 0;
+  return liq.v20 + liq.A * (state.temp - 20);
+}
+/** 超声波长 Λ_s (m)：Λ_s = v/f_s */
+function Lam() { return soundV() / (state.fs * 1e6); }
+/** x̂_m–m 直线斜率 k = x̂₁ = 2Lλ/Λ_s (mm/级) */
+function slopeMM() { return 2 * state.L * (LASER_NM * 1e-9) / Lam() * 1000; }
+/** 理论光斑间距 x̂_m (mm) */
+function xhatM(m) { return m * slopeMM(); }
+
+/* ================================================================
+ *  Three.js 3D 场景：激光器、液槽、驻波条纹、衍射光束、光屏
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let laserBeam, cellLiquid, pzt, reflector;
+const stripes = [], photons = [], orderObjs = [];
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注（如"激光器 632.8nm"）被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  // 精灵高度保持 w/2，宽度按画布宽高比自适应拉伸
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 13, 32);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(1.6, 2.6, 7.4);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0.6, 0, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 2.5; controls.maxDistance = 16;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.5));
+  const pt = new THREE.PointLight(0xffffff, 50, 30);
+  pt.position.set(2, 4, 4); scene.add(pt);
+
+  const grid = new THREE.GridHelper(24, 48, 0x1d3252, 0x122240);
+  grid.position.y = -1.6; scene.add(grid);
+
+  // ---- He-Ne 激光器（左侧） ----
+  const laser = new THREE.Group();
+  const laserBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.18, 1.4, 24),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.35 }));
+  laserBody.rotation.z = Math.PI / 2;
+  laser.add(laserBody);
+  const laserLabel = makeTextSprite('激光器 632.8nm', '#ff8a80', 1.2);
+  laserLabel.position.set(0, 0.55, 0); laser.add(laserLabel);
+  laser.position.set(-4.0, 0, 0);
+  scene.add(laser);
+
+  // ---- 入射激光束 ----
+  laserBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 2.8, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.5,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  laserBeam.rotation.z = Math.PI / 2;
+  laserBeam.position.set(-2.35, 0, 0);
+  scene.add(laserBeam);
+
+  // ---- 液槽（中央）：玻璃盒 + 液体 ----
+  const cell = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 1.5, 1.1),
+    new THREE.MeshPhysicalMaterial({ color: 0xaad4ff, transparent: true, opacity: 0.14,
+      roughness: 0.08, transmission: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+  scene.add(cell);
+  cellLiquid = new THREE.Mesh(
+    new THREE.BoxGeometry(1.04, 1.44, 1.04),
+    new THREE.MeshBasicMaterial({ color: 0x0d3a52, transparent: true, opacity: 0.42, depthWrite: false }));
+  scene.add(cellLiquid);
+
+  // ---- 驻波条纹池（压缩/疏张条纹，间距 ∝ Λ_s） ----
+  const stripeGeo = new THREE.BoxGeometry(0.96, 0.045, 0.96);
+  for (let i = 0; i < 21; i++) {
+    const m = new THREE.Mesh(stripeGeo, new THREE.MeshBasicMaterial({
+      color: 0x4dd0e1, transparent: true, opacity: 0.35,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.visible = false;
+    scene.add(m); stripes.push(m);
+  }
+
+  // ---- PZT 换能器（底部）+ 声波反射板（顶部） ----
+  pzt = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.1, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0x8d6e00,
+      emissiveIntensity: 0.3, metalness: 0.3, roughness: 0.5 }));
+  pzt.position.y = -0.78; scene.add(pzt);
+  const pztLabel = makeTextSprite('PZT', '#ffe082', 0.5);
+  pztLabel.position.set(0, -1.15, 0.55); scene.add(pztLabel);
+  reflector = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.06, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0xcfd8dc, metalness: 0.9, roughness: 0.2 }));
+  reflector.position.y = 0.8; scene.add(reflector);
+  const reflLabel = makeTextSprite('声波反射板', '#b0bec5', 0.9);
+  reflLabel.position.set(0, 1.1, 0); scene.add(reflLabel);
+  const cellLabel = makeTextSprite('液槽（超声光栅）', '#80d8ff', 1.4);
+  cellLabel.position.set(0, 1.55, 0); scene.add(cellLabel);
+
+  // ---- 观察屏（右侧） ----
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.2, 4.2),
+    new THREE.MeshStandardMaterial({ color: 0x0e1626, roughness: 0.9, metalness: 0 }));
+  screen.rotation.y = -Math.PI / 2;
+  screen.position.set(3.6, 0, 0);
+  scene.add(screen);
+  const screenFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 4.3, 4.3),
+    new THREE.MeshStandardMaterial({ color: 0x22304d, metalness: 0.5, roughness: 0.5 }));
+  screenFrame.position.set(3.63, 0, 0);
+  scene.add(screenFrame);
+
+  // ---- 衍射级次对象池：光束 + 屏上光斑 ----
+  for (const m of ORDERS) {
+    const group = new THREE.Group();
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.013, 0.013, 1, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    beam.rotation.z = -Math.PI / 2;      // 圆柱沿 +x 方向
+    group.add(beam);
+    scene.add(group);
+    const spot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.09, 24),
+      new THREE.MeshBasicMaterial({ color: 0xff8a80, transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    spot.rotation.y = -Math.PI / 2;
+    scene.add(spot);
+    orderObjs.push({ m, group, beam, spot });
+  }
+
+  // ---- 激光光子粒子池 ----
+  const pg = new THREE.SphereGeometry(0.045, 10, 10);
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({
+      color: 0xff5252, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.userData.phase = i / 12;
+    scene.add(m); photons.push(m);
+  }
+}
+
+/** 3D 每帧更新 */
+function updateScene3D(t) {
+  const on = state.srcOn;
+  const w = on ? Math.sin(2 * Math.PI * t / 4 * 2) : 0;   // 驻波时间因子 sin(ω_s t)
+
+  // PZT 脉动
+  pzt.scale.y = 1 + 0.35 * w;
+  pzt.material.emissiveIntensity = 0.3 + 0.4 * Math.abs(w);
+
+  // 驻波条纹：间距 ∝ Λ_s，相邻条纹反相，整体随 sinω_s t 脉动
+  const spacing = Math.min(0.14, Math.max(0.055, Lam() * 1200));
+  const n = Math.min(stripes.length, Math.floor(1.3 / spacing));
+  for (let i = 0; i < stripes.length; i++) {
+    const s = stripes[i];
+    if (i >= n || !on) { s.visible = false; continue; }
+    s.visible = true;
+    const y = (i - (n - 1) / 2) * spacing;
+    s.position.y = y;
+    const KZ = Math.sin(y * Math.PI / (spacing * 2));
+    s.material.opacity = Math.max(0.06, 0.3 + 0.42 * w * KZ);
+  }
+
+  // 衍射光束与光斑：dy = x_m = (m·k/2)，纵向放大 SCALE_Y 倍
+  const X0 = 0.62, X1 = 3.6, SPAN = X1 - X0;
+  const show = on && state.aligned;
+  const kM = slopeMM() / 1000;    // 斜率换算回米
+  for (const o of orderObjs) {
+    o.group.visible = show;
+    o.spot.visible = show;
+    if (!show) continue;
+    const dy = (o.m * kM / 2) * SCALE_Y;
+    const ang = Math.atan2(dy, SPAN);
+    const len = Math.hypot(dy, SPAN);
+    o.group.position.set(X0, 0, 0);
+    o.group.rotation.z = ang;
+    o.beam.scale.set(1, len, 1);
+    o.beam.position.set(len / 2, 0, 0);
+    o.spot.position.set(X1 - 0.015, dy, 0);
+    // 高亮当前观察级次；级次越高光强越弱
+    const hl = (state.obsM === Math.abs(o.m)) ? 1.7 : 1.0;
+    const fade = [0.9, 1.0, 0.65, 1.0, 0.9][ORDERS.indexOf(o.m)];
+    o.beam.material.opacity = (0.3 + 0.18 * Math.sin(t * 6 + o.m * 2)) * fade * hl * 0.8;
+    o.spot.scale.setScalar(hl * (0.85 + 0.2 * Math.sin(t * 5 + o.m)));
+    o.spot.material.opacity = Math.min(1, (0.55 + 0.35 * fade) * hl * 0.8);
+  }
+
+  // 激光光子流动
+  const pStart = new THREE.Vector3(-3.9, 0, 0), pEnd = new THREE.Vector3(-0.62, 0, 0);
+  photons.forEach((p, i) => {
+    const k = ((t * 0.4 + p.userData.phase) % 1);
+    p.position.lerpVectors(pStart, pEnd, k);
+    p.material.opacity = 0.9 * (0.75 + 0.25 * Math.sin(t * 8 + i * 2));
+  });
+}
+
+/* ================================================================
+ *  视口叠加图：x̂_m–m 直线（Canvas 2D，辅助读数）
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 340 * oDpr; overlayCanvas.height = 210 * oDpr;
+overlayCanvas.style.width = '340px'; overlayCanvas.style.height = '210px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+function renderCurve(ctx, x, y, w, h, xNow, xMin, xMax, yMax, fn, color, label, opt) {
+  opt = opt || {};
+  if (!(yMax > 0 && isFinite(yMax))) yMax = 1;         // 幅值守卫，兜底 1
+  if (!(xMax > xMin && isFinite(xMax - xMin))) { xMax = xMin + 1; }
+  ctx.fillStyle = 'rgba(10,16,28,0.85)';
+  ctx.strokeStyle = '#1d3252'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(41,210,255,0.12)';
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    ctx.moveTo(x + w * i / 4, y); ctx.lineTo(x + w * i / 4, y + h);
+    ctx.moveTo(x, y + h * i / 4); ctx.lineTo(x + w, y + h * i / 4);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#4a6a94';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h); ctx.stroke();
+  // 320 采样曲线
+  const N = 320;
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.shadowColor = color; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const xv = xMin + (xMax - xMin) * i / N;
+    let yv = fn(xv); if (!isFinite(yv)) yv = 0;
+    yv = Math.max(0, Math.min(yMax, yv));
+    const px = x + w * i / N, py = y + h - (yv / yMax) * h;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke(); ctx.shadowBlur = 0;
+  // 整数级次散点（已记录的高亮为绿色）
+  ctx.fillStyle = color;
+  for (let m = Math.max(0, Math.ceil(xMin)); m <= Math.floor(xMax); m++) {
+    let yv = fn(m); if (!isFinite(yv)) yv = 0;
+    yv = Math.max(0, Math.min(yMax, yv));
+    const py = y + h - (yv / yMax) * h;
+    ctx.fillStyle = state.records[m] !== undefined ? '#69f0ae' : color;
+    ctx.beginPath(); ctx.arc(x + w * (m - xMin) / (xMax - xMin), py, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  // 当前级次竖直虚线 + 白色游标点
+  const xn = Math.max(xMin, Math.min(xMax, xNow));
+  const cx = x + w * (xn - xMin) / (xMax - xMin);
+  let cyv = fn(xn); if (!isFinite(cyv)) cyv = 0;
+  cyv = Math.max(0, Math.min(yMax, cyv));
+  const cy = y + h - (cyv / yMax) * h;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx, y + h); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = color; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(label, x + 8, y + 17);
+  ctx.fillStyle = '#6fa8dc'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 4; i++) ctx.fillText((xMin + (xMax - xMin) * i / 4).toFixed(1), x + w * i / 4, y + h + 13);
+  if (opt.xLabel) { ctx.textAlign = 'right'; ctx.fillText(opt.xLabel, x + w, y + h + 24); }
+  if (opt.yLabel) { ctx.textAlign = 'left'; ctx.fillText(opt.yLabel, x + 2, y + 31); }
+}
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 340, 210);
+  const k = slopeMM();
+  // x̂_m–m 直线：斜率 k = 2Lλ/Λ_s，游标为当前观察级次
+  renderCurve(octx, 12, 26, 316, 156, state.obsM, 0, 2.5,
+    Math.max(1, 2.4 * k),
+    m => m * k, '#4dd0e1', '衍射光斑间距 x̂_m – 级次 m',
+    { xLabel: '级次 m', yLabel: 'x̂_m / mm' });
+}
+
+/* ================================================================
+ *  数据处理：最小二乘拟合 x̂_m–m（过原点），求 Λ_s 与 v
+ * ================================================================ */
+function drawFit() {
+  const cv = document.getElementById('fitChart');
+  const c = cv.getContext('2d');
+  const W = cv.width, Hh = cv.height;
+  c.clearRect(0, 0, W, Hh);
+  c.fillStyle = 'rgba(10,16,28,0.6)'; c.strokeStyle = '#1d3252';
+  c.beginPath(); c.rect(0, 0, W, Hh); c.fill(); c.stroke();
+  const px = 46, py = 16, pw = W - 66, ph2 = Hh - 52;
+  c.strokeStyle = 'rgba(41,210,255,0.12)';
+  c.beginPath();
+  for (let i = 0; i <= 5; i++) {
+    c.moveTo(px + pw * i / 5, py); c.lineTo(px + pw * i / 5, py + ph2);
+    c.moveTo(px, py + ph2 * i / 5); c.lineTo(px + pw, py + ph2 * i / 5);
+  }
+  c.stroke();
+  const mMax = 2.5;
+  const xPk = Math.max(1, 2.4 * slopeMM());
+  c.strokeStyle = '#4a6a94';
+  c.beginPath(); c.moveTo(px, py); c.lineTo(px, py + ph2); c.lineTo(px + pw, py + ph2); c.stroke();
+  c.fillStyle = '#6fa8dc'; c.font = '10px sans-serif'; c.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) c.fillText((mMax * i / 5).toFixed(1), px + pw * i / 5, py + ph2 + 14);
+  c.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) c.fillText((xPk * i / 4).toFixed(1), px - 5, py + ph2 - ph2 * i / 4 + 3);
+  c.textAlign = 'left'; c.fillText('x̂_m/mm', px + 4, py + 12);
+  c.textAlign = 'right'; c.fillText('级次 m', px + pw, py + ph2 + 26);
+
+  // 理论直线（虚线参考）：x̂_m = m·k理
+  const kTh = slopeMM();
+  c.strokeStyle = 'rgba(255,213,79,0.4)'; c.setLineDash([5, 5]);
+  c.beginPath();
+  c.moveTo(px, py + ph2);
+  c.lineTo(px + pw, py + ph2 - Math.min(1, kTh * mMax / xPk) * ph2);
+  c.stroke(); c.setLineDash([]);
+
+  // 实验数据点 + 过原点最小二乘拟合：k = Σ(m·x)/Σ(m²)
+  const entries = Object.entries(state.records).map(([m, x]) => ({ m: +m, x }));
+  if (entries.length) {
+    c.fillStyle = '#4dd0e1';
+    entries.forEach(p => {
+      const X = px + pw * p.m / mMax;
+      const Y = py + ph2 - Math.min(1, p.x / xPk) * ph2;
+      c.beginPath(); c.arc(X, Y, 4.5, 0, Math.PI * 2); c.fill();
+    });
+    if (entries.length >= 2) {
+      const num = entries.reduce((s, p) => s + p.m * p.x, 0);
+      const den = entries.reduce((s, p) => s + p.m * p.m, 0);
+      const k = num / den;
+      c.strokeStyle = '#4dd0e1'; c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(px, py + ph2);
+      c.lineTo(px + pw, py + ph2 - Math.min(1, k * mMax / xPk) * ph2);
+      c.stroke(); c.lineWidth = 1;
+    }
+  }
+}
+
+function updateFitResult() {
+  const entries = Object.entries(state.records).map(([m, x]) => ({ m: +m, x }));
+  if (entries.length < 2) {
+    $('fK').textContent = '--'; $('fLam').textContent = '--';
+    $('fV').textContent = '--'; $('fE').textContent = '--';
+    $('fitMsg').textContent = '至少记录 m=1、2 两个级次后即可拟合。';
+    return;
+  }
+  const num = entries.reduce((s, p) => s + p.m * p.x, 0);
+  const den = entries.reduce((s, p) => s + p.m * p.m, 0);
+  const k = num / den;                        // 拟合斜率 mm/级 = x̂₁
+  const lam = 2 * state.L * (LASER_NM * 1e-9) / (k / 1000);   // Λ_s = 2Lλ/k (m)
+  const v = lam * state.fs * 1e6;             // v = Λ_s·f_s
+  const vTh = soundV();
+  const err = Math.abs(v - vTh) / vTh;
+  $('fK').textContent = k.toFixed(3) + ' mm/级';
+  $('fLam').textContent = (lam * 1000).toFixed(4) + ' mm';
+  $('fV').textContent = v.toFixed(1) + ' m/s';
+  $('fE').textContent = (err * 100).toFixed(2) + ' %';
+  $('fitMsg').textContent = '已拟合 ' + entries.length + ' 个数据点：Λ_s = 2Lλ/k，v = Λ_s·f_s，与温修理论值 ' +
+    vTh.toFixed(1) + ' m/s 比较。';
+}
+
+/* ================================================================
+ *  UI 逻辑：标签页、步骤打勾、记录表、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldFs = $('sldFs'), sldTemp = $('sldTemp'), sldL = $('sldL');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/** 步骤自动打勾状态机 */
+function updateSteps() {
+  const recCount = Object.keys(state.records).length;
+  $('st1').classList.toggle('done', state.srcOn);
+  $('st2').classList.toggle('done', state.srcOn && !!state.liquid);
+  $('st3').classList.toggle('done', state.aligned);
+  $('st4').classList.toggle('done', recCount >= 1);
+  $('st5').classList.toggle('done', recCount >= 2);
+}
+
+function renderTable() {
+  const tb = $('tbody');
+  tb.innerHTML = [1, 2].map(m => {
+    const rec = state.records[m];
+    const sinT = rec !== undefined ? (rec / 1000 / (2 * state.L)).toFixed(5) : '—';
+    return '<tr><td>m = ±' + m + '</td><td class="' + (rec === undefined ? 'empty' : '') + '">' +
+      (rec === undefined ? '—' : rec.toFixed(3)) + '</td><td>' + sinT + '</td></tr>';
+  }).join('');
+}
+
+/** 每帧刷新读数类 UI（轻量 DOM 写入） */
+function updateReadouts() {
+  const ready = state.srcOn && state.aligned;
+  // 模拟测微目镜读数：理论值 + 轻微读数抖动
+  const xm = ready ? xhatM(state.obsM) + (Math.random() - 0.5) * 0.004 : 0;
+  $('hudX').textContent = ready ? xm.toFixed(3) + ' mm' : '-- mm';
+  $('hudFs').textContent = 'f_s = ' + state.fs.toFixed(1) + ' MHz ｜ Λ_s = ' +
+    (Lam() * 1000).toFixed(4) + ' mm';
+  $('rXm').textContent = ready ? xm.toFixed(3) + ' mm (m=' + state.obsM + ')' : '--';
+  $('rLam').textContent = (Lam() * 1000).toFixed(4) + ' mm';
+  $('rV').textContent = soundV().toFixed(1) + ' m/s';
+  const st = $('rSt');
+  if (!state.srcOn) { st.textContent = '信号源未开'; st.className = 'v warn'; }
+  else if (!state.aligned) { st.textContent = '待调垂直入射'; st.className = 'v warn'; }
+  else { st.textContent = '✓ 驻波光栅清晰'; st.className = 'v ok'; }
+  $('btnRec').disabled = !(ready && state.obsM >= 1);
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 超声信号源开关
+$('btnSrc').addEventListener('click', () => {
+  state.srcOn = !state.srcOn;
+  $('btnSrc').textContent = state.srcOn ? '关闭信号源' : '打开信号源';
+  $('btnSrc').classList.toggle('primary', !state.srcOn);
+  $('srcState').textContent = state.srcOn ? '（已开机，输出 ' + state.fs.toFixed(1) + ' MHz）' : '（信号源未开）';
+  $('btnAlign').disabled = !state.srcOn;
+  $('alignInfo').textContent = state.srcOn
+    ? '请点击上方按钮微调平台，使衍射光斑出现且最亮。'
+    : '信号源开启后才能进行平台微调。';
+  if (!state.srcOn) state.aligned = false;
+  updateSteps();
+  toast(state.srcOn ? '信号源已开机，请微调平台使光垂直入射' : '信号源已关闭');
+});
+
+// 液体与温度（更换液体将使已有记录失效：v 随液体改变）
+$('selLiquid').addEventListener('change', e => {
+  state.liquid = e.target.value;
+  if (!state.liquid) { updateSteps(); return; }
+  if (Object.keys(state.records).length) {
+    state.records = {};
+    renderTable(); updateSteps(); drawFit(); updateFitResult();
+    toast('⚠ 液体已更换为 ' + LIQUIDS[state.liquid].name + '，原有记录已清空，请重新测量');
+  } else {
+    toast('已选择液体：' + LIQUIDS[state.liquid].name + '（v₂₀ = ' + LIQUIDS[state.liquid].v20 + ' m/s）');
+  }
+  updateSteps();
+});
+/* 温度/频率/液槽距离改变会使已记录的 x̂_m 失效（x̂_m = m·λf_s·L/v，均含这些量） */
+function invalidateRecords(why) {
+  if (!Object.keys(state.records).length) return;
+  state.records = {};
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('⚠ ' + why + '，原有记录已清空，请重新测量');
+}
+sldTemp.addEventListener('input', () => {
+  state.temp = +sldTemp.value;
+  $('labTemp').textContent = state.temp;
+  invalidateRecords('温度已改变');
+});
+sldFs.addEventListener('input', () => {
+  state.fs = +sldFs.value;
+  $('labFs').textContent = state.fs.toFixed(1);
+  invalidateRecords('工作频率已改变');
+});
+sldL.addEventListener('input', () => {
+  state.L = +sldL.value;
+  $('labL').textContent = state.L.toFixed(2);
+  invalidateRecords('液槽—光屏距离已改变');
+});
+
+// 平台微调（垂直入射，步骤③）
+$('btnAlign').addEventListener('click', () => {
+  if (!state.srcOn) return;
+  state.aligned = true;
+  $('btnAlign').classList.add('green');
+  $('btnAlign').textContent = '✓ 已调至垂直入射';
+  $('alignInfo').textContent = '衍射光斑已出现，可在光屏上读 x̂_m。';
+  updateSteps();
+  toast('✓ 光路已调垂直，驻波光栅清晰，可开始测量');
+});
+
+// 观察级次切换
+document.querySelectorAll('.btn.order').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.obsM = +btn.dataset.m;
+    document.querySelectorAll('.btn.order').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
+
+// 记录当前级次 x̂_m（读取实时读数，含测量误差）
+$('btnRec').addEventListener('click', () => {
+  if (!(state.srcOn && state.aligned)) { toast('⚠ 请先开机并调垂直入射'); return; }
+  if (state.obsM < 1) { toast('⚠ 请先选择 m=±1 或 m=±2 级'); return; }
+  const val = +(xhatM(state.obsM) * (1 + (Math.random() - 0.5) * 0.01)).toFixed(3);
+  state.records[state.obsM] = val;
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('✓ 已记录 m=±' + state.obsM + ' 的 x̂_m = ' + val.toFixed(3) + ' mm');
+});
+$('btnClr').addEventListener('click', () => {
+  state.records = {};
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('已清空记录');
+});
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.srcOn = true; state.aligned = true; state.obsM = 1;
+  $('btnSrc').textContent = '关闭信号源';
+  $('srcState').textContent = '（已开机，输出 ' + state.fs.toFixed(1) + ' MHz）';
+  $('btnAlign').disabled = false;
+  $('btnAlign').classList.add('green');
+  $('btnAlign').textContent = '✓ 已调至垂直入射';
+  $('alignInfo').textContent = '衍射光斑已出现，可在光屏上读 x̂_m。';
+  [1, 2].forEach(m => {
+    state.records[m] = +(xhatM(m) * (1 + (Math.random() - 0.5) * 0.01)).toFixed(3);
+  });
+  document.querySelectorAll('.btn.order').forEach(b =>
+    b.classList.toggle('active', +b.dataset.m === 1));
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('⚡ 示例流程已完成：m=1、2 数据已记录，请到「数据处理」查看');
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  state.srcOn = false; state.aligned = false; state.records = {};
+  state.obsM = 1; state.fs = 8.0; state.temp = 20; state.L = 0.6;
+  sldFs.value = 8; $('labFs').textContent = '8.0';
+  sldTemp.value = 20; $('labTemp').textContent = '20';
+  sldL.value = 0.6; $('labL').textContent = '0.60';
+  $('btnSrc').textContent = '打开信号源'; $('btnSrc').classList.add('primary');
+  $('srcState').textContent = '（信号源未开）';
+  $('btnAlign').disabled = true; $('btnAlign').classList.remove('green');
+  $('btnAlign').textContent = '微调平台：使激光垂直入射';
+  $('alignInfo').textContent = '信号源开启后才能进行平台微调。';
+  document.querySelectorAll('.btn.order').forEach(b =>
+    b.classList.toggle('active', +b.dataset.m === 1));
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  updateScene3D(state.t);
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+  updateReadouts();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+onResize();
+updateScene3D(0);
+renderer.render(scene, camera);
+renderTable();
+updateSteps();
+updateFitResult();
+animate();
+</script>
+<!-- end of file -->
+</html>

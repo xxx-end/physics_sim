@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验29 · 用分光计测量三棱镜折射率 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 记录表格 */
+  table.rec { width: 100%; border-collapse: collapse; font-size: 11px; color: #a9c6e8; }
+  table.rec th, table.rec td { border: 1px solid #1d3252; padding: 4px 5px; text-align: center; }
+  table.rec th { color: #7fd7ff; background: rgba(21, 101, 192, 0.15); font-weight: 600; }
+  table.rec td.val { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+  table.rec td.val.ok { color: #69f0ae; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.dark { background: #1a1a2e; border-color: #5c5c8a; color: #c5c5e8; }
+
+  /* 视口叠加层 */
+  #hudPanel { position: absolute; bottom: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #hudPanel .big { font-size: 20px; color: #7fd7ff; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #hudPanel .row { margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); cursor: pointer; }
+  #hint { position: absolute; bottom: 14px; right: 14px;
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验29 · 用分光计测量三棱镜折射率</h1>
+    <div class="sub">汞灯 + 三棱镜 + 分光计 ｜ 自准直法测顶角 A ｜ 最小偏向角法 n = sin[(A+δmin)/2]/sin(A/2) ｜ ⚠ 勿触摸三棱镜反射面，勿直视汞灯强光</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">分光计调节</button>
+        <button data-p="p3">测量记录</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾，达成后锁定）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开汞灯及电源，预热</span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 调整分光计（望远镜光轴垂直于仪器中心轴）</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 自准直法测顶角：望远镜分别对准 AB、AC 面小十字像读数，A = 180° − φ</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 转动载物台观察谱线逆转，对准黄光最小偏向角位置，记录 3 次读数</span></div>
+          <div class="step" id="st5"><span class="box"></span><span>⑤ 计算黄光折射率 n，并与标准值比较求相对误差</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>顶角测量（自准直法）：固定望远镜，转动载物台，使三棱镜 AB 面反射的小十字像与分划板"十"叉丝上交点重合，记下游标读数；同理记下 AC 面。</li>
+            <li>最小偏向角：三棱镜置于载物台，入射角约 60°；缓慢转动载物台，谱线移动方向<b>发生逆转</b>的位置即最小偏向角；在该谱线将发生逆转处固定载物台，用望远镜微调对准谱线中央读数。</li>
+            <li>移去三棱镜后望远镜对准平行光管（入射光位置），两读数之差即最小偏向角。</li>
+            <li>重复测量 3 次取平均，可减小随机误差。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 分光计调节 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>汞灯电源</h3>
+          <button id="btnLamp" class="btn primary">打开汞灯</button>
+          <span id="lampState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（汞灯未开）</span>
+        </div>
+        <div class="card">
+          <h3>调整分光计</h3>
+          <button id="btnAdjust" class="btn">调整分光计（望远镜光轴⊥中心轴）</button>
+          <p id="adjustInfo" style="margin-top:6px;">调整完毕的标志：由平行光管射出的平行光能准确成像于望远镜焦平面。</p>
+        </div>
+        <div class="card">
+          <h3>载物台与望远镜</h3>
+          <div class="slider-row">
+            <div class="lab"><span>载物台转角 t (°)</span><b id="labTable">0.0</b></div>
+            <input type="range" id="sldTable" min="-20" max="20" step="0.5" value="0">
+          </div>
+          <div class="slider-row">
+            <div class="lab"><span>望远镜方位角 φ_scope (°)</span><b id="labScope">0.0</b></div>
+            <input type="range" id="sldScope" min="-70" max="70" step="0.1" value="0">
+          </div>
+          <p id="scopeInfo">顶角测量时对准 AB(−60°)/AC(+60°) 面法线；测偏向角时追踪黄光谱线（约 +51°）。</p>
+        </div>
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">当前对准目标</div><div class="v" id="rTarget">--</div></div>
+            <div class="data-cell"><div class="k">当前谱线偏向角 δ</div><div class="v" id="rDelta">--</div></div>
+            <div class="data-cell"><div class="k">顶角 A</div><div class="v" id="rA">未测</div></div>
+            <div class="data-cell"><div class="k">偏向角读数次数</div><div class="v" id="rN">0 / 3</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 测量记录 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>记录读数</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btnRecFace" class="btn green">记录当前反射面读数（测顶角）</button>
+            <button id="btnRecDelta" class="btn green">记录本次偏向角读数（黄光）</button>
+            <button id="btnClear" class="btn dark">清空记录</button>
+          </div>
+          <p id="recInfo">顶角：对准 AB/AC 面小十字像（±60° 附近）各记一次；偏向角：找到谱线逆转位置后对准黄光谱线记录。</p>
+        </div>
+        <div class="card">
+          <h3>表 2.29.1　三棱镜顶角测定（自准直法）</h3>
+          <table class="rec">
+            <tr><th>反射面 AB (°)</th><th>反射面 AC (°)</th><th>φ (°)</th><th>A = 180° − φ (°)</th></tr>
+            <tr><td class="val" id="fAB">--</td><td class="val" id="fAC">--</td><td class="val" id="fPhi">--</td><td class="val" id="fA">--</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>表 2.29.2　测量三棱镜的最小偏向角（黄光）</h3>
+          <table class="rec">
+            <tr><th>测量次数</th><th>1</th><th>2</th><th>3</th></tr>
+            <tr><td>δmin (°)</td><td class="val" id="d1">--</td><td class="val" id="d2">--</td><td class="val" id="d3">--</td></tr>
+            <tr><td>δ̄min (°)</td><td class="val" id="dAvg" colspan="3">--</td></tr>
+            <tr><td>n</td><td class="val" id="nAvg" colspan="3">--</td></tr>
+            <tr><td>Δn/n</td><td class="val" id="nErr" colspan="3">--</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>折射率计算</h3>
+          <span class="formula">n = sin[(A + δ̄min)/2] / sin(A/2)　(2.29.7)</span>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">顶角 A (°)</div><div class="v" id="cA">--</div></div>
+            <div class="data-cell"><div class="k">δ̄min (°)</div><div class="v" id="cD">--</div></div>
+            <div class="data-cell"><div class="k">测得 n（黄光）</div><div class="v" id="cN">--</div></div>
+            <div class="data-cell"><div class="k">相对误差 Δn/n</div><div class="v" id="cE">--</div></div>
+          </div>
+          <p id="cInfo" style="margin-top:6px;">标准值 n标 = 1.6500（黄光）。顶角与三次偏向角记录齐全后自动计算；若记录时偏离最小偏向角位置，n 将明显偏离标准值。</p>
+        </div>
+        <div class="card">
+          <h3>思考题</h3>
+          <p>（1）分光计是一种精确测量<b>角度</b>的典型光学仪器，主要由平行光管、望远镜、载物台和读数度盘（游标）四部分组成。</p>
+          <p>（2）调节望远镜光轴垂直于仪器中心轴的标志：从 AB、AC 两反射面反射回的小十字像均与分划板"十"叉丝上交点重合（各半调节法）。</p>
+          <p>（3）十字像不清晰→调节目镜（叉丝清晰）再调物镜（调焦）；狭缝像不清晰→调平行光管狭缝前后位置使其成像于望远镜焦平面。</p>
+          <p>（4）最小偏向角：偏向角随入射角变化存在极小值 δmin，此时光线对称通过棱镜（i₁=i₂）；n 与 δmin、A 的关系即式 (2.29.7)。</p>
+          <p>（5）应缓慢单向转动载物台，观察谱线移动方向发生逆转的时刻来确定。若偏离真实位置，δmin 偏大，由式 (2.29.7) 算得的 n 偏大，产生系统误差。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>背景简介</h3>
+          <p>1814 年，夫琅禾费在研究太阳暗线时改进了观察仪器，设计了由平行光管、三棱镜、望远镜组成的分光计——一种精确测量角度的精密典型仪器。三棱镜是用玻璃或水晶制成的透明三棱柱，是实验中重要的分光元件。利用光线在三棱镜面上折射产生的最小偏向角测量棱镜折射率是一种经典方法，可达较高精度。</p>
+        </div>
+        <div class="card">
+          <h3>三棱镜的色散</h3>
+          <p>三角形 ABC 表示三棱镜横截面，AB 和 AC 是透光的光学表面（折射面），A 为顶角。入射光沿光路折射后从另一侧射出，入射光和出射光之间的夹角即偏向角 δ。由于白光由多种频率的单色光组成，各色光折射率不同，出射光出现不同偏向角：频率越高，偏向角越大，形成<b>红到紫的可见光谱</b>，即三棱镜的色散现象。</p>
+        </div>
+        <div class="card">
+          <h3>最小偏向角法测折射率</h3>
+          <p>对单色光，偏向角 δ = (i₁−r₁)+(i₂−r₂) = i₁+i₂−A。对给定棱镜，A 与其对某单色光的折射率一定，δ 只随入射角 i₁ 变化。对其求导并取 di₁/dδ = −1（极值条件），结合折射定律可证：只有当 <b>i₁ = i₂</b>（光线对称通过棱镜）时偏向角取最小值 δmin，此时：</p>
+          <span class="formula">δmin = 2i₁ − A，i₁ = (δmin + A)/2　(2.29.6)</span>
+          <p>由 A = r₁+r₂ = 2r₁ 与折射定律 sin i₁ = n sin r₁ 得：</p>
+          <span class="formula">n = sin[(A + δmin)/2] / sin(A/2)　(2.29.7)</span>
+          <p>只要测得顶角 A 和最小偏向角 δmin，即可求出三棱镜对该单色光的折射率。</p>
+        </div>
+        <div class="card">
+          <h3>实验仪器与注意事项</h3>
+          <ul>
+            <li>仪器：汞灯及电源、三棱镜、分光计。</li>
+            <li>不能用手直接触摸三棱镜反射面。</li>
+            <li>汞灯紫外线较强、亮度高，不要直接注视汞灯，防止伤害眼睛。</li>
+            <li>转动部件前先松开止动螺钉，读数前锁紧；游标盘的对称双游标读数可消除偏心差。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>实验拓展</h3>
+          <p>玻璃的折射率可以用多种方法和仪器测定。利用分光计不但能直接测出反射角、透明物质的折射角、光栅的衍射角、劈尖的角等，还能间接确定折射率、光波波长、色散率、光栅常量等。此外，分光计还可用作多种光学现象的定性观察（衍射、干涉），检验棱镜的棱角是否合格、玻璃砖两表面是否平行等。</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="hudPanel">
+        分光计状态
+        <div class="big" id="hudDelta">δ = --°</div>
+        <div class="row" id="hudTarget">对准：--</div>
+        <div class="row" id="hudN">n = 未测</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 转动载物台观察黄光谱线逆转 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const FACE_AB = -60;                 // AB 面法线方位角 °
+const FACE_AC = 60;                  // AC 面法线方位角 °
+const A_STD = 60;                    // 顶角标准值 °
+const N_STD = 1.6500;                // 黄光折射率标准值
+const DELTA0 = 2 * Math.asin(N_STD * Math.sin(A_STD / 2 * Math.PI / 180)) * 180 / Math.PI - A_STD;  // 真实 δmin ≈ 51.18°
+const FACE_TOL = 0.5, LINE_TOL = 0.3;
+
+const state = {
+  lampOn: false,
+  adjusted: false,                    // 分光计已调整
+  step2Done: false,                   // 步骤②达成后锁定保持
+  step3Done: false,                   // 步骤③达成后锁定保持
+  tableAng: 0,                        // 载物台转角 °
+  scope: 0,                           // 望远镜方位角 °
+  recFace: { AB: null, AC: null },    // 两反射面自准直读数
+  recDelta: [],                       // 偏向角记录 [{t, d}]
+  panelMin: false,
+  t: 0,
+  lastTime: performance.now()         // 时间源：模块加载时刻
+};
+
+/** 载物台转角 t 下的谱线偏向角 δ(t)：抛物线形，t=0 处最小 */
+function deltaOf(t) { return DELTA0 + 0.025 * t * t; }
+/** 当前望远镜对准的反射面：'AB' | 'AC' | null */
+function alignedFace() {
+  if (Math.abs(state.scope - FACE_AB) < FACE_TOL) return 'AB';
+  if (Math.abs(state.scope - FACE_AC) < FACE_TOL) return 'AC';
+  return null;
+}
+/** 望远镜是否对准黄光谱线 */
+function lineAligned() {
+  return Math.abs(state.scope - deltaOf(state.tableAng)) < LINE_TOL;
+}
+/** 由顶角与偏向角记录算折射率 */
+function calcN(A, d) {
+  return Math.sin((A + d) / 2 * Math.PI / 180) / Math.sin(A / 2 * Math.PI / 180);
+}
+/** 顶角 A（两面都记录后有效），否则 null */
+function apexAngle() {
+  const r = state.recFace;
+  return (r.AB !== null && r.AC !== null) ? 180 - Math.abs(r.AB - r.AC) : null;
+}
+
+/* ================================================================
+ *  Three.js 3D 场景：分光计（底座度盘、平行光管、汞灯、
+ *  载物台三棱镜、可转动望远镜）与色散光谱
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let telescope, scopeLabel, prism, lampGlow;
+const fanBeams = [];          // 色散光谱扇（红→紫，含黄主光束）
+let yellowBeam, incidentBeam;
+const _dir = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+/** 将圆柱光束对齐到 a→b（方向守卫：先归一化且长度 > 1e-6） */
+function setBeam(mesh, a, b) {
+  const d = new THREE.Vector3().subVectors(b, a);
+  const len = d.length();
+  mesh.scale.set(1, len, 1);
+  if (len > 1e-6) {
+    _dir.copy(d).normalize();
+    mesh.quaternion.setFromUnitVectors(_up, _dir);
+    mesh.position.copy(a).addScaledVector(_dir, len / 2);
+  }
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 15, 36);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(3.4, 4.4, 7.6);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.2, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 2.5; controls.maxDistance = 20;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.5));
+  const pt = new THREE.PointLight(0xffffff, 55, 40);
+  pt.position.set(0, 5, 2); scene.add(pt);
+
+  // ---- 分光计底座 + 度盘 ----
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.0, 3.2, 0.14, 48),
+    new THREE.MeshStandardMaterial({ color: 0x14203a, metalness: 0.55, roughness: 0.5 }));
+  base.position.y = -1.14; scene.add(base);
+  const dial = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.6, 2.6, 0.05, 64),
+    new THREE.MeshStandardMaterial({ color: 0x1d2c4d, metalness: 0.6, roughness: 0.4 }));
+  dial.position.y = -1.02; scene.add(dial);
+  const dialRing = new THREE.Mesh(
+    new THREE.RingGeometry(2.35, 2.6, 64),
+    new THREE.MeshBasicMaterial({ color: 0x2e5c96, side: THREE.DoubleSide }));
+  dialRing.rotation.x = -Math.PI / 2; dialRing.position.y = -0.99; scene.add(dialRing);
+
+  // ---- 汞灯 + 平行光管（沿 −z 指向中心） ----
+  const lamp = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.4, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x3fae7a, emissive: 0x2e8b57,
+      emissiveIntensity: 0.25, roughness: 0.4 }));
+  lamp.position.set(0, 0.35, -3.8);
+  scene.add(lamp);
+  lampGlow = lamp;
+  const lampLabel = makeTextSprite('汞灯（勿直视）', '#8ef0b8', 1.1);
+  lampLabel.position.set(0, 0.95, -3.8); scene.add(lampLabel);
+
+  const collimator = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.14, 1.6, 20),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.35 }));
+  collimator.rotation.x = Math.PI / 2;
+  collimator.position.set(0, 0.35, -2.6);
+  scene.add(collimator);
+  const collLabel = makeTextSprite('平行光管（狭缝）', '#80d8ff', 1.2);
+  collLabel.position.set(0, 0.95, -2.6); scene.add(collLabel);
+
+  // ---- 载物台 + 三棱镜（三棱柱，顶角朝向平行光管） ----
+  const stage = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.55, 0.08, 24),
+    new THREE.MeshStandardMaterial({ color: 0x22304d, metalness: 0.5, roughness: 0.5 }));
+  stage.position.set(0, -0.55, 0); scene.add(stage);
+  prism = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.55, 0.55, 3),
+    new THREE.MeshPhysicalMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.5,
+      roughness: 0.05, transmission: 0.65, metalness: 0, side: THREE.DoubleSide }));
+  prism.position.set(0, 0.35, 0.15);
+  prism.rotation.y = Math.PI;                 // 顶角 A 朝向 −z（平行光管一侧）
+  scene.add(prism);
+  const prismLabel = makeTextSprite('三棱镜 (A=60°)', '#a7ffeb', 1.1);
+  prismLabel.position.set(0, 1.1, 0.15); scene.add(prismLabel);
+
+  // ---- 望远镜（可绕主轴转动，0° 指向 +z） ----
+  telescope = new THREE.Group();
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.13, 0.15, 1.6, 20),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.35 }));
+  tube.rotation.x = Math.PI / 2;
+  tube.position.z = 0.9;
+  telescope.add(tube);
+  const eyepiece = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.1, 0.3, 16),
+    new THREE.MeshStandardMaterial({ color: 0x22304d, metalness: 0.6, roughness: 0.4 }));
+  eyepiece.rotation.x = Math.PI / 2;
+  eyepiece.position.z = 1.85;
+  telescope.add(eyepiece);
+  telescope.position.set(0, 0.35, 0);
+  scene.add(telescope);
+  scopeLabel = makeTextSprite('望远镜', '#80cbc4', 0.7);
+  scene.add(scopeLabel);
+
+  // ---- 入射光束 ----
+  incidentBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 1, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.22,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  incidentBeam.visible = false; scene.add(incidentBeam);
+
+  // ---- 色散光谱扇：红→紫 5 束弱光 + 黄主光束（可记录） ----
+  const fanColors = [
+    { hex: 0xff5a5a, off: -5.0 },
+    { hex: 0xffa94d, off: -3.4 },
+    { hex: 0x51d06a, off: -1.9 },
+    { hex: 0x5b7cff, off: -0.6 }
+  ];
+  fanColors.forEach(fc => {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 1, 10, 1, true),
+      new THREE.MeshBasicMaterial({ color: fc.hex, transparent: true, opacity: 0.1,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.userData = { off: fc.off };
+    m.visible = false;
+    scene.add(m); fanBeams.push(m);
+  });
+  yellowBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 1, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.3,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  yellowBeam.visible = false; scene.add(yellowBeam);
+}
+
+/** 元件与光路每帧更新 */
+function updateScene3D(t) {
+  const on = state.lampOn;
+
+  // 载物台（三棱镜）转动
+  prism.rotation.y = Math.PI - state.tableAng * Math.PI / 180;
+
+  // 望远镜转动 + 标注跟随
+  telescope.rotation.y = state.scope * Math.PI / 180;
+  scopeLabel.position.set(
+    Math.sin(state.scope * Math.PI / 180) * 2.15, 0.9,
+    Math.cos(state.scope * Math.PI / 180) * 2.15);
+
+  // 入射光
+  incidentBeam.visible = on;
+  if (on) setBeam(incidentBeam, new THREE.Vector3(0, 0.35, -3.2), new THREE.Vector3(0, 0.35, 0.15));
+
+  // 色散光谱扇与黄主光束：方向 = 当前偏向角 δ(t)
+  const d = deltaOf(state.tableAng);
+  fanBeams.forEach(b => {
+    b.visible = on;
+    if (on) {
+      const a = (d + b.userData.off) * Math.PI / 180;
+      setBeam(b, new THREE.Vector3(0, 0.35, 0.15),
+        new THREE.Vector3(Math.sin(a) * 2.2, 0.35, Math.cos(a) * 2.2));
+    }
+  });
+  yellowBeam.visible = on;
+  if (on) {
+    const a = d * Math.PI / 180;
+    setBeam(yellowBeam, new THREE.Vector3(0, 0.35, 0.15),
+      new THREE.Vector3(Math.sin(a) * 2.4, 0.35, Math.cos(a) * 2.4));
+    yellowBeam.material.opacity = lineAligned() ? 0.55 : 0.3;
+  }
+
+  // 汞灯辉光脉动
+  lampGlow.material.emissiveIntensity = on ? 0.5 + 0.2 * Math.sin(t * 3) : 0.25;
+}
+
+/* ================================================================
+ *  视口叠加图：δ(t) 偏向角曲线 + 逆转点标记 + 记录散点 + 游标
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 320 * oDpr; overlayCanvas.height = 190 * oDpr;
+overlayCanvas.style.width = '320px'; overlayCanvas.style.height = '190px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+const CH = { x: 44, y: 16, w: 250, h: 140, tMin: -20, tMax: 20, dMin: 50, dMax: 62 };
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 320, 190);
+  // 半透明面板底色，避免遮挡 3D 模型
+  octx.fillStyle = 'rgba(10,16,28,0.6)';
+  octx.strokeStyle = '#1d3252';
+  octx.beginPath(); octx.rect(0, 0, 320, 190); octx.fill(); octx.stroke();
+  octx.fillStyle = '#7fd7ff'; octx.font = 'bold 11px sans-serif'; octx.textAlign = 'left';
+  octx.fillText('偏向角 δ 随载物台转角 t 的变化（找逆转点）', 12, 13);
+
+  const px = tv => CH.x + CH.w * (tv - CH.tMin) / (CH.tMax - CH.tMin);
+  const py = dv => CH.y + CH.h * (1 - (dv - CH.dMin) / (CH.dMax - CH.dMin));
+
+  // 网格与坐标轴
+  octx.strokeStyle = 'rgba(41,210,255,0.12)';
+  octx.beginPath();
+  for (let tv = -15; tv <= 15; tv += 5) { octx.moveTo(px(tv), CH.y); octx.lineTo(px(tv), CH.y + CH.h); }
+  for (let dv = 52; dv <= 60; dv += 2) { octx.moveTo(CH.x, py(dv)); octx.lineTo(CH.x + CH.w, py(dv)); }
+  octx.stroke();
+  octx.strokeStyle = '#2e5c96';
+  octx.beginPath();
+  octx.moveTo(CH.x, CH.y); octx.lineTo(CH.x, CH.y + CH.h); octx.lineTo(CH.x + CH.w, CH.y + CH.h);
+  octx.stroke();
+  octx.fillStyle = '#6fa8dc'; octx.font = '10px sans-serif';
+  for (let tv = -20; tv <= 20; tv += 10) octx.fillText(String(tv), px(tv) - 8, CH.y + CH.h + 14);
+  for (let dv = 50; dv <= 62; dv += 3) octx.fillText(String(dv), CH.x - 22, py(dv) + 4);
+  octx.fillText('t / °', CH.x + CH.w - 22, CH.y + CH.h + 28);
+  octx.save(); octx.translate(12, CH.y + 60); octx.rotate(-Math.PI / 2);
+  octx.fillText('δ / °', -10, 0); octx.restore();
+
+  // δ(t) 抛物线（逆转点在 t=0）
+  octx.strokeStyle = '#4dd0e1'; octx.lineWidth = 1.6; octx.beginPath();
+  for (let i = 0; i <= 320; i++) {
+    const tv = CH.tMin + (CH.tMax - CH.tMin) * i / 320;
+    if (i === 0) octx.moveTo(px(tv), py(deltaOf(tv))); else octx.lineTo(px(tv), py(deltaOf(tv)));
+  }
+  octx.stroke(); octx.lineWidth = 1;
+  // 最小偏向角逆转点标记
+  octx.fillStyle = '#69f0ae';
+  octx.beginPath(); octx.arc(px(0), py(DELTA0), 4, 0, Math.PI * 2); octx.fill();
+  octx.fillText('δmin 逆转点', px(0) + 8, py(DELTA0) - 6);
+
+  // 已记录散点
+  for (const r of state.recDelta) {
+    octx.fillStyle = '#ffd54f';
+    octx.strokeStyle = '#69f0ae';
+    octx.beginPath(); octx.arc(px(r.t), py(r.d), 4.5, 0, Math.PI * 2); octx.fill(); octx.stroke();
+  }
+
+  // 当前载物台位置游标
+  octx.strokeStyle = 'rgba(255,255,255,0.55)';
+  octx.setLineDash([4, 4]);
+  octx.beginPath();
+  octx.moveTo(px(state.tableAng), CH.y);
+  octx.lineTo(px(state.tableAng), CH.y + CH.h);
+  octx.stroke();
+  octx.setLineDash([]);
+  octx.fillStyle = '#ffd54f';
+  octx.beginPath(); octx.arc(px(state.tableAng), py(deltaOf(state.tableAng)), 3.5, 0, Math.PI * 2); octx.fill();
+
+  octx.fillStyle = '#4a6a94'; octx.font = '9px sans-serif'; octx.textAlign = 'right';
+  octx.fillText('点击面板可收起', 310, 183);
+}
+
+/* ================================================================
+ *  UI 逻辑：步骤锁定打勾、记录状态机、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldTable = $('sldTable'), sldScope = $('sldScope');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/** 步骤自动打勾状态机（②③为一次性操作，达成后锁定保持） */
+function updateSteps() {
+  if (state.adjusted) state.step2Done = true;
+  const A = apexAngle();
+  if (A !== null && Math.abs(A - A_STD) <= 0.5) state.step3Done = true;
+  $('st1').classList.toggle('done', state.lampOn);
+  $('st2').classList.toggle('done', state.step2Done);
+  $('st3').classList.toggle('done', state.step3Done);
+  $('st4').classList.toggle('done', state.recDelta.length >= 3);
+  // 第⑤步：顶角与 3 次偏向角齐全即视为完成（n 随之自动算出）
+  $('st5').classList.toggle('done', state.step3Done && state.recDelta.length >= 3);
+}
+
+/** 每帧刷新读数类 UI */
+function updateReadouts() {
+  const d = deltaOf(state.tableAng);
+  const face = alignedFace();
+  let target = '--';
+  if (face) target = face + ' 面小十字像';
+  else if (lineAligned()) target = '黄光谱线';
+  $('hudDelta').textContent = 'δ = ' + d.toFixed(2) + '°';
+  $('hudTarget').textContent = '对准：' + target;
+  const res = calcResults();
+  $('hudN').textContent = 'n = ' + (res.n !== null ? res.n.toFixed(4) : '未测');
+  $('rTarget').textContent = target;
+  $('rTarget').className = 'v ' + (target !== '--' ? 'ok' : '');
+  $('rDelta').textContent = d.toFixed(2) + '°';
+  $('rA').textContent = apexAngle() !== null ? apexAngle().toFixed(2) + '°' : '未测';
+  $('rA').className = 'v ' + (apexAngle() !== null ? 'ok' : 'warn');
+  $('rN').textContent = state.recDelta.length + ' / 3';
+}
+
+/** 计算结果：{n, err} 或 {n: null} */
+function calcResults() {
+  const A = apexAngle();
+  if (A === null || state.recDelta.length === 0) return { n: null, err: null };
+  let s = 0;
+  for (const r of state.recDelta) s += calcN(A, r.d);
+  const n = s / state.recDelta.length;
+  return { n, err: Math.abs(n - N_STD) / N_STD * 100 };
+}
+
+/** 记录表格刷新 */
+function updateTables() {
+  const r = state.recFace;
+  $('fAB').textContent = r.AB !== null ? r.AB.toFixed(2) : '--';
+  $('fAC').textContent = r.AC !== null ? r.AC.toFixed(2) : '--';
+  const A = apexAngle();
+  const phi = (r.AB !== null && r.AC !== null) ? 180 - A : null;
+  $('fPhi').textContent = phi !== null ? phi.toFixed(2) : '--';
+  $('fA').textContent = A !== null ? A.toFixed(2) : '--';
+  $('fA').className = 'val ' + (A !== null && Math.abs(A - A_STD) <= 0.5 ? 'ok' : '');
+  for (let i = 0; i < 3; i++) {
+    $('d' + (i + 1)).textContent = state.recDelta[i] ? state.recDelta[i].d.toFixed(2) : '--';
+  }
+  const res = calcResults();
+  if (res.n !== null) {
+    const dAvg = state.recDelta.reduce((s, x) => s + x.d, 0) / state.recDelta.length;
+    $('dAvg').textContent = dAvg.toFixed(2);
+    $('nAvg').textContent = res.n.toFixed(4);
+    $('nAvg').className = 'val ok';
+    $('nErr').textContent = res.err.toFixed(2) + '%';
+    $('nErr').className = 'val ok';
+  } else {
+    $('dAvg').textContent = '--'; $('nAvg').textContent = '--';
+    $('nAvg').className = 'val'; $('nErr').textContent = '--';
+    $('nErr').className = 'val';
+  }
+  $('cA').textContent = A !== null ? A.toFixed(2) + '°' : '--';
+  $('cD').textContent = state.recDelta.length
+    ? (state.recDelta.reduce((s, x) => s + x.d, 0) / state.recDelta.length).toFixed(2) + '°' : '--';
+  $('cN').textContent = res.n !== null ? res.n.toFixed(4) : '--';
+  $('cN').className = 'v ' + (res.n !== null ? 'ok' : '');
+  $('cE').textContent = res.err !== null ? res.err.toFixed(2) + '%' : '--';
+  $('cInfo').style.color = res.n !== null ? '#69f0ae' : '#a9c6e8';
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 汞灯开关
+$('btnLamp').addEventListener('click', () => {
+  state.lampOn = !state.lampOn;
+  $('btnLamp').textContent = state.lampOn ? '关闭汞灯' : '打开汞灯';
+  $('btnLamp').classList.toggle('primary', !state.lampOn);
+  $('lampState').textContent = state.lampOn ? '（汞灯已点亮，预热中…）' : '（汞灯未开）';
+  updateSteps();
+  toast(state.lampOn ? '汞灯已开启，请调整分光计' : '汞灯已关闭');
+});
+
+// 调整分光计（一次性操作，完成后锁定）
+$('btnAdjust').addEventListener('click', () => {
+  state.adjusted = true;
+  $('btnAdjust').disabled = true;
+  $('btnAdjust').textContent = '✓ 分光计已调整';
+  $('adjustInfo').textContent = '✓ 平行光准确成像于望远镜焦平面，望远镜光轴垂直中心轴。';
+  updateSteps();
+  toast('✓ 分光计已调整，可测顶角与最小偏向角');
+});
+
+// 载物台与望远镜滑块
+sldTable.addEventListener('input', () => {
+  state.tableAng = +sldTable.value;
+  $('labTable').textContent = state.tableAng.toFixed(1);
+  updateSteps();
+});
+sldScope.addEventListener('input', () => {
+  state.scope = +sldScope.value;
+  $('labScope').textContent = state.scope.toFixed(1);
+  const face = alignedFace();
+  if (face) $('scopeInfo').textContent = '✓ 已对准 ' + face + ' 面小十字像，可记录顶角读数。';
+  else if (lineAligned()) $('scopeInfo').textContent = '✓ 已对准黄光谱线（δ = ' + deltaOf(state.tableAng).toFixed(2) + '°），可记录偏向角。';
+  else $('scopeInfo').textContent = '顶角测量对准 AB(−60°)/AC(+60°)；偏向角测量先转载物台找逆转点再追踪黄光。';
+  updateSteps();
+});
+
+// 记录反射面读数（测顶角，门控：已调整分光计且对准面）
+$('btnRecFace').addEventListener('click', () => {
+  if (!state.adjusted) { toast('⚠ 请先调整分光计'); return; }
+  const face = alignedFace();
+  if (!face) { toast('⚠ 未对准反射面：请将望远镜转到 ±60° 附近（容差 0.5°）'); return; }
+  state.recFace[face] = state.scope;
+  const A = apexAngle();
+  if (A !== null) {
+    toast(Math.abs(A - A_STD) <= 0.5
+      ? '✓ 两面已记录，A = ' + A.toFixed(2) + '°'
+      : '⚠ 两面已记录，但 A = ' + A.toFixed(2) + '° 偏离 60°，请清空后重新对准记录');
+  } else {
+    toast('✓ 已记录 ' + face + ' 面读数 ' + state.scope.toFixed(2) + '°');
+  }
+  updateTables(); updateSteps();
+});
+
+// 记录偏向角读数（黄光，门控：汞灯开、分光计已调、对准谱线）
+$('btnRecDelta').addEventListener('click', () => {
+  if (!state.lampOn) { toast('⚠ 请先打开汞灯'); return; }
+  if (!state.adjusted) { toast('⚠ 请先调整分光计'); return; }
+  if (!lineAligned()) { toast('⚠ 未对准黄光谱线：转动望远镜追踪谱线（容差 0.3°）'); return; }
+  if (state.recDelta.length >= 3) { toast('已完成 3 次测量，如需重测请先清空记录'); return; }
+  state.recDelta.push({ t: state.tableAng, d: deltaOf(state.tableAng) });
+  toast('✓ 第 ' + state.recDelta.length + ' 次记录：δ = ' + deltaOf(state.tableAng).toFixed(2) +
+    '°（' + (Math.abs(state.tableAng) < 1 ? '最小位置 ✓' : '偏离逆转点，n 会偏大 ⚠') + '）');
+  updateTables(); updateSteps();
+});
+
+// 清空记录
+$('btnClear').addEventListener('click', () => {
+  state.recFace = { AB: null, AC: null };
+  state.recDelta = [];
+  updateTables(); updateSteps();
+  toast('记录已清空');
+});
+
+// 点击右上数据面板：收起 / 展开
+overlayCanvas.addEventListener('click', () => { state.panelMin = !state.panelMin; });
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.lampOn = true;
+  state.adjusted = true;
+  state.recFace = { AB: FACE_AB, AC: FACE_AC };
+  for (let i = 0; i < 3; i++) state.recDelta.push({ t: 0, d: deltaOf(0) });
+  $('btnLamp').textContent = '关闭汞灯';
+  $('lampState').textContent = '（汞灯已点亮，预热中…）';
+  $('btnAdjust').disabled = true;
+  $('btnAdjust').textContent = '✓ 分光计已调整';
+  $('adjustInfo').textContent = '✓ 平行光准确成像于望远镜焦平面，望远镜光轴垂直中心轴。';
+  updateTables(); updateSteps();
+  toast('⚡ 示例流程已完成：A=60.00°、δ̄min=' + deltaOf(0).toFixed(2) + '°、n=' + calcN(60, deltaOf(0)).toFixed(4));
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  Object.assign(state, {
+    lampOn: false, adjusted: false, step2Done: false, step3Done: false,
+    tableAng: 0, scope: 0, panelMin: false,
+    recFace: { AB: null, AC: null }, recDelta: []
+  });
+  sldTable.value = 0; $('labTable').textContent = '0.0';
+  sldScope.value = 0; $('labScope').textContent = '0.0';
+  $('btnLamp').textContent = '打开汞灯'; $('btnLamp').classList.add('primary');
+  $('lampState').textContent = '（汞灯未开）';
+  $('btnAdjust').disabled = false;
+  $('btnAdjust').textContent = '调整分光计（望远镜光轴⊥中心轴）';
+  $('adjustInfo').textContent = '调整完毕的标志：由平行光管射出的平行光能准确成像于望远镜焦平面。';
+  $('scopeInfo').textContent = '顶角测量时对准 AB(−60°)/AC(+60°) 面法线；测偏向角时追踪黄光谱线（约 +51°）。';
+  updateTables(); updateSteps();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  updateScene3D(state.t);
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+  updateReadouts();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+// 监听容器尺寸变化（含首帧布局完成后的变化），保证 WebGL 画布始终铺满视口
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(onResize).observe(viewEl);
+}
+onResize();
+updateScene3D(0);
+renderer.render(scene, camera);
+updateSteps();
+updateTables();
+animate();
+</script>
+<!-- end of file -->
+</html>

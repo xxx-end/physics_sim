@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验2 · 液体表面张力系数的测定 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 记录表格 */
+  table.rec { width: 100%; border-collapse: collapse; font-size: 11px; color: #a9c6e8; }
+  table.rec th, table.rec td { border: 1px solid #1d3252; padding: 4px 5px; text-align: center; }
+  table.rec th { color: #7fd7ff; background: rgba(21, 101, 192, 0.15); font-weight: 600; }
+  table.rec td.val { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+  table.rec td.val.ok { color: #69f0ae; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.dark { background: #1a1a2e; border-color: #5c5c8a; color: #c5c5e8; }
+
+  /* 视口叠加层 */
+  #hudPanel { position: absolute; bottom: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #hudPanel .big { font-size: 20px; color: #7fd7ff; font-weight: 700;
+    font-variant-numeric: tabular-nums; font-family: "Consolas", monospace; }
+  #hudPanel .row { margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); cursor: pointer; }
+  #hint { position: absolute; bottom: 14px; right: 14px;
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验2 · 液体表面张力系数的测定</h1>
+    <div class="sub">拉脱法 + 硅压阻力敏传感器 ｜ f = αL = απ(D₁+D₂) ｜ α = (U₁−U₂)/[π(D₁+D₂)B] ｜ 水 20 °C 标准值 72.75 mN/m ｜ ⚠ 吊环须洁净，勿用手触摸环面</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">定标与置零</button>
+        <button data-p="p3">拉脱测量</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾，达成后锁定）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开电源预热，调节底座水平（水平泡居中）</span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 传感器定标：逐次加砝码记录电压 U，作 U–F 直线求灵敏度 B</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 挂好吊环，在环未接触液面时按「置零」键</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 升液面浸没吊环 → 缓慢降液面拉脱：峰值保持记 U₁，拉脱后记 U₂，重复 6 次</span></div>
+          <div class="step" id="st5"><span class="box"></span><span>⑤ 游标卡尺测内径 D₁、外径 D₂，计算 α 并与标准值比较</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>力敏传感器为硅压阻式（半导体应变计），输出数字电压表示数 ΔU 与拉力变化 ΔF 满足 ΔF = ΔU/B。</li>
+            <li>吊环须洁净（可用酒精棉擦拭），否则水膜提前破裂使 U₁ 偏小。</li>
+            <li>拉脱过程要<b>缓慢</b>：水柱即将破裂时电压最大（峰值保持自动锁定 U₁），破裂后示数骤降为 U₂。</li>
+            <li>重复测量前先按「峰值保持复位」，再升液面重新浸没吊环。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 定标与置零 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>电源与水平</h3>
+          <button id="btnPower" class="btn primary">打开电源</button>
+          <span id="powerState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（电源未开）</span>
+          <div style="margin-top:8px;">
+            <button id="btnLevel" class="btn" disabled>调节底座水平（水平泡居中）</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>传感器定标（U–F 直线，过原点）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>砝码质量 m (g)</span><b id="labWt">0.5</b></div>
+            <input type="range" id="sldWt" min="0.5" max="5" step="0.5" value="0.5">
+          </div>
+          <button id="btnCal" class="btn green" disabled>记录该砝码下电压 U</button>
+          <div style="margin-top:8px;">
+            <button id="btnZero" class="btn primary" disabled>挂吊环并置零</button>
+          </div>
+          <p id="zeroInfo" style="margin-top:6px;">需先打开电源；置零须在吊环未接触液面时进行。</p>
+        </div>
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">电压表 U (mV)</div><div class="v" id="rU">0.0</div></div>
+            <div class="data-cell"><div class="k">峰值保持 U₁ (mV)</div><div class="v" id="rPeak">--</div></div>
+            <div class="data-cell"><div class="k">灵敏度 B (V/N)</div><div class="v" id="rB">未定标</div></div>
+            <div class="data-cell"><div class="k">拉脱状态</div><div class="v" id="rBr">未接触</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 拉脱测量 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>液面控制与拉脱</h3>
+          <div class="slider-row">
+            <div class="lab"><span>活塞 · 液面高度 h (mm，环口处 = 8)</span><b id="labLiq">0</b></div>
+            <input type="range" id="sldLiq" min="0" max="25" step="0.1" value="0" disabled>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+            <button id="btnRecU1" class="btn green" disabled>记录 U₁（峰值保持）</button>
+            <button id="btnRecU2" class="btn green" disabled>记录 U₂（拉脱后）</button>
+            <button id="btnHold" class="btn dark">峰值保持复位</button>
+          </div>
+          <p id="pullInfo" style="margin-top:6px;">需先置零。升液面（h＞8）浸没吊环，再缓慢降回 8 mm 附近观察电压峰值。</p>
+        </div>
+        <div class="card">
+          <h3>表 2.2.2　拉脱法测量记录表</h3>
+          <table class="rec">
+            <tr><th>次数</th><th>U₁ / mV</th><th>U₂ / mV</th><th>ΔU / mV</th><th>α / (10⁻³ N·m⁻¹)</th></tr>
+            <tr><td>1</td><td class="val" id="rU11">--</td><td class="val" id="rU21">--</td><td class="val" id="rD1">--</td><td class="val" id="rA1">--</td></tr>
+            <tr><td>2</td><td class="val" id="rU12">--</td><td class="val" id="rU22">--</td><td class="val" id="rD2">--</td><td class="val" id="rA2">--</td></tr>
+            <tr><td>3</td><td class="val" id="rU13">--</td><td class="val" id="rU23">--</td><td class="val" id="rD3">--</td><td class="val" id="rA3">--</td></tr>
+            <tr><td>4</td><td class="val" id="rU14">--</td><td class="val" id="rU24">--</td><td class="val" id="rD4">--</td><td class="val" id="rA4">--</td></tr>
+            <tr><td>5</td><td class="val" id="rU15">--</td><td class="val" id="rU25">--</td><td class="val" id="rD5">--</td><td class="val" id="rA5">--</td></tr>
+            <tr><td>6</td><td class="val" id="rU16">--</td><td class="val" id="rU26">--</td><td class="val" id="rD6">--</td><td class="val" id="rA6">--</td></tr>
+          </table>
+          <div style="margin-top:8px;">
+            <button id="btnClear" class="btn dark">清空记录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>游标卡尺测吊环直径（分度值 0.02 mm）</h3>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <button id="btnModeD1" class="btn primary">测内径 D₁（内量爪）</button>
+            <button id="btnModeD2" class="btn">测外径 D₂（外量爪）</button>
+          </div>
+          <canvas id="caliperCanvas" width="384" height="170"
+            style="width:100%;border:1px solid #1d3252;border-radius:8px;background:#08101e;"></canvas>
+          <div class="slider-row">
+            <div class="lab"><span>推动游框（量爪开度）</span><b id="labJaw">33.00 mm</b></div>
+            <input type="range" id="sldJaw" min="31" max="37" step="0.02" value="33">
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="btnRead" class="btn green">记录当前读数</button>
+            <span style="font-size:12px;color:#9fc3e8;">已记录：D₁ = <b id="recD1" style="color:#eaf6ff;">--</b> mm ｜ D₂ = <b id="recD2" style="color:#eaf6ff;">--</b> mm</span>
+          </div>
+          <p id="calInfo" style="margin-top:6px;">拖动游框使量爪恰好接触吊环边缘（间隙变绿），再记录读数；量爪未贴合（红色间隙）时记录会引入系统误差。</p>
+        </div>
+        <div class="card">
+          <h3>表面张力系数计算</h3>
+          <span class="formula">α = (U₁ − U₂) / [π(D₁ + D₂)·B]　(2.2.8)</span>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">U₁−U₂ 平均 (mV)</div><div class="v" id="cDU">--</div></div>
+            <div class="data-cell"><div class="k">α 平均 (N/m)</div><div class="v" id="cAlpha">--</div></div>
+            <div class="data-cell"><div class="k">标准值（水 20 °C）</div><div class="v">72.75 mN/m</div></div>
+            <div class="data-cell"><div class="k">相对误差</div><div class="v" id="cErr">--</div></div>
+          </div>
+          <p id="cInfo" style="margin-top:6px;">完成 6 次拉脱记录与卡尺测量后自动计算。</p>
+        </div>
+        <div class="card">
+          <h3>实验拓展</h3>
+          <p>同学们可以自行设计一个测量液体浓度与表面张力系数的关系的实验，并思考：如何才能设计出具有超强表面张力的肥皂泡？</p>
+          <p>把一个小木棍或者牙签放在水中，如何让它自行在水面上游动？——在牙签一端蘸少量洗发精（或肥皂液），该端周围水面张力骤减，另一端较大的表面张力便会拉动牙签前进。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>背景简介</h3>
+          <p>作用于液体表面、使液体表面积具有收缩趋势的力即液体表面张力。液体表面张力的概念最早于 1751 年由匈牙利物理学家泽格纳提出。生活中许多涉及液体的物理现象都与液体表面张力有关，如常见的球状晨露、小昆虫在水面上上的自由行走、毛细现象、液体与固体接触的浸润与不浸润现象等。因此，测量液体表面张力系数对科学研究和实际应用都具有重要意义。</p>
+          <p>测量液体表面张力系数的方法有拉脱法、毛细管法、最大气泡压力法等。拉脱法是较常用的方法之一，其特点是用称量仪器直接测量液体的表面张力，现象直观、概念清楚。近年来新发展的硅压阻式力敏传感器张力测定仪比传统的焦利秤、扭秤等灵敏度高、线性和稳定性好，且可以数字信号显示，也能利用计算机实时测量。</p>
+        </div>
+        <div class="card">
+          <h3>Ⅰ. 液体表面张力</h3>
+          <p><b>表面张力的概念：</b>液体内部的每一个分子都被同类分子包围，所受的分子之间的相互作用力合力为零。而液体表面层（厚度约为分子作用半径，约 10⁻⁸ cm）内的分子，其上层空间分子对它的吸引力小于液体内部的分子对它的吸引力，所以该分子所受合力不为零，合力方向垂直指向液体内部，结果导致液体表面具有收缩的趋势，这种收缩力称为表面张力。</p>
+          <p><b>浸润与不浸润：</b>当液体与固体接触时，若固体和液体分子间的吸引力大于液体分子之间的吸引力，液体就会沿固体表面扩张，形成薄膜附着在固体上（浸润，接触角 θ 小）；反之称为不浸润（θ 大）。</p>
+          <p><b>表面张力系数：</b>设想在液体表面层中有一条分界线把液面分成 A、B 两部分，表面张力表现为分界线两侧的液膜以一定的拉力（f₁、f₂）相互作用，两力大小相等、方向相反、垂直于分界线。其大小与分界线长度成正比：</p>
+          <span class="formula">f = f₁ = f₂ = αL　(2.2.1)</span>
+          <p>α 称为液体表面张力系数，单位 N/m，数值上等于单位长度上的表面张力。它与液体温度、浓度、种类和界面处两相物质的性质有关。</p>
+        </div>
+        <div class="card">
+          <h3>Ⅱ. 拉脱法测表面张力系数</h3>
+          <p>将内径为 D₁、外径为 D₂ 的金属吊环悬挂在力敏传感器上，把它浸入盛有液体的玻璃器皿中。当缓慢地向上拉金属吊环时，金属吊环会拉起一个与液体相连的水柱。由于表面张力的作用，力敏传感器受到的拉力逐渐增加，最终达到最大值 F₁（金属吊环和它所黏附的液体的总重量 G 与水柱拉引金属吊环的表面张力 f 之和）：</p>
+          <span class="formula">F₁ = G + f　(2.2.2)</span>
+          <p>当拉力超过 F₁ 时，水柱破裂，此时传感器受到的拉力变为 F₂ = G，则表面张力：</p>
+          <span class="formula">f = F₁ − G = F₁ − F₂　(2.2.3)</span>
+          <p>由于水柱有两个液面，且两液面的直径分别与金属吊环的内、外径相同：</p>
+          <span class="formula">f = α·π(D₁ + D₂)　(2.2.4)</span>
+          <span class="formula">α = (F₁ − F₂)/[π(D₁ + D₂)]　(2.2.5)</span>
+        </div>
+        <div class="card">
+          <h3>Ⅲ. 力敏传感器</h3>
+          <p>本实验所用力敏传感器是硅压阻式力敏传感器（半导体应变计），以数字电压表输出显示。当力敏传感器所受拉力改变 ΔF 时，数字电压表的示数改变 ΔU，有：</p>
+          <span class="formula">ΔF = ΔU/B　(2.2.6)</span>
+          <p>B 为力敏传感器的灵敏度，单位 V/N。设金属吊环拉断液柱前，传感器受到的最大拉力为 F₁，电压表示数为 U₁；拉断液柱之后，拉力为 F₂，电压表示数为 U₂：</p>
+          <span class="formula">f = F₁ − F₂ = (U₁ − U₂)/B　(2.2.7)</span>
+          <span class="formula">α = (U₁ − U₂)/[π(D₁ + D₂)·B]　(2.2.8)</span>
+          <p><b>仪器：</b>液体表面张力系数测定仪（峰值保持键、置零键、复位键、水平调节螺钉、底板、液槽、吊环、立柱、固定螺钉、活塞、传感器输入接口）+ 游标卡尺。</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="hudPanel">
+        数字电压表（力敏传感器）
+        <div class="big" id="hudU"> 0.0 mV</div>
+        <div class="row" id="hudPeak">峰值保持 U₁ = -- mV</div>
+        <div class="row" id="hudB">B = 未定标</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 缓慢降液面观察拉脱瞬间 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+
+<script>
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const ALPHA_STD = 0.07275;      // 水 20 °C 标准值 N/m
+const ALPHA_TRUE = 0.07250;     // 仿真真值
+const B_TRUE = 3.10;            // 传感器灵敏度真值 V/N
+const D1_DEF = 33.10, D2_DEF = 34.90;   // 吊环内/外径 mm
+const FMAX = ALPHA_TRUE * Math.PI * (D1_DEF + D2_DEF) / 1000;   // 表面张力 N
+const UMAX = FMAX * B_TRUE * 1000;                              // 峰值电压 mV
+const G_ACC = 9.8;
+const H_RING = 8;               // 吊环口对应的液面高度 mm
+const BREAK_D = 0.25;           // 水柱破裂阈值 mm
+const N_REPS = 6;
+
+/** 电压示数 U(mV) 与液面-环口距离 d(mm) 的关系（拉脱曲线） */
+function uMvOf(d) {
+  if (d <= 0) return 0;
+  if (d <= 2) return UMAX * (1.02 - 0.005 * d * d);          // 水柱拉伸段，近破裂处最大
+  if (d <= 6) return UMAX * (0.98 - 0.02 * (d - 2));         // 深浸段
+  return UMAX * 0.90;
+}
+
+const state = {
+  power: false,
+  leveled: false, step1Done: false, step2Done: false,   // 一次性状态，达成后锁定保持
+  wt: 0.5,                                              // 当前砝码质量 g
+  calPts: [null, null, null, null, null, null, null, null, null, null],  // mV
+  zeroed: false, step3Done: false,
+  liquid: 0, broken: false, peakMv: 0,
+  rows: [null, null, null, null, null, null],    // {U1, U2}
+  d1: D1_DEF, d2: D2_DEF, caliperDone: false,
+  jaw: 33.00, calMode: 'D1', d1Done: false, d2Done: false,   // 卡尺仿真
+  panelMin: false,
+  t: 0,
+  lastTime: performance.now()   // 时间源：模块加载时刻
+};
+
+/** 定标拟合（过原点）：B = Σ(U·F)/Σ(F²)，U 为 mV → 结果除以 1000 化为 V/N */
+function fitB() {
+  let su = 0, sf = 0;
+  for (let i = 0; i < 10; i++) {
+    if (state.calPts[i] === null) continue;
+    const F = (i + 1) * 0.5 * 0.001 * G_ACC;   // N
+    su += state.calPts[i] * F;
+    sf += F * F;
+  }
+  return sf > 0 ? su / sf / 1000 : null;   // mV/N → V/N
+}
+
+/** 下一空记录行索引或 -1 */
+function nextRow() {
+  for (let i = 0; i < N_REPS; i++) if (!state.rows[i]) return i;
+  return -1;
+}
+
+/* ================================================================
+ *  Three.js 3D 场景：测定仪 + 吊环 + 液槽 + 活塞
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let dishG, ringAsm, column, ringFilm, plate3, screwRod, wheel, bubbleDot, scrTex;
+let lampPt, splash, splashT = -1, prevBroken = false;
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 14, 34);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(2.6, 2.1, 4.9);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0.15, 0.95, 0.1);
+  controls.enableDamping = true;
+  controls.minDistance = 1.5; controls.maxDistance = 15;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.55));
+  lampPt = new THREE.PointLight(0xffffff, 40, 30);
+  lampPt.position.set(1.2, 4.2, 2.6); scene.add(lampPt);
+
+  const MS = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c }, o || {}));
+
+  /* ---- 底板 + 三个水平调节螺钉 + 圆水准泡 ---- */
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(4.6, 0.12, 2.2), MS(0x17233d, { metalness: 0.45, roughness: 0.55 }));
+  base.position.y = -0.06; scene.add(base);
+  /* 底板丝印 canvas（铭牌） */
+  const bcv = document.createElement('canvas'); bcv.width = 512; bcv.height = 96;
+  const bx = bcv.getContext('2d');
+  bx.fillStyle = '#17233d'; bx.fillRect(0, 0, 512, 96);
+  bx.fillStyle = '#5f7fae'; bx.font = 'bold 26px Arial'; bx.textAlign = 'center';
+  bx.fillText('液体表面张力系数测定仪 · 拉脱法', 256, 42);
+  bx.font = '18px Arial'; bx.fillStyle = '#3d5a86';
+  bx.fillText('硅压阻式力敏传感器  ｜  数字电压表  ｜  峰值保持', 256, 74);
+  const bTex = new THREE.CanvasTexture(bcv);
+  const bFace = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.56),
+    new THREE.MeshBasicMaterial({ map: bTex, transparent: true, opacity: 0.9 }));
+  bFace.rotation.x = -Math.PI / 2; bFace.position.set(-0.7, 0.005, 0.82); scene.add(bFace);
+  /* 水平调节螺钉（前左/前右/后中） */
+  [[-2.1, 0.9], [-2.1, -0.9], [1.9, -0.9]].forEach(p => {
+    const sk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.16, 12), MS(0x9aa2b0, { metalness: 0.7 }));
+    sk.position.set(p[0], -0.18, p[1]); scene.add(sk);
+    const kn = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 14), MS(0x455a64, { metalness: 0.5 }));
+    kn.position.set(p[0], -0.13, p[1]); scene.add(kn);
+  });
+  /* 圆水准泡（气泡随调平移动） */
+  const buble = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 22), MS(0x0d47a1, { roughness: 0.3 }));
+  buble.position.set(2.05, 0.02, 0.85); scene.add(buble);
+  const bRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.008, 8, 24), MS(0xe3f2fd));
+  bRing.rotation.x = Math.PI / 2; bRing.position.set(2.05, 0.045, 0.85); scene.add(bRing);
+  bubbleDot = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 10),
+    new THREE.MeshBasicMaterial({ color: 0xb3e5fc }));
+  bubbleDot.position.set(2.11, 0.05, 0.91); scene.add(bubbleDot);
+
+  /* ---- 测定仪主机（面板丝印 + 数码屏 + 三按键 + 5 芯接口） ---- */
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.72, 0.8), MS(0x2a3440, { metalness: 0.5, roughness: 0.5 }));
+  box.position.set(-1.5, 0.48, 0.15); scene.add(box);
+  const scrCv = document.createElement('canvas'); scrCv.width = 512; scrCv.height = 224;
+  const sg = scrCv.getContext('2d'); scrTex = new THREE.CanvasTexture(scrCv);
+  function drawScreen(u, peak, on) {
+    sg.fillStyle = '#cfd4da'; sg.fillRect(0, 0, 512, 224);
+    sg.fillStyle = '#2a3440'; sg.font = 'bold 22px Arial'; sg.textAlign = 'left';
+    sg.fillText('液体表面张力系数测定仪  FB326', 18, 30);
+    /* 数码屏 */
+    sg.fillStyle = '#0a120a'; sg.fillRect(150, 44, 220, 92);
+    sg.strokeStyle = '#111a11'; sg.strokeRect(150, 44, 220, 92);
+    sg.font = '15px Arial'; sg.fillStyle = '#69f0ae'; sg.textAlign = 'left';
+    sg.fillText('mV', 160, 66);
+    sg.font = 'bold 44px Consolas'; sg.textAlign = 'right';
+    sg.fillStyle = on ? '#ff4433' : '#2b3a2b';
+    sg.fillText(on ? Math.max(0, u).toFixed(1) : '- - - -', 358, 118);
+    sg.font = 'bold 16px Arial'; sg.textAlign = 'left';
+    sg.fillStyle = on ? '#ffd54f' : '#4a5a4a';
+    sg.fillText('PEAK ' + (on && peak > 0 ? peak.toFixed(1) : '--'), 158, 128);
+    /* 三按键 + 接口 */
+    [['峰峰值保持', 40], ['置零', 148], ['复位', 236]].forEach(k => {
+      sg.fillStyle = '#37474f'; sg.fillRect(k[1], 156, 86, 34);
+      sg.fillStyle = '#b0bec5'; sg.font = '15px Arial'; sg.textAlign = 'center';
+      sg.fillText(k[0], k[1] + 43, 178);
+    });
+    sg.fillStyle = '#1a2029'; sg.beginPath(); sg.arc(400, 176, 26, 0, 7); sg.fill();
+    sg.strokeStyle = '#78909c'; sg.setLineDash([4, 3]);
+    sg.beginPath(); sg.arc(400, 176, 26, 0, 7); sg.stroke(); sg.setLineDash([]);
+    sg.fillStyle = '#80cbc4'; sg.font = '13px Arial';
+    sg.fillText('传感器输入 5 芯', 400, 214);
+    scrTex.needsUpdate = true;
+  }
+  window.__drawScreen = drawScreen;
+  drawScreen(0, 0, false);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.42, 0.62),
+    new THREE.MeshBasicMaterial({ map: scrTex }));
+  screen.position.set(-1.5, 0.5, 0.556); scene.add(screen);
+  /* 5 芯电缆（主机接口 → 传感器顶端） */
+  const cable = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-1.28, 0.62, 0.5), new THREE.Vector3(-0.7, 0.75, 0.72),
+      new THREE.Vector3(0.05, 1.6, 0.75), new THREE.Vector3(0.4, 2.02, 0.35)]), 32, 0.022, 8),
+    MS(0x21262e, { roughness: 0.6 }));
+  scene.add(cable);
+
+  /* ---- 立柱 + 横臂 + 力敏传感器 ---- */
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.25, 14), MS(0x546e7a, { metalness: 0.7, roughness: 0.35 }));
+  rod.position.set(0.95, 1.125, -0.75); scene.add(rod);
+  const rodCap = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), MS(0x78909c, { metalness: 0.6 }));
+  rodCap.position.set(0.95, 2.28, -0.75); scene.add(rodCap);
+  const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.16), MS(0x37474f, { metalness: 0.5 }));
+  clamp.position.set(0.95, 2.0, -0.75); scene.add(clamp);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.1), MS(0x546e7a, { metalness: 0.7, roughness: 0.35 }));
+  arm.position.set(0.68, 2.0, -0.2); scene.add(arm);
+  /* 力敏传感器：金属圆筒 + 应变梁 + 挂钩 */
+  const sensor = new THREE.Group();
+  const sBody = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.26, 18), MS(0x455a64, { metalness: 0.65, roughness: 0.35 }));
+  sBody.position.y = 0.13; sensor.add(sBody);
+  const sBeam = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.035, 0.16), MS(0xcfd8dc, { metalness: 0.5 }));
+  sBeam.position.y = -0.02; sensor.add(sBeam);
+  const sHook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 18), MS(0xb0bec5, { metalness: 0.7 }));
+  sHook.position.y = -0.075; sensor.add(sHook);
+  sensor.position.set(0.4, 1.72, 0.3); scene.add(sensor);
+
+  /* ---- 吊环（三线悬挂）+ 环内液膜 + 拉脱水柱 ---- */
+  ringAsm = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.022, 14, 56), MS(0xd7ccc8, { metalness: 0.85, roughness: 0.22 }));
+  ring.rotation.x = Math.PI / 2; ring.position.y = -0.53; ringAsm.add(ring);
+  for (let i = 0; i < 3; i++) {
+    const a = i * Math.PI * 2 / 3 + 0.4;
+    const th = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.47, 6),
+      new THREE.MeshBasicMaterial({ color: 0xb0bec5 }));
+    th.position.set(0.19 * Math.cos(a), -0.3, 0.19 * Math.sin(a));
+    ringAsm.add(th);
+  }
+  ringAsm.position.set(0.4, 1.6, 0.3); scene.add(ringAsm);   // 环口平面 y=1.07...→环心 1.07？环心=1.6-0.53=1.07
+  ringFilm = new THREE.Mesh(new THREE.CircleGeometry(0.292, 40),
+    new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.4, side: THREE.DoubleSide }));
+  ringFilm.rotation.x = -Math.PI / 2; ringFilm.position.set(0.4, 1.07, 0.3);
+  ringFilm.visible = false; scene.add(ringFilm);
+  column = new THREE.Mesh(new THREE.CylinderGeometry(0.292, 0.292, 1, 30, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+  column.position.set(0.4, 1.05, 0.3); column.visible = false; scene.add(column);
+  /* 破裂水花（小球抛出） */
+  splash = new THREE.Group();
+  for (let i = 0; i < 10; i++) {
+    const dr = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.85 }));
+    const a = Math.random() * 7, r = 0.1 + Math.random() * 0.22;
+    dr.userData.v = new THREE.Vector3(Math.cos(a) * r, 0.55 + Math.random() * 0.3, Math.sin(a) * r);
+    splash.add(dr);
+  }
+  splash.position.set(0.4, 1.07, 0.3); splash.visible = false; scene.add(splash);
+
+  /* ---- 液槽 + 水 + 升降台（丝杆 + 调节手轮） ---- */
+  dishG = new THREE.Group();
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.95, 0.62, 40, 1, true),
+    MS(0xbfe8ff, { transparent: true, opacity: 0.16, roughness: 0.06, side: THREE.DoubleSide, depthWrite: false }));
+  glass.position.y = 0.31; dishG.add(glass);
+  const glassBottom = new THREE.Mesh(new THREE.CircleGeometry(0.95, 40),
+    MS(0xbfe8ff, { transparent: true, opacity: 0.12, roughness: 0.1, depthWrite: false }));
+  glassBottom.rotation.x = -Math.PI / 2; glassBottom.position.y = 0.01; dishG.add(glassBottom);
+  waterMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.94, 0.9, 0.5, 40),
+    MS(0x29b6f6, { transparent: true, opacity: 0.55, roughness: 0.15 }));
+  waterMesh.position.y = 0.26; dishG.add(waterMesh);
+  waterSurf = new THREE.Mesh(new THREE.CircleGeometry(0.94, 40),
+    new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.4 }));
+  waterSurf.rotation.x = -Math.PI / 2; waterSurf.position.y = 0.512; dishG.add(waterSurf);
+  /* 升降平台 + 丝杆 + 侧面调节手轮 */
+  plate3 = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.06, 36), MS(0x3d434c, { metalness: 0.55, roughness: 0.45 }));
+  plate3.position.y = -0.04; dishG.add(plate3);
+  screwRod = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1, 14), MS(0x9aa2b0, { metalness: 0.7, roughness: 0.3 }));
+  dishG.add(screwRod);
+  wheel = new THREE.Group();
+  const wHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.09, 16), MS(0x455a64, { metalness: 0.55 }));
+  wHub.rotation.z = Math.PI / 2; wheel.add(wHub);
+  const wSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.05), MS(0xff8a65, { roughness: 0.4 }));
+  wSpoke.rotation.x = Math.PI / 2; wheel.add(wSpoke);
+  wheel.position.set(1.12, 0, 0); dishG.add(wheel);
+  dishG.position.set(0.4, 0.4, 0.3); scene.add(dishG);
+
+  /* 标注 */
+  const boxLabel = makeTextSprite('测定仪主机（数字电压表）', '#80d8ff', 1.1);
+  boxLabel.position.set(-1.5, 1.28, 0.15); scene.add(boxLabel);
+  const sensorLabel = makeTextSprite('硅压阻力敏传感器', '#a7ffeb', 0.95);
+  sensorLabel.position.set(0.42, 2.32, 0.3); scene.add(sensorLabel);
+  ringLabel = makeTextSprite('金属吊环（内 D₁ / 外 D₂）', '#ffe0b2', 1.1);
+  ringLabel.position.set(-1.0, 1.32, 0.95); scene.add(ringLabel);
+  const dishLabel = makeTextSprite('液槽（升降台控制液面）', '#80deea', 0.95);
+  dishLabel.position.set(2.05, 1.62, 0.5); scene.add(dishLabel);
+}
+
+/** 每帧：液面/升降台/水柱/水准泡/水花联动（环口平面 y=1.07 ↔ 液面 h=8 mm） */
+function updateScene3D(t) {
+  const surfY = 1.07 + (state.liquid - 8) * 0.02;    // 液面世界高度
+  /* 升降台：槽底 = surfY − 0.50，丝杆从底板撑到平台 */
+  const baseY = surfY - 0.50;
+  dishG.position.y = baseY;
+  const rodLen = Math.max(0.05, baseY - 0.10);
+  screwRod.scale.y = rodLen;
+  screwRod.position.y = -rodLen / 2;
+  wheel.rotation.x = state.liquid * 0.55;
+  /* 吊环：浸没时环内液膜；液面降到环口下方→拉脱附着段出现"水柱"（示意放大） */
+  const ringY = 1.07, d = state.liquid - H_RING;
+  ringFilm.visible = !state.broken && surfY > ringY;
+  if (ringFilm.visible) ringFilm.position.y = surfY + 0.002;
+  const neck = (!state.broken && d > 0 && d < 1.2 && surfY <= ringY + 0.001);
+  if (neck) {
+    const hh = 0.012 + d * 0.16;                     // 视觉放大 8 倍
+    column.visible = true;
+    column.scale.y = hh;
+    column.position.y = ringY - hh / 2;
+    column.material.opacity = 0.55 - d * 0.3;
+  } else column.visible = false;
+  waterSurf.material.opacity = 0.36 + 0.06 * Math.sin(t * 3);
+  /* 水准泡：未调平时偏离中心，调平后缓慢回中 */
+  const tx = state.leveled ? 2.05 : 2.11, tz = state.leveled ? 0.85 : 0.91;
+  bubbleDot.position.x += (tx - bubbleDot.position.x) * 0.06;
+  bubbleDot.position.z += (tz - bubbleDot.position.z) * 0.06;
+  /* 破裂水花（上升沿触发） */
+  if (state.broken && !prevBroken) { splashT = 0; }
+  prevBroken = state.broken;
+  if (splashT >= 0) {
+    splashT += 1 / 60;
+    splash.visible = splashT < 0.55;
+    splash.children.forEach(dr => {
+      dr.position.addScaledVector(dr.userData.v, 1 / 60);
+      dr.userData.v.y -= 3.2 / 60;
+    });
+    if (splashT >= 0.55) { splash.visible = false; splashT = -1; }
+  }
+}
+
+/* ================================================================
+ *  视口叠加图：拉脱曲线 U–液面高度 h（峰值与破裂点标注 + 当前游标）
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 320 * oDpr; overlayCanvas.height = 190 * oDpr;
+overlayCanvas.style.width = '320px'; overlayCanvas.style.height = '190px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+const CH = { x: 46, y: 16, w: 248, h: 140, hMax: 25, uMax: 60 };
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 320, 190);
+  // 半透明面板底色，避免遮挡 3D 模型
+  octx.fillStyle = 'rgba(10,16,28,0.6)';
+  octx.strokeStyle = '#1d3252';
+  octx.beginPath(); octx.rect(0, 0, 320, 190); octx.fill(); octx.stroke();
+  octx.fillStyle = '#7fd7ff'; octx.font = 'bold 11px sans-serif'; octx.textAlign = 'left';
+  octx.fillText('拉脱曲线：U–液面高度（峰值→U₁，破裂→骤降）', 12, 13);
+
+  const px = hv => CH.x + CH.w * hv / CH.hMax;
+  const py = uv => CH.y + CH.h * (1 - uv / CH.uMax);
+
+  // 网格与坐标轴
+  octx.strokeStyle = 'rgba(41,210,255,0.12)';
+  octx.beginPath();
+  for (let hv = 5; hv <= 25; hv += 5) { octx.moveTo(px(hv), CH.y); octx.lineTo(px(hv), CH.y + CH.h); }
+  for (let uv = 15; uv <= 60; uv += 15) { octx.moveTo(CH.x, py(uv)); octx.lineTo(CH.x + CH.w, py(uv)); }
+  octx.stroke();
+  octx.strokeStyle = '#2e5c96';
+  octx.beginPath();
+  octx.moveTo(CH.x, CH.y); octx.lineTo(CH.x, CH.y + CH.h); octx.lineTo(CH.x + CH.w, CH.y + CH.h);
+  octx.stroke();
+  octx.fillStyle = '#6fa8dc'; octx.font = '10px sans-serif';
+  for (let hv = 0; hv <= 25; hv += 5) octx.fillText(String(hv), px(hv) - 6, CH.y + CH.h + 14);
+  for (let uv = 20; uv <= 60; uv += 20) octx.fillText(String(uv), CH.x - 20, py(uv) + 4);
+  octx.fillText('h / mm', CH.x + CH.w - 28, CH.y + CH.h + 28);
+  octx.save(); octx.translate(12, CH.y + 60); octx.rotate(-Math.PI / 2);
+  octx.fillText('U / mV', -12, 0); octx.restore();
+
+  // 理论拉脱曲线（附着段）
+  octx.strokeStyle = '#4dd0e1'; octx.lineWidth = 1.6; octx.beginPath();
+  let started = false;
+  for (let i = 0; i <= 320; i++) {
+    const hv = CH.hMax * i / 320;
+    const d = hv - H_RING;
+    if (d <= 0) { started = false; continue; }
+    const uv = uMvOf(Math.min(d, 2.001));
+    if (!started) { octx.moveTo(px(hv), py(uv)); started = true; }
+    else octx.lineTo(px(hv), py(uv));
+  }
+  octx.stroke(); octx.lineWidth = 1;
+
+  // 破裂点标记（红×，h = 8.25）
+  const bx = px(H_RING + BREAK_D), by = py(UMAX * 1.0197);
+  octx.strokeStyle = '#ff5252'; octx.lineWidth = 2;
+  octx.beginPath();
+  octx.moveTo(bx - 5, by - 5); octx.lineTo(bx + 5, by + 5);
+  octx.moveTo(bx + 5, by - 5); octx.lineTo(bx - 5, by + 5);
+  octx.stroke(); octx.lineWidth = 1;
+
+  // 峰值保持标记（黄横虚线）
+  if (state.peakMv > 0) {
+    octx.strokeStyle = '#ffd54f'; octx.setLineDash([5, 4]);
+    octx.beginPath();
+    octx.moveTo(CH.x, py(state.peakMv)); octx.lineTo(CH.x + CH.w, py(state.peakMv));
+    octx.stroke(); octx.setLineDash([]);
+  }
+
+  // 当前液面游标
+  const cu = state.broken ? 0 : uMvOf(state.liquid - H_RING);
+  octx.strokeStyle = 'rgba(255,255,255,0.55)';
+  octx.setLineDash([4, 4]);
+  octx.beginPath(); octx.moveTo(px(state.liquid), CH.y); octx.lineTo(px(state.liquid), CH.y + CH.h);
+  octx.stroke(); octx.setLineDash([]);
+  octx.fillStyle = '#69f0ae';
+  octx.beginPath(); octx.arc(px(state.liquid), py(Math.max(0, cu)), 3.5, 0, Math.PI * 2); octx.fill();
+
+  octx.fillStyle = '#4a6a94'; octx.font = '9px sans-serif'; octx.textAlign = 'right';
+  octx.fillText('红×=破裂点 · 黄虚线=U₁峰值 · 点击面板可收起', 310, 183);
+}
+
+/* ================================================================
+ *  UI 逻辑：步骤锁定打勾、拉脱状态机、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldWt = $('sldWt'), sldLiq = $('sldLiq'), sldJaw = $('sldJaw');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/** 步骤自动打勾状态机（①②③为一次性状态，达成后锁定保持） */
+function updateSteps() {
+  if (state.power && state.leveled) state.step1Done = true;
+  if (fitB() !== null) state.step2Done = true;
+  const done2 = state.step2Done;
+  const done5 = state.caliperDone && state.rows.every(r => r !== null);
+  $('st1').classList.toggle('done', state.step1Done);
+  $('st2').classList.toggle('done', done2);
+  $('st3').classList.toggle('done', state.step3Done);
+  $('st4').classList.toggle('done', state.rows.every(r => r !== null));
+  $('st5').classList.toggle('done', done5);
+}
+
+/** 每帧：电压表物理更新（接触/破裂判定、峰值保持） */
+function updateVoltmeter() {
+  const d = state.liquid - H_RING;
+  if (d > 0.6) state.broken = false;              // 重新浸没
+  if (!state.broken && d > 0 && d < BREAK_D) state.broken = true;   // 水柱破裂
+  const uv = state.broken ? 0 : uMvOf(d) + (Math.random() - 0.5) * 0.2;
+  if (!state.broken && d > 0) state.peakMv = Math.max(state.peakMv, uv);
+  $('hudU').textContent = ' ' + Math.max(0, uv).toFixed(1) + ' mV';
+  $('hudPeak').textContent = '峰值保持 U₁ = ' +
+    (state.peakMv > 0 ? state.peakMv.toFixed(1) + ' mV' : '-- mV');
+  const B = fitB();
+  $('hudB').textContent = 'B = ' + (B !== null ? B.toFixed(3) + ' V/N' : '未定标');
+  $('rU').textContent = Math.max(0, uv).toFixed(1);
+  $('rPeak').textContent = state.peakMv > 0 ? state.peakMv.toFixed(1) : '--';
+  $('rBr').textContent = d <= 0 ? '未接触' : (state.broken ? '已拉脱（水柱破裂）' : '水柱附着');
+  $('rBr').className = 'v ' + (state.broken ? 'ok' : '');
+  const dc = Math.max(0, d);
+  $('rU').className = 'v' + (dc > 0 && !state.broken ? ' ok' : '');
+  window.__drawScreen(Math.max(0, uv), state.peakMv, state.power);
+}
+
+/** 记录表刷新 */
+function updateTables() {
+  for (let i = 0; i < N_REPS; i++) {
+    const row = state.rows[i];
+    const n = i + 1;
+    $('rU1' + n).textContent = row && row.U1 !== null ? row.U1.toFixed(1) : '--';
+    $('rU2' + n).textContent = row && row.U2 !== null ? row.U2.toFixed(1) : '--';
+    $('rD' + n).textContent = row && row.U2 !== null ? (row.U1 - row.U2).toFixed(1) : '--';
+    $('rA' + n).textContent = row && row.alpha !== undefined ? (row.alpha * 1000).toFixed(2) : '--';
+  }
+}
+
+/** 数据处理刷新 */
+function updateData() {
+  const done = state.rows.filter(r => r && r.U2 !== null);
+  const B = fitB();
+  $('rB').textContent = B !== null ? B.toFixed(3) : '未定标';
+  if (done.length === 0) return;
+  const du = done.reduce((s, r) => s + (r.U1 - r.U2), 0) / done.length;
+  $('cDU').textContent = du.toFixed(2);
+  if (B === null || !state.caliperDone) {
+    $('cAlpha').textContent = '待定标/测D';
+    $('cAlpha').className = 'v warn';
+    $('cErr').textContent = '--';
+    $('cInfo').textContent = '需先完成传感器定标（求 B）与卡尺测量（D₁、D₂）。';
+    return;
+  }
+  const alpha = du / (Math.PI * (state.d1 + state.d2) * B);
+  const err = Math.abs(alpha - ALPHA_STD) / ALPHA_STD * 100;
+  $('cAlpha').textContent = alpha.toFixed(4);
+  $('cAlpha').className = 'v ok';
+  $('cErr').textContent = err.toFixed(2) + '%';
+  $('cErr').className = 'v ' + (err < 3 ? 'ok' : 'warn');
+  $('cInfo').textContent = '✓ α = ' + (alpha * 1000).toFixed(2) +
+    ' mN/m，与标准值 72.75 mN/m 相对误差 ' + err.toFixed(2) + '%。';
+}
+
+/** 拉脱按钮使能刷新 */
+function updatePullBtns() {
+  const rowIdx = nextRow();
+  const hasU1 = state.rows.some(r => r && r.U2 === null);
+  $('btnRecU1').disabled = !(state.zeroed && state.peakMv > 5 && rowIdx >= 0 && !hasU1);
+  $('btnRecU2').disabled = !(state.zeroed && hasU1 && state.broken);
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 电源开关
+$('btnPower').addEventListener('click', () => {
+  state.power = !state.power;
+  $('btnPower').textContent = state.power ? '关闭电源' : '打开电源';
+  $('btnPower').classList.toggle('primary', !state.power);
+  $('powerState').textContent = state.power ? '（电源已开，预热完成）' : '（电源未开）';
+  $('btnLevel').disabled = !state.power || state.leveled;
+  $('btnCal').disabled = !state.power;
+  $('btnZero').disabled = !state.power || state.zeroed;
+  updateVoltmeter();
+  updateSteps();
+  toast(state.power ? '电源已开，请调节底座水平' : '电源已关闭');
+});
+
+// 调水平（一次性操作，完成后锁定）
+$('btnLevel').addEventListener('click', () => {
+  if (!state.power) { toast('⚠ 请先打开电源'); return; }
+  state.leveled = true;
+  $('btnLevel').disabled = true;
+  $('btnLevel').textContent = '✓ 底座已调平（水平泡居中）';
+  updateSteps();
+  toast('✓ 水平已调好，可进行传感器定标');
+});
+
+// 定标
+sldWt.addEventListener('input', () => {
+  state.wt = +sldWt.value;
+  $('labWt').textContent = state.wt.toFixed(1);
+});
+$('btnCal').addEventListener('click', () => {
+  if (!state.power) { toast('⚠ 请先打开电源'); return; }
+  const idx = Math.round(state.wt / 0.5) - 1;
+  if (state.calPts[idx] !== null) { toast('该砝码已记录，请换下一档'); return; }
+  const F = state.wt * 0.001 * G_ACC;
+  state.calPts[idx] = B_TRUE * F * 1000 + (Math.random() - 0.5) * 0.6;
+  const n = state.calPts.filter(v => v !== null).length;
+  toast('✓ 已记录 m = ' + state.wt.toFixed(1) + ' g（' + n + '/10 点）');
+  if (fitB() !== null && n === 2) toast('✓ 已有 2 点，U–F 直线求出 B = ' + fitB().toFixed(3) + ' V/N');
+  updateData(); updateSteps();
+});
+
+// 置零（一次性操作，须在环未接触液面时）
+$('btnZero').addEventListener('click', () => {
+  if (!state.power) { toast('⚠ 请先打开电源'); return; }
+  if (state.zeroed) return;
+  if (state.liquid >= H_RING - 1) { toast('⚠ 吊环将接触液面，请先把液面降到 7 mm 以下再置零'); return; }
+  state.zeroed = true;
+  state.step3Done = true;
+  $('btnZero').disabled = true;
+  $('btnZero').textContent = '✓ 已置零（环重已扣除）';
+  $('zeroInfo').textContent = '✓ 置零完成：此后电压表示数即表面张力贡献 U = f·B。';
+  sldLiq.disabled = false;
+  $('btnHold').disabled = false;
+  updatePullBtns(); updateSteps();
+  toast('✓ 置零完成，可升液面开始拉脱测量');
+});
+
+// 液面滑块（拖动即时更新电压/峰值，不依赖渲染帧）
+sldLiq.addEventListener('input', () => {
+  state.liquid = +sldLiq.value;
+  $('labLiq').textContent = state.liquid.toFixed(1);
+  updateVoltmeter();
+  if (state.zeroed) updatePullBtns();
+});
+
+// 记录 U₁（峰值保持）
+$('btnRecU1').addEventListener('click', () => {
+  if (!state.zeroed) { toast('⚠ 请先置零'); return; }
+  const idx = nextRow();
+  if (idx < 0) { toast('6 次记录已满'); return; }
+  if (state.rows.some(r => r && r.U2 === null)) { toast('请先完成上一行的 U₂ 记录'); return; }
+  if (state.peakMv <= 5) { toast('⚠ 尚无有效峰值，请先浸没吊环再缓慢拉脱'); return; }
+  state.rows[idx] = { U1: state.peakMv, U2: null };
+  updateTables(); updatePullBtns();
+  toast('✓ 第 ' + (idx + 1) + ' 次 U₁ = ' + state.peakMv.toFixed(1) +
+    ' mV，请拉脱（h 降至 8 以下）后记录 U₂');
+});
+
+// 记录 U₂（拉脱后）
+$('btnRecU2').addEventListener('click', () => {
+  if (!state.zeroed) { toast('⚠ 请先置零'); return; }
+  const row = state.rows.find(r => r && r.U2 === null);
+  if (!row) { toast('请先记录 U₁'); return; }
+  if (!state.broken) { toast('⚠ 水柱尚未破裂，U₂ 须在拉脱后记录'); return; }
+  row.U2 = Math.max(0, (Math.random() - 0.5) * 0.3);
+  const B = fitB();
+  row.alpha = (row.U1 - row.U2) / (Math.PI * (state.d1 + state.d2) * B);
+  const done = state.rows.filter(r => r && r.U2 !== null).length;
+  toast('✓ 第 ' + done + '/6 次完成：α = ' + (row.alpha * 1000).toFixed(2) + ' mN/m' +
+    (done === N_REPS ? '（全部完成！）' : '，按「峰值保持复位」后升液面继续'));
+  updateTables(); updateData(); updatePullBtns(); updateSteps();
+});
+
+// 峰值保持复位
+$('btnHold').addEventListener('click', () => {
+  state.peakMv = 0;
+  updateVoltmeter();
+  toast('峰值保持已复位，可重新浸没吊环测量');
+  updatePullBtns();
+});
+
+// 清空记录
+$('btnClear').addEventListener('click', () => {
+  state.rows = [null, null, null, null, null, null];
+  state.peakMv = 0;
+  updateTables(); updateData(); updatePullBtns(); updateSteps();
+  toast('记录已清空');
+});
+
+// 游标卡尺仿真测量（拖游框 → 量爪贴合边缘 → 读数记录）
+const D1_TRUE = D1_DEF, D2_TRUE = D2_DEF;   // 吊环边缘真实位置（mm）
+const calCanvas = $('caliperCanvas');
+const calCtx = calCanvas.getContext('2d');
+
+function calTarget() { return state.calMode === 'D1' ? D1_TRUE : D2_TRUE; }
+function calTouch() { return Math.abs(state.jaw - calTarget()) <= 0.06; }
+
+function drawCaliper() {
+  const W = 384;
+  calCtx.clearRect(0, 0, W, 170);
+  const xOf = v => 14 + v * (W - 28) / 40;   // 主尺 0..40 mm
+  // 主尺
+  calCtx.fillStyle = '#263238'; calCtx.fillRect(14, 26, W - 28, 14);
+  calCtx.strokeStyle = '#90a4ae'; calCtx.beginPath();
+  for (let v = 0; v <= 40; v += 1) {
+    const x = xOf(v);
+    calCtx.moveTo(x, 26); calCtx.lineTo(x, v % 5 === 0 ? 44 : 38);
+  }
+  calCtx.stroke();
+  calCtx.fillStyle = '#b0bec5'; calCtx.font = '9px sans-serif'; calCtx.textAlign = 'center';
+  for (let v = 0; v <= 40; v += 10) calCtx.fillText(String(v), xOf(v), 55);
+  // 吊环跨距带（0 → 目标边缘）
+  const tg = calTarget();
+  calCtx.fillStyle = 'rgba(176,190,197,0.18)';
+  calCtx.fillRect(xOf(0), 84, xOf(tg) - xOf(0), 10);
+  // 固定量爪与游框量爪
+  calCtx.fillStyle = '#78909c';
+  calCtx.fillRect(xOf(0) - 3, 40, 6, 80);
+  calCtx.fillRect(xOf(state.jaw) - 3, 40, 6, 80);
+  calCtx.fillStyle = '#ff8a65';
+  calCtx.fillRect(xOf(state.jaw) - 4, 16, 26, 10);
+  // 目标边缘虚线（贴合变绿）
+  calCtx.strokeStyle = calTouch() ? '#69f0ae' : '#ff5252';
+  calCtx.setLineDash([4, 3]); calCtx.lineWidth = 1.5;
+  calCtx.beginPath();
+  calCtx.moveTo(xOf(tg), 44); calCtx.lineTo(xOf(tg), 120);
+  calCtx.stroke(); calCtx.setLineDash([]); calCtx.lineWidth = 1;
+  // 间隙/贴合高亮
+  const xa = Math.min(xOf(state.jaw), xOf(tg)), xb = Math.max(xOf(state.jaw), xOf(tg));
+  calCtx.fillStyle = calTouch() ? 'rgba(105,240,174,0.45)' : 'rgba(255,82,82,0.35)';
+  calCtx.fillRect(xa, 84, Math.max(2, xb - xa), 10);
+  // 读数
+  calCtx.fillStyle = '#eaf6ff'; calCtx.font = 'bold 15px Consolas, monospace'; calCtx.textAlign = 'left';
+  calCtx.fillText(state.jaw.toFixed(2) + ' mm', 14, 146);
+  calCtx.fillStyle = calTouch() ? '#69f0ae' : '#ff9e80'; calCtx.font = '10px sans-serif';
+  calCtx.fillText(calTouch() ? '✓ 量爪已贴合吊环边缘' : '⚠ 量爪未贴合（红=间隙/过冲）', 110, 146);
+  calCtx.fillStyle = '#7fd7ff';
+  calCtx.fillText(state.calMode === 'D1'
+    ? '当前：测内径 D₁（内量爪卡住环内缘）'
+    : '当前：测外径 D₂（外量爪夹住环外缘）', 14, 164);
+}
+
+function updateCalBtns() {
+  const done = state.caliperDone;
+  $('btnModeD1').classList.toggle('primary', state.calMode === 'D1');
+  $('btnModeD2').classList.toggle('primary', state.calMode === 'D2');
+  $('btnModeD1').disabled = done;
+  $('btnModeD2').disabled = done;
+  $('btnRead').disabled = done;
+  sldJaw.disabled = done;
+  $('recD1').textContent = state.d1Done ? state.d1.toFixed(2) : '--';
+  $('recD2').textContent = state.d2Done ? state.d2.toFixed(2) : '--';
+}
+
+sldJaw.addEventListener('input', () => {
+  state.jaw = +sldJaw.value;
+  $('labJaw').textContent = state.jaw.toFixed(2) + ' mm';
+});
+$('btnModeD1').addEventListener('click', () => {
+  if (state.caliperDone) return;
+  state.calMode = 'D1';
+  updateCalBtns();
+});
+$('btnModeD2').addEventListener('click', () => {
+  if (state.caliperDone) return;
+  state.calMode = 'D2';
+  updateCalBtns();
+});
+$('btnRead').addEventListener('click', () => {
+  if (state.caliperDone) return;
+  if (state.calMode === 'D1') {
+    state.d1 = state.jaw; state.d1Done = true;
+    toast('✓ 已记录 D₁ = ' + state.d1.toFixed(2) + ' mm' +
+      (calTouch() ? '' : '（⚠ 量爪未贴合，含系统误差）'));
+  } else {
+    state.d2 = state.jaw; state.d2Done = true;
+    toast('✓ 已记录 D₂ = ' + state.d2.toFixed(2) + ' mm' +
+      (calTouch() ? '' : '（⚠ 量爪未贴合，含系统误差）'));
+  }
+  if (state.d1Done && state.d2Done) {
+    state.caliperDone = true;
+    setTimeout(() => toast('✓ 卡尺测量完成：D₁ = ' + state.d1.toFixed(2) +
+      ' mm，D₂ = ' + state.d2.toFixed(2) + ' mm'), 2600);
+  }
+  updateCalBtns(); updateData(); updateSteps();
+});
+
+// 点击右上数据面板：收起 / 展开
+overlayCanvas.addEventListener('click', () => { state.panelMin = !state.panelMin; });
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.power = true;
+  state.leveled = true;
+  state.step2Done = true;
+  state.zeroed = true;
+  state.caliperDone = true;
+  for (let i = 0; i < 10; i++) {
+    const F = (i + 1) * 0.5 * 0.001 * G_ACC;
+    state.calPts[i] = B_TRUE * F * 1000 + (Math.random() - 0.5) * 0.6;
+  }
+  for (let i = 0; i < N_REPS; i++) {
+    const U1 = UMAX * (1 + (Math.random() - 0.5) * 0.01);
+    const U2 = Math.random() * 0.2;
+    state.rows[i] = { U1, U2, alpha: (U1 - U2) / (Math.PI * (state.d1 + state.d2) * B_TRUE) };
+  }
+  state.liquid = 8.6;
+  sldLiq.value = 8.6; $('labLiq').textContent = '8.6';
+  $('btnPower').textContent = '关闭电源';
+  $('powerState').textContent = '（电源已开，预热完成）';
+  $('btnLevel').disabled = true;
+  $('btnLevel').textContent = '✓ 底座已调平（水平泡居中）';
+  $('btnZero').disabled = true;
+  $('btnZero').textContent = '✓ 已置零（环重已扣除）';
+  $('zeroInfo').textContent = '✓ 置零完成：此后电压表示数即表面张力贡献 U = f·B。';
+  sldLiq.disabled = false;
+  $('btnHold').disabled = false;
+  state.jaw = 33.10; sldJaw.value = 33.1; $('labJaw').textContent = '33.10 mm';
+  state.d1Done = true; state.d2Done = true;
+  updateCalBtns();
+  state.broken = false;
+  state.peakMv = UMAX;
+  updateTables(); updateData(); updatePullBtns(); updateSteps();
+  toast('⚡ 示例流程已完成：B ≈ 3.1 V/N，6 次 α 已求平均');
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  Object.assign(state, {
+    power: false, leveled: false, step1Done: false, step2Done: false, wt: 0.5,
+    calPts: [null, null, null, null, null, null, null, null, null, null],
+    zeroed: false, step3Done: false,
+    liquid: 0, broken: false, peakMv: 0,
+    rows: [null, null, null, null, null, null],
+    d1: D1_DEF, d2: D2_DEF, caliperDone: false,
+    jaw: 33.00, calMode: 'D1', d1Done: false, d2Done: false, panelMin: false
+  });
+  sldWt.value = 0.5; $('labWt').textContent = '0.5';
+  sldLiq.value = 0; $('labLiq').textContent = '0'; sldLiq.disabled = true;
+  sldJaw.value = 33; $('labJaw').textContent = '33.00 mm'; sldJaw.disabled = false;
+  $('btnPower').textContent = '打开电源'; $('btnPower').classList.add('primary');
+  $('powerState').textContent = '（电源未开）';
+  $('btnLevel').disabled = true;
+  $('btnLevel').textContent = '调节底座水平（水平泡居中）';
+  $('btnCal').disabled = true;
+  $('btnZero').disabled = true;
+  $('btnZero').textContent = '挂吊环并置零';
+  $('zeroInfo').textContent = '需先打开电源；置零须在吊环未接触液面时进行。';
+  $('btnHold').disabled = true;
+  $('pullInfo').textContent = '需先置零。升液面（h＞8）浸没吊环，再缓慢降回 8 mm 附近观察电压峰值。';
+  updateTables(); updateData(); updatePullBtns(); updateCalBtns(); updateSteps();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  updateVoltmeter();
+  updateScene3D(state.t);
+  drawCaliper();
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+// 监听容器尺寸变化（含首帧布局完成后的变化），保证 WebGL 画布始终铺满视口
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(onResize).observe(viewEl);
+}
+onResize();
+updateScene3D(0);
+renderer.render(scene, camera);
+updateSteps();
+updateTables();
+updatePullBtns();
+updateCalBtns();
+drawCaliper();
+animate();
+</script>
+<!-- end of file -->
+</html>

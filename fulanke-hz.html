@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验36 · 弗兰克-赫兹实验 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 记录表格 */
+  table.rec { width: 100%; border-collapse: collapse; font-size: 11px; color: #a9c6e8; }
+  table.rec th, table.rec td { border: 1px solid #1d3252; padding: 4px 5px; text-align: center; }
+  table.rec th { color: #7fd7ff; background: rgba(21, 101, 192, 0.15); font-weight: 600; }
+  table.rec td.val { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+  table.rec td.val.ok { color: #69f0ae; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.dark { background: #1a1a2e; border-color: #5c5c8a; color: #c5c5e8; }
+
+  /* 视口叠加层 */
+  #hudPanel { position: absolute; bottom: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #hudPanel .big { font-size: 20px; color: #7fd7ff; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #hudPanel .row { margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); cursor: pointer; }
+  #hint { position: absolute; bottom: 14px; right: 14px;
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验36 · 弗兰克-赫兹实验</h1>
+    <div class="sub">XD-FHZ 智能弗兰克-赫兹实验仪（充氩） ｜ I_A–U_G2K 曲线 ｜ 逐差法求第一激发电位 U₀（理论值 13.08 V） ｜ ⚠ 电压设置不当易损坏管，须按规定步骤操作</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">参数与测量</button>
+        <button data-p="p3">记录表</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾，达成后锁定）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开电源，"手动"档设置灯丝电压、U_G1K、U_G2A 并预热 10 min</span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 启动手动测量：U_G2K 从 0 V 逐步增至 80 V，观察板流 I_A 变化</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 记录 6 个波峰与 6 个波谷的 U_G2K 和 I_A（表 2.36.1）</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 逐差法求氩原子第一激发电位 U₀，与理论值 13.08 V 比较</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>建议工作状态：灯丝电压 3~4.5 V；U_G1K 1~3 V；U_G2A 5~7 V；U_G2K ≤ 80.0 V。</li>
+            <li>最小变化值：Uf、U_G1K、U_G2A 为 0.1 V；U_G2K 为 0.5 V；自动测量 0.2 V。</li>
+            <li>测量过程不可逆：如出现数据错误须从头测量。</li>
+            <li>弗兰克-赫兹管容易因电压设置不合适而损坏，一定要按规定步骤操作。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 参数与测量 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>电源</h3>
+          <button id="btnPower" class="btn primary">打开电源</button>
+          <span id="powerState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（电源未开）</span>
+        </div>
+        <div class="card">
+          <h3>工作参数设置（手动档）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>灯丝电压 Uf (V)</span><b id="labUf">3.5</b></div>
+            <input type="range" id="sldUf" min="3" max="4.5" step="0.1" value="3.5">
+          </div>
+          <div class="slider-row">
+            <div class="lab"><span>第一栅极电压 U_G1K (V)</span><b id="labG1">1.5</b></div>
+            <input type="range" id="sldG1" min="1" max="3" step="0.1" value="1.5">
+          </div>
+          <div class="slider-row">
+            <div class="lab"><span>拒斥电压 U_G2A (V)</span><b id="labG2a">6.5</b></div>
+            <input type="range" id="sldG2a" min="5" max="7" step="0.1" value="6.5">
+          </div>
+          <button id="btnHeat" class="btn" disabled>设置参数并预热 10 min</button>
+          <p id="heatInfo" style="margin-top:6px;">需先打开电源。</p>
+        </div>
+        <div class="card">
+          <h3>手动测量（U_G2K 扫描）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>加速电压 U_G2K (V)</span><b id="labUg2k">0.0</b></div>
+            <input type="range" id="sldUg2k" min="0" max="80" step="0.5" value="0" disabled>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+            <button id="btnRec" class="btn green" disabled>记录当前极值点</button>
+            <button id="btnScan" class="btn green" disabled>自动扫描记录（0.2 V 步进）</button>
+            <button id="btnClear" class="btn dark">清空记录</button>
+          </div>
+          <p id="recInfo">缓慢增大 U_G2K，板流 I_A 出现波峰—波谷交替；在极值点附近点击记录（每个极值 ±1.0 V 内有效）。</p>
+        </div>
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">板流 I_A (μA)</div><div class="v" id="rIa">--</div></div>
+            <div class="data-cell"><div class="k">当前极值状态</div><div class="v" id="rExt">--</div></div>
+            <div class="data-cell"><div class="k">记录进度</div><div class="v" id="rCnt">0 / 12</div></div>
+            <div class="data-cell"><div class="k">第一激发电位 U₀</div><div class="v" id="rU0">未求</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 记录表 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>表 2.36.1　波峰与波谷下的电流与加速电压</h3>
+          <p style="font-size:11px;color:#6fa8dc;">Uf = <b id="pUf">3.5</b> V，U_G1K = <b id="pG1">1.5</b> V，U_G2A = <b id="pG2a">6.5</b> V</p>
+          <table class="rec">
+            <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+            <tr><td>波峰 U_G2K / V</td><td class="val" id="pU1">--</td><td class="val" id="pU2">--</td><td class="val" id="pU3">--</td><td class="val" id="pU4">--</td><td class="val" id="pU5">--</td><td class="val" id="pU6">--</td></tr>
+            <tr><td>波峰 I_A / μA</td><td class="val" id="pI1">--</td><td class="val" id="pI2">--</td><td class="val" id="pI3">--</td><td class="val" id="pI4">--</td><td class="val" id="pI5">--</td><td class="val" id="pI6">--</td></tr>
+            <tr><td>波谷 U_G2K / V</td><td class="val" id="vU1">--</td><td class="val" id="vU2">--</td><td class="val" id="vU3">--</td><td class="val" id="vU4">--</td><td class="val" id="vU5">--</td><td class="val" id="vU6">--</td></tr>
+            <tr><td>波谷 I_A / μA</td><td class="val" id="vI1">--</td><td class="val" id="vI2">--</td><td class="val" id="vI3">--</td><td class="val" id="vI4">--</td><td class="val" id="vI5">--</td><td class="val" id="vI6">--</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>逐差法求第一激发电位</h3>
+          <span class="formula">U₀ = [(U₄−U₁) + (U₅−U₂) + (U₆−U₃)] / 9</span>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">U₀（波峰逐差）</div><div class="v" id="cUp">--</div></div>
+            <div class="data-cell"><div class="k">U₀（波谷逐差）</div><div class="v" id="cUv">--</div></div>
+            <div class="data-cell"><div class="k">U₀ 平均 (V)</div><div class="v" id="cUavg">--</div></div>
+            <div class="data-cell"><div class="k">相对误差 ΔU/U₀</div><div class="v" id="cErr">--</div></div>
+          </div>
+          <p id="cInfo" style="margin-top:6px;">6 个波峰（和波谷）记录齐全后自动计算；理论值 13.08 V。相邻波峰（谷）对应 U_G2K 之差即为第一激发电位。</p>
+        </div>
+        <div class="card">
+          <h3>思考题</h3>
+          <p>（1）I_A 谷值并不为零，且谷值沿 U_G2K 升高而抬高——因为电子速度服从统计分布，部分电子未在 KG 空间损失全部能量仍到达板极；同时单位时间进入碰撞区的电子数随 U_G2K 增大而增多，谷值随之抬高。</p>
+          <p>（2）第一峰值所对应的电压不等于第一激发电位——因为存在阴极接触电位差及管内电位分布的影响，第一峰位置整体偏移了一个接触电位差 U_c，只有相邻峰（谷）的<b>间距</b>才等于第一激发电位。</p>
+          <p>（3）氩原子第一激发态与基态的能级差 ΔE = e·U₀ ≈ 13.08 eV（hν = E₂ − E₁，频率定则）。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>背景简介</h3>
+          <p>1913 年，丹麦物理学家玻尔提出了原子能级的概念并建立了原子模型理论。1914 年，德国格丁根大学物理学家弗兰克和哈雷大学物理学家赫兹用慢电子穿过汞蒸气的实验，测定了汞原子的第一激发电位，直接证明了原子发生跃迁时吸收和发射的能量是分立的、不连续的；证明了原子能级的存在，是玻尔原子理论的有力支持。玻尔因其原子模型理论获 1922 年诺贝尔物理学奖，1925 年诺贝尔物理学奖授予弗兰克和赫兹。</p>
+        </div>
+        <div class="card">
+          <h3>Ⅰ. 玻尔的原子理论</h3>
+          <p>玻尔模型指出：原子由原子核和沿各不同轨道运动的电子构成，一定轨道上的电子具有一定的能量。<b>定态假设</b>——原子只能处在稳定状态中，每一定态对应于一定的能量值 Eᵢ，这些能量值彼此分立、不连续；<b>频率定则假设</b>——原子从一个稳定状态过渡到另一个稳定状态时，吸收或放出一定频率的电磁辐射：</p>
+          <span class="formula">hν = Eₙ − Eₘ　(2.36.1)　（h = 6.63×10⁻³⁴ J·s，普朗克常量）</span>
+          <p>本实验利用具有一定能量的电子与氩原子碰撞而发生能量交换来实现氩原子状态的改变。</p>
+        </div>
+        <div class="card">
+          <h3>Ⅱ. 弗兰克-赫兹实验的物理过程</h3>
+          <p>充氩的弗兰克-赫兹管中，电子由阴极 K 发出，阴极 K 和栅极 G 之间的加速电压 U_GK 使电子加速；板极 A 和栅极 G 之间加有减速电压 U_AG。设氩原子基态能量 E₁、第一激发态能量 E₂，初速为零的电子获得能量 eU₀ 后与氩原子碰撞：</p>
+          <ul>
+            <li>eU₀ &lt; E₂−E₁：只能发生<b>弹性碰撞</b>，电子能量无损失；</li>
+            <li>eU₀ &gt; E₂−E₁ = ΔE：发生<b>非弹性碰撞</b>，氩原子从电子中获得能量 eU₀；</li>
+            <li>eU₀ = ΔE：氩原子由基态跃迁到第一激发态，U₀ 即第一激发电位。</li>
+          </ul>
+          <p>电子通过 KG 空间后，若剩余能量大于 eU_AG 就能到达板极形成板流。当 U_GK = nΔU（n = 1,2,…）时，电子在 KG 空间与氩原子发生多次非弹性碰撞而失去全部能量，板流 I_A 显著下降——I_A–U_GK 曲线上相邻两波峰（或波谷）对应的 U_GK 之差，即为原子的第一激发电位。</p>
+        </div>
+        <div class="card">
+          <h3>Ⅲ. 实验仪器与注意事项</h3>
+          <p>XD-FHZ 智能弗兰克-赫兹实验仪：输入电压接线柱和板极电流输出插座、测试电压输入区、测试信号输出区、数字显示屏、工作状态指示灯、测试电压指示区、测量按键区。</p>
+          <ul>
+            <li>灯丝电流 1 μA 或 10 μA 档；灯丝电压 3~4.5 V；U_G1K 1~3 V；U_G2A 5~7 V；U_G2K ≤ 80.0 V。</li>
+            <li>最小变化值：Uf、U_G1K、U_G2A 为 0.1 V；U_G2K 为 0.5 V；自动测量 0.2 V。</li>
+            <li>按"↑/↓"键时若电压超过允许输出最大值，只能设为最大允许电压值。</li>
+            <li>弗兰克-赫兹管容易因电压设置不合适而损坏，一定要按规定步骤和状态进行实验。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>实验拓展</h3>
+          <p>量子态的概念是量子论对经典物理学的一场重大的变革。人们逐渐看到了它的实际应用——量子通信已经能够实现空间量子隐形距离传输。目前已经有人在研制新型计算机——量子计算机，可以想象，一台惊人的对比：现在对一个 500 位的阿拉伯数字进行因子分解，目前最快的超级计算机将耗时上百亿年，而量子计算机只需几分钟。有专家指出："一旦哪个量子发明出来量子计算机，他就可以攻破所有密码"。</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="hudPanel">
+        弗兰克-赫兹管状态
+        <div class="big" id="hudU">U_G2K = 0.0 V</div>
+        <div class="row" id="hudIa">I_A = --</div>
+        <div class="row" id="hudU0">U₀ = 未求</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 观察电子与氩原子碰撞 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const U0_TRUE = 13.08;          // 氩原子第一激发电位理论值 V
+const U_C = 5.5;                // 接触电位差修正 V（第一峰位置）
+const EXT_TOL = 1.0;            // 极值点记录容差 V
+const N_EXT = 6;                // 波峰/波谷个数
+
+/** 第 n 个波峰位置（n = 0..5） */
+function peakU(n) { return U_C + U0_TRUE * n; }
+/** 第 n 个波谷位置（n = 0..5） */
+function valleyU(n) { return U_C + U0_TRUE * (n + 0.5); }
+/** 包络（谷值沿 U_G2K 抬升、峰谷差增大） */
+function envOf(U) { return Math.min(1, U / 12); }
+/** 板流 I_A(μA)：峰在 U_C + n·U₀ 处，谷值随包络抬升 */
+function iaOf(U) {
+  const cos = Math.cos(2 * Math.PI * (U - U_C) / U0_TRUE);
+  return envOf(U) * (18 + 40 * (0.5 + 0.5 * cos)) + 3;
+}
+/** 逐差法：6 点 → U₀ = [(U₄−U₁)+(U₅−U₂)+(U₆−U₃)]/9 */
+function diffU0(arr) {
+  if (arr.length < N_EXT || arr.slice(0, N_EXT).some(v => v === null)) return null;
+  return ((arr[3] - arr[0]) + (arr[4] - arr[1]) + (arr[5] - arr[2])) / 9;
+}
+
+const state = {
+  power: false,
+  heated: false,
+  step1Done: false,             // 步骤①达成后锁定保持
+  scanned: false,               // 步骤②：U_G2K 曾升至 ≥79.5 V（锁定）
+  uf: 3.5, ug1: 1.5, ug2a: 6.5,
+  ug2k: 0,
+  recs: { peaks: [null, null, null, null, null, null],
+          valleys: [null, null, null, null, null, null] },   // {U, I}
+  panelMin: false,
+  t: 0,
+  lastTime: performance.now()   // 时间源：模块加载时刻
+};
+
+/* ================================================================
+ *  Three.js 3D 场景：弗兰克-赫兹管剖面示意
+ *  （阴极 K、栅极 G₁/G₂、板极 A、氩原子、电子粒子系统）
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let cathodeGlow, anodePlate, anodeGlowMat;
+let tubeLabel, kLabel, gLabel, aLabel;   // 标注（模块级，创建时即定位）
+const argonAtoms = [];                   // 氩原子
+const electrons = [];                    // 电子池
+const Z_K = -1.1, Z_G1 = -0.7, Z_G2 = 0.5, Z_A = 1.15, TUBE_Y = 0.35;
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 12, 30);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(2.6, 2.6, 5.6);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.35, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 1.8; controls.maxDistance = 16;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.5));
+  const pt = new THREE.PointLight(0xffffff, 45, 30);
+  pt.position.set(0, 4, 2); scene.add(pt);
+
+  // ---- 仪器底座 ----
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 0.14, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0x14203a, metalness: 0.55, roughness: 0.5 }));
+  base.position.y = -0.95; scene.add(base);
+
+  // ---- 玻璃管（充氩） ----
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.45, 0.45, 2.9, 32, 1, true),
+    new THREE.MeshPhysicalMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.12,
+      roughness: 0.05, transmission: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+  tube.rotation.x = Math.PI / 2;
+  tube.position.set(0, TUBE_Y, (Z_K + Z_A) / 2);
+  scene.add(tube);
+  tubeLabel = makeTextSprite('弗兰克-赫兹管（充氩）', '#a7ffeb', 1.4);
+  tubeLabel.position.set(0, 1.75, (Z_K + Z_A) / 2); scene.add(tubeLabel);
+
+  // ---- 阴极 K（加热灯丝，橙红辉光） ----
+  const cathode = new THREE.Mesh(
+    new THREE.TorusGeometry(0.12, 0.03, 10, 24),
+    new THREE.MeshStandardMaterial({ color: 0x3a2510, emissive: 0xff6d00,
+      emissiveIntensity: 0.2, roughness: 0.5 }));
+  cathode.position.set(0, TUBE_Y, Z_K); scene.add(cathode);
+  cathodeGlow = cathode;
+  kLabel = makeTextSprite('阴极 K', '#ffcc9e', 0.65);
+  kLabel.position.set(-0.15, 1.05, Z_K); scene.add(kLabel);
+
+  // ---- 栅极 G₁ / G₂（细金属环） ----
+  const gridMat = new THREE.MeshStandardMaterial({ color: 0x9fb8d8, metalness: 0.8, roughness: 0.3 });
+  for (const [zz, tag] of [[Z_G1, 'G₁'], [Z_G2, 'G₂']]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.018, 8, 32), gridMat);
+    ring.position.set(0, TUBE_Y, zz); scene.add(ring);
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.012, 8, 24), gridMat);
+    ring2.position.set(0, TUBE_Y, zz); scene.add(ring2);
+  }
+  gLabel = makeTextSprite('栅极 G₁ / G₂', '#c5e1ff', 0.9);
+  gLabel.position.set(0.55, 1.3, (Z_G1 + Z_G2) / 2); scene.add(gLabel);
+
+  // ---- 板极 A（铜板 + 到达辉光） ----
+  anodePlate = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.34, 0.05, 24),
+    new THREE.MeshStandardMaterial({ color: 0x8d6e4a, metalness: 0.75, roughness: 0.35 }));
+  anodePlate.rotation.x = Math.PI / 2;
+  anodePlate.position.set(0, TUBE_Y, Z_A); scene.add(anodePlate);
+  anodeGlowMat = new THREE.MeshBasicMaterial({ color: 0x6fd8ff, transparent: true,
+    opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const anodeGlow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.34, 0.08, 24), anodeGlowMat);
+  anodeGlow.rotation.x = Math.PI / 2;
+  anodeGlow.position.set(0, TUBE_Y, Z_A + 0.06); scene.add(anodeGlow);
+  aLabel = makeTextSprite('板极 A', '#ffe0b2', 0.65);
+  aLabel.position.set(0.15, 1.05, Z_A); scene.add(aLabel);
+
+  // ---- 氩原子（淡紫小球，缓慢漂移） ----
+  const argonGeo = new THREE.SphereGeometry(0.035, 10, 10);
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(argonGeo, new THREE.MeshBasicMaterial({
+      color: 0xb388ff, transparent: true, opacity: 0.45 }));
+    m.position.set((Math.random() - 0.5) * 0.5, TUBE_Y + (Math.random() - 0.5) * 0.4,
+      Z_K + 0.3 + Math.random() * (Z_A - Z_K - 0.5));
+    m.userData = { ph: Math.random() * Math.PI * 2, z0: m.position.z };
+    scene.add(m); argonAtoms.push(m);
+  }
+  const arLabel = makeTextSprite('氩原子', '#d1b3ff', 0.6);
+  arLabel.position.set(0, TUBE_Y - 0.75, 0); scene.add(arLabel);
+}
+
+/** 电子粒子：K 发射 → KG 区加速 → 碰撞平面减速 → G₂ 处按剩余能量判到达 A */
+const eGeo = new THREE.SphereGeometry(0.022, 8, 8);
+function spawnElectron() {
+  const m = new THREE.Mesh(eGeo, new THREE.MeshBasicMaterial({
+    color: 0x6fd8ff, transparent: true, opacity: 0.95 }));
+  m.position.set((Math.random() - 0.5) * 0.12, TUBE_Y + (Math.random() - 0.5) * 0.12, Z_K);
+  scene.add(m);
+  electrons.push({ mesh: m, z: Z_K, zPrev: Z_K, v: 0.3, cnt: 0,
+    hit: [false, false, false, false, false, false], flash: 0, dying: false, alpha: 1 });
+}
+function updateElectrons(dt) {
+  // 发射：开机且预热后，发射速率随板流增大
+  if (state.power && state.heated && electrons.length < 42 &&
+      Math.random() < dt * (6 + iaOf(state.ug2k) * 0.25)) {
+    spawnElectron();
+  }
+  const v0 = 0.35 + 0.028 * state.ug2k;      // 加速电压越高电子越快
+  const collisionPlanes = [];                // 碰撞平面位置（能量 n·U₀ 对应处）
+  for (let n = 1; n <= 5; n++) {
+    if (state.ug2k > n * U0_TRUE) {
+      collisionPlanes.push(Z_K + (n * U0_TRUE / state.ug2k) * (Z_G2 - Z_K));
+    }
+  }
+  for (let i = electrons.length - 1; i >= 0; i--) {
+    const e = electrons[i];
+    e.zPrev = e.z;
+    e.z += e.v * dt;
+    e.mesh.position.z = e.z;
+    // 碰撞：穿越碰撞平面 → 非弹性碰撞，能量骤减、闪橙光
+    for (const zp of collisionPlanes) {
+      if (e.zPrev < zp && e.z >= zp && !e.hit[collisionPlanes.indexOf(zp) + 1]) {
+        e.hit[collisionPlanes.indexOf(zp) + 1] = true;
+        e.cnt++; e.v = v0 * 0.22; e.flash = 0.4;
+      }
+    }
+    // G₂ 处：剩余能量 > e·U_G2A 才能到达板极
+    if (e.zPrev < Z_G2 && e.z >= Z_G2 && !e.dying) {
+      if (state.ug2k - e.cnt * U0_TRUE > state.ug2a) { e.v = v0; }
+      else { e.dying = true; e.v = 0.06; }   // 能量不足，被 G₂ 挡回缓漂
+    }
+    // 到达板极：蓝色辉光脉冲
+    if (e.z >= Z_A) {
+      anodeGlowMat.opacity = Math.min(0.8, anodeGlowMat.opacity + 0.3);
+      scene.remove(e.mesh); e.mesh.material.dispose();
+      electrons.splice(i, 1); continue;
+    }
+    // 缓漂消亡
+    if (e.dying) {
+      e.alpha -= dt * 0.35;
+      e.mesh.material.opacity = Math.max(0, e.alpha);
+      if (e.alpha <= 0) {
+        scene.remove(e.mesh); e.mesh.material.dispose();
+        electrons.splice(i, 1); continue;
+      }
+    }
+    // 碰撞闪光（橙→青）
+    if (e.flash > 0) {
+      e.flash -= dt;
+      e.mesh.material.color.setHex(e.flash > 0 ? 0xffa726 : 0x6fd8ff);
+    }
+  }
+  anodeGlowMat.opacity = Math.max(0, anodeGlowMat.opacity - dt * 1.2);
+}
+
+/** 氩原子缓慢漂移、阴极辉光脉动 */
+function updateAtoms(t) {
+  argonAtoms.forEach(a => {
+    a.position.y = TUBE_Y + 0.18 * Math.sin(t * 0.7 + a.userData.ph);
+    a.position.z = a.userData.z0 + 0.06 * Math.sin(t * 0.4 + a.userData.ph * 2);
+  });
+  cathodeGlow.material.emissiveIntensity =
+    state.power ? (state.heated ? 1.4 + 0.3 * Math.sin(t * 6) : 0.6) : 0.2;
+}
+
+/* ================================================================
+ *  视口叠加图：I_A–U_G2K 曲线 + 已记录极值散点 + 当前电压游标
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 320 * oDpr; overlayCanvas.height = 190 * oDpr;
+overlayCanvas.style.width = '320px'; overlayCanvas.style.height = '190px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+const CH = { x: 44, y: 16, w: 250, h: 140, uMax: 80, iMax: 65 };
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 320, 190);
+  // 半透明面板底色，避免遮挡 3D 模型
+  octx.fillStyle = 'rgba(10,16,28,0.6)';
+  octx.strokeStyle = '#1d3252';
+  octx.beginPath(); octx.rect(0, 0, 320, 190); octx.fill(); octx.stroke();
+  octx.fillStyle = '#7fd7ff'; octx.font = 'bold 11px sans-serif'; octx.textAlign = 'left';
+  octx.fillText('I_A – U_G2K 曲线（波峰间距 = 第一激发电位）', 12, 13);
+
+  const px = u => CH.x + CH.w * u / CH.uMax;
+  const py = iv => CH.y + CH.h * (1 - iv / CH.iMax);
+
+  // 网格与坐标轴
+  octx.strokeStyle = 'rgba(41,210,255,0.12)';
+  octx.beginPath();
+  for (let u = 10; u <= 80; u += 10) { octx.moveTo(px(u), CH.y); octx.lineTo(px(u), CH.y + CH.h); }
+  for (let iv = 13; iv <= 65; iv += 13) { octx.moveTo(CH.x, py(iv)); octx.lineTo(CH.x + CH.w, py(iv)); }
+  octx.stroke();
+  octx.strokeStyle = '#2e5c96';
+  octx.beginPath();
+  octx.moveTo(CH.x, CH.y); octx.lineTo(CH.x, CH.y + CH.h); octx.lineTo(CH.x + CH.w, CH.y + CH.h);
+  octx.stroke();
+  octx.fillStyle = '#6fa8dc'; octx.font = '10px sans-serif';
+  for (let u = 0; u <= 80; u += 16) octx.fillText(String(u), px(u) - 8, CH.y + CH.h + 14);
+  octx.fillText('U_G2K / V', CH.x + CH.w - 48, CH.y + CH.h + 28);
+  octx.save(); octx.translate(12, CH.y + 60); octx.rotate(-Math.PI / 2);
+  octx.fillText('I_A / μA', -14, 0); octx.restore();
+
+  // 理论曲线
+  octx.strokeStyle = '#4dd0e1'; octx.lineWidth = 1.6; octx.beginPath();
+  for (let i = 0; i <= 320; i++) {
+    const u = CH.uMax * i / 320;
+    if (i === 0) octx.moveTo(px(u), py(iaOf(u))); else octx.lineTo(px(u), py(iaOf(u)));
+  }
+  octx.stroke(); octx.lineWidth = 1;
+
+  // 已记录极值散点：波峰绿、波谷橙
+  state.recs.peaks.forEach((r, n) => {
+    if (!r) return;
+    octx.fillStyle = '#69f0ae'; octx.strokeStyle = '#eaf6ff';
+    octx.beginPath(); octx.arc(px(r.U), py(r.I), 4.5, 0, Math.PI * 2); octx.fill(); octx.stroke();
+  });
+  state.recs.valleys.forEach((r, n) => {
+    if (!r) return;
+    octx.fillStyle = '#ffa726'; octx.strokeStyle = '#eaf6ff';
+    octx.beginPath(); octx.arc(px(r.U), py(r.I), 4.5, 0, Math.PI * 2); octx.fill(); octx.stroke();
+  });
+
+  // 当前 U_G2K 游标（垂直虚线 + 曲线上的点）
+  octx.strokeStyle = 'rgba(255,255,255,0.55)';
+  octx.setLineDash([4, 4]);
+  octx.beginPath();
+  octx.moveTo(px(state.ug2k), CH.y); octx.lineTo(px(state.ug2k), CH.y + CH.h);
+  octx.stroke();
+  octx.setLineDash([]);
+  octx.fillStyle = '#ffd54f';
+  octx.beginPath(); octx.arc(px(state.ug2k), py(iaOf(state.ug2k)), 3.5, 0, Math.PI * 2); octx.fill();
+
+  octx.fillStyle = '#4a6a94'; octx.font = '9px sans-serif'; octx.textAlign = 'right';
+  octx.fillText('绿=波峰 橙=波谷 · 点击面板可收起', 310, 183);
+}
+
+/* ================================================================
+ *  UI 逻辑：步骤锁定打勾、极值记录状态机、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldUf = $('sldUf'), sldG1 = $('sldG1'), sldG2a = $('sldG2a'), sldUg2k = $('sldUg2k');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/** 找当前 U_G2K 附近未记录的极值：{type:'peaks'|'valleys', n, dist} 或 null */
+function nearestExtremum() {
+  let best = null;
+  for (let n = 0; n < N_EXT; n++) {
+    const dp = Math.abs(state.ug2k - peakU(n));
+    if (dp < EXT_TOL && state.recs.peaks[n] === null && (!best || dp < best.dist)) {
+      best = { type: 'peaks', n, dist: dp };
+    }
+    const dv = Math.abs(state.ug2k - valleyU(n));
+    if (dv < EXT_TOL && state.recs.valleys[n] === null && (!best || dv < best.dist)) {
+      best = { type: 'valleys', n, dist: dv };
+    }
+  }
+  return best;
+}
+
+/** 步骤自动打勾状态机（①②为一次性状态，达成后锁定保持） */
+function updateSteps() {
+  if (state.heated) state.step1Done = true;
+  if (state.ug2k >= 79.5) state.scanned = true;
+  const allRec = [...state.recs.peaks, ...state.recs.valleys].every(r => r !== null);
+  const u0 = diffU0(state.recs.peaks.map(r => r ? r.U : null));
+  $('st1').classList.toggle('done', state.step1Done);
+  $('st2').classList.toggle('done', state.scanned);
+  $('st3').classList.toggle('done', allRec);
+  $('st4').classList.toggle('done', u0 !== null);
+}
+
+/** 每帧刷新读数类 UI */
+function updateReadouts() {
+  const ia = iaOf(state.ug2k);
+  $('hudU').textContent = 'U_G2K = ' + state.ug2k.toFixed(1) + ' V';
+  $('hudIa').textContent = 'I_A = ' + ia.toFixed(2) + ' μA';
+  const u0 = results();
+  $('hudU0').textContent = 'U₀ = ' + (u0.avg !== null ? u0.avg.toFixed(2) + ' V' : '未求');
+  $('rIa').textContent = ia.toFixed(2);
+  const ext = nearestExtremum();
+  $('rExt').textContent = ext
+    ? (ext.type === 'peaks' ? '波峰' : '波谷') + ' #' + (ext.n + 1) + ' 附近（±' + ext.dist.toFixed(2) + ' V）'
+    : '--';
+  $('rExt').className = 'v ' + (ext ? 'ok' : '');
+  const cnt = [...state.recs.peaks, ...state.recs.valleys].filter(r => r !== null).length;
+  $('rCnt').textContent = cnt + ' / ' + (N_EXT * 2);
+}
+
+/** 计算结果：{up, uv, avg, err} */
+function results() {
+  const up = diffU0(state.recs.peaks.map(r => r ? r.U : null));
+  const uv = diffU0(state.recs.valleys.map(r => r ? r.U : null));
+  const vals = [up, uv].filter(v => v !== null);
+  const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  const err = avg !== null ? Math.abs(avg - U0_TRUE) / U0_TRUE * 100 : null;
+  return { up, uv, avg, err };
+}
+
+/** 记录表与数据处理刷新 */
+function updateTables() {
+  for (let n = 0; n < N_EXT; n++) {
+    const rp = state.recs.peaks[n], rv = state.recs.valleys[n];
+    const i = n + 1;
+    $('pU' + i).textContent = rp ? rp.U.toFixed(1) : '--';
+    $('pI' + i).textContent = rp ? rp.I.toFixed(2) : '--';
+    $('vU' + i).textContent = rv ? rv.U.toFixed(1) : '--';
+    $('vI' + i).textContent = rv ? rv.I.toFixed(2) : '--';
+  }
+  const u0 = results();
+  $('cUp').textContent = u0.up !== null ? u0.up.toFixed(2) + ' V' : '--';
+  $('cUv').textContent = u0.uv !== null ? u0.uv.toFixed(2) + ' V' : '--';
+  $('cUavg').textContent = u0.avg !== null ? u0.avg.toFixed(2) + ' V' : '--';
+  $('cUavg').className = 'v ' + (u0.avg !== null ? 'ok' : '');
+  $('cErr').textContent = u0.err !== null ? u0.err.toFixed(2) + '%' : '--';
+  $('cErr').className = 'v ' + (u0.err !== null ? 'ok' : '');
+  $('cInfo').style.color = u0.avg !== null ? '#69f0ae' : '#a9c6e8';
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 电源开关
+$('btnPower').addEventListener('click', () => {
+  state.power = !state.power;
+  $('btnPower').textContent = state.power ? '关闭电源' : '打开电源';
+  $('btnPower').classList.toggle('primary', !state.power);
+  $('powerState').textContent = state.power ? '（电源已开，指示灯亮）' : '（电源未开）';
+  $('btnHeat').disabled = !state.power || state.heated;
+  updateSteps();
+  toast(state.power ? '电源已打开，请设置工作参数' : '电源已关闭');
+});
+
+// 参数滑块
+sldUf.addEventListener('input', () => { state.uf = +sldUf.value; $('labUf').textContent = state.uf.toFixed(1); });
+sldG1.addEventListener('input', () => { state.ug1 = +sldG1.value; $('labG1').textContent = state.ug1.toFixed(1); });
+sldG2a.addEventListener('input', () => { state.ug2a = +sldG2a.value; $('labG2a').textContent = state.ug2a.toFixed(1); });
+
+// 设置参数并预热（一次性操作，完成后锁定）
+$('btnHeat').addEventListener('click', () => {
+  $('btnHeat').disabled = true;
+  $('btnHeat').textContent = '…预热中（模拟 10 min）';
+  $('heatInfo').textContent = '预热中，请稍候…';
+  setTimeout(() => {
+    state.heated = true;
+    $('btnHeat').textContent = '✓ 参数已设置并预热完成';
+    $('heatInfo').textContent = '✓ 预热完成，可开始手动测量（U_G2K 0 → 80 V）。';
+    sldUg2k.disabled = false;
+    $('btnRec').disabled = false;
+    $('btnScan').disabled = false;
+    updateSteps();
+    toast('✓ 预热完成，请缓慢增大 U_G2K 观察板流变化');
+  }, 3000);
+});
+
+// U_G2K 扫描滑块
+sldUg2k.addEventListener('input', () => {
+  state.ug2k = +sldUg2k.value;
+  $('labUg2k').textContent = state.ug2k.toFixed(1);
+  const ext = nearestExtremum();
+  $('recInfo').textContent = ext
+    ? '✓ 接近' + (ext.type === 'peaks' ? '波峰' : '波谷') + ' #' + (ext.n + 1) + '，可点击记录（越靠近极值中心误差越小）。'
+    : '缓慢增大 U_G2K，板流 I_A 出现波峰—波谷交替；在极值点附近点击记录。';
+  updateSteps();
+});
+
+// 记录当前极值点（门控：预热完成且在极值容差内）
+$('btnRec').addEventListener('click', () => {
+  if (!state.heated) { toast('⚠ 请先设置参数并预热'); return; }
+  const ext = nearestExtremum();
+  if (!ext) { toast('⚠ 当前不在极值点附近（容差 ±1.0 V），请微调 U_G2K'); return; }
+  state.recs[ext.type][ext.n] = { U: state.ug2k, I: iaOf(state.ug2k) };
+  const cnt = [...state.recs.peaks, ...state.recs.valleys].filter(r => r !== null).length;
+  toast('✓ 已记录' + (ext.type === 'peaks' ? '波峰' : '波谷') + ' #' + (ext.n + 1) +
+    '（' + cnt + '/12）');
+  updateTables(); updateSteps();
+});
+
+// 自动扫描记录（自动测量 0.2 V 步进，精确记录全部剩余极值）
+$('btnScan').addEventListener('click', () => {
+  if (!state.heated) { toast('⚠ 请先设置参数并预热'); return; }
+  for (let n = 0; n < N_EXT; n++) {
+    if (!state.recs.peaks[n]) {
+      const U = peakU(n);
+      state.recs.peaks[n] = { U, I: iaOf(U) };
+    }
+    if (!state.recs.valleys[n]) {
+      const U = valleyU(n);
+      state.recs.valleys[n] = { U, I: iaOf(U) };
+    }
+  }
+  state.ug2k = 80; sldUg2k.value = 80; $('labUg2k').textContent = '80.0';
+  updateTables(); updateSteps();
+  const u0 = results();
+  toast('⚡ 自动扫描完成：12 个极值已记录，U₀ = ' + u0.avg.toFixed(2) + ' V');
+});
+
+// 清空记录
+$('btnClear').addEventListener('click', () => {
+  state.recs = { peaks: [null, null, null, null, null, null],
+                 valleys: [null, null, null, null, null, null] };
+  updateTables(); updateSteps();
+  toast('记录已清空');
+});
+
+// 点击右上数据面板：收起 / 展开
+overlayCanvas.addEventListener('click', () => { state.panelMin = !state.panelMin; });
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.power = true;
+  state.heated = true;
+  state.scanned = true;
+  for (let n = 0; n < N_EXT; n++) {
+    const Up = peakU(n), Uv = valleyU(n);
+    state.recs.peaks[n] = { U: Up, I: iaOf(Up) };
+    state.recs.valleys[n] = { U: Uv, I: iaOf(Uv) };
+  }
+  state.ug2k = 80; sldUg2k.value = 80; $('labUg2k').textContent = '80.0';
+  $('btnPower').textContent = '关闭电源';
+  $('powerState').textContent = '（电源已开，指示灯亮）';
+  $('btnHeat').disabled = true;
+  $('btnHeat').textContent = '✓ 参数已设置并预热完成';
+  $('heatInfo').textContent = '✓ 预热完成，可开始手动测量（U_G2K 0 → 80 V）。';
+  sldUg2k.disabled = false;
+  updateTables(); updateSteps();
+  const u0 = results();
+  toast('⚡ 示例流程已完成：12 个极值已记录，U₀ = ' + u0.avg.toFixed(2) + ' V（误差 ' + u0.err.toFixed(2) + '%）');
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  Object.assign(state, {
+    power: false, heated: false, step1Done: false, scanned: false,
+    uf: 3.5, ug1: 1.5, ug2a: 6.5, ug2k: 0, panelMin: false,
+    recs: { peaks: [null, null, null, null, null, null],
+            valleys: [null, null, null, null, null, null] }
+  });
+  sldUf.value = 3.5; $('labUf').textContent = '3.5';
+  sldG1.value = 1.5; $('labG1').textContent = '1.5';
+  sldG2a.value = 6.5; $('labG2a').textContent = '6.5';
+  sldUg2k.value = 0; $('labUg2k').textContent = '0.0'; sldUg2k.disabled = true;
+  $('btnPower').textContent = '打开电源'; $('btnPower').classList.add('primary');
+  $('powerState').textContent = '（电源未开）';
+  $('btnHeat').disabled = true;
+  $('btnHeat').textContent = '设置参数并预热 10 min';
+  $('heatInfo').textContent = '需先打开电源。';
+  $('recInfo').textContent = '缓慢增大 U_G2K，板流 I_A 出现波峰—波谷交替；在极值点附近点击记录（每个极值 ±1.0 V 内有效）。';
+  updateTables(); updateSteps();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  updateAtoms(state.t);
+  updateElectrons(dt);
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+  updateReadouts();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+// 监听容器尺寸变化（含首帧布局完成后的变化），保证 WebGL 画布始终铺满视口
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(onResize).observe(viewEl);
+}
+onResize();
+updateAtoms(0);
+renderer.render(scene, camera);
+updateSteps();
+updateTables();
+animate();
+</script>
+<!-- end of file -->
+</html>

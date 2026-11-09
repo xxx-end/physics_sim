@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验26 · 测定铁磁物质的磁滞和磁化特性</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:420px;flex:0 0 420px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 96px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 3px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+canvas.plot{width:100%;background:#10161f;border:1px solid var(--line);border-radius:8px}
+#scopePanel{background:#0a0f16;border:1px solid var(--line);border-radius:8px;padding:8px}
+#scope{width:100%;display:block}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验26 · 测定铁磁物质的磁滞和磁化特性</h1>
+  <span class="tag">H=<b>NU_H/(LR₁)</b> · B=<b>C₂R₂U_B/(nS)</b> · μ=B/H · 磁滞损耗∝回线面积</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>电路设置</b>：选择样品 1，R₁=2.5 Ω，「U 选择」置 0，示波器开机并切换到 X-Y 模式（U_H→X、U_B→Y）</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>样品退磁</b>：按「样品退磁」按钮执行 U: 0→3 V→0 的往复磁化，消除剩磁，使样品处于中性态（B=H=0）</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>观察磁滞回线</b>：逐渐提高励磁电压 U（至不出现畸变小环的最大值），使屏上出现大小合适的磁滞回线</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>测基本磁化曲线（样品1）</b>：退磁后从 U=0 逐挡升压，记录各回线顶点 (U_H, U_B)，算出 H、B、μ（表 2.26.1）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>样品2 重复 + 三点坐标</b>：同样逐挡记录；在 U=3.0 V 磁滞回线上读取 S（顶点）、R（剩磁 H=0）、D（矫顽力 B=0）三点（表 2.26.2），比较软硬磁特性</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 励磁电压 U 挡位共 11 挡（0~3.0 V），由波段开关切换；② 每次更换样品或测量磁化曲线前必须先退磁，否则剩磁使曲线不过原点；③ R₁ 改变会使 U_H 标定变化，须清空记录重测；④ 示波器须用 X-Y 模式，光点居中；⑤ 磁滞损耗与回线面积成正比——软磁回线窄（损耗小，宜做变压器铁芯），硬磁回线宽（矫顽力大，宜做永磁体）。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 样品选择（两只 E1 铁芯，尺寸相同、磁性不同）</h4>
+      <button class="b on" id="btnS1">样品1（软磁·硅钢片）</button><button class="b" id="btnS2">样品2（硬磁）</button>
+      <div class="info">N=50 匝、n=150 匝、L=60 mm、S=80 mm²、C₂=20 μF、R₂=10 kΩ</div>
+    </section>
+    <section>
+      <h4>② 励磁电压 U 选择（11 挡波段开关）</h4>
+      <div id="uBtns"></div>
+      <button class="b" id="btnDemag" style="margin-top:6px">🧲 样品退磁（U: 0→3 V→0 往复磁化）</button>
+      <div class="info" id="demagShow">样品1：未退磁 ｜ 样品2：未退磁</div>
+    </section>
+    <section>
+      <h4>③ 取样电阻 R₁ 选择（Ω）</h4>
+      <div id="r1Btns"></div>
+      <div class="info">教材规定测磁化曲线用 R₁=2.5 Ω；改变 R₁ 将使已记录数据失效</div>
+    </section>
+    <section>
+      <h4>④ 示波器（X-Y 模式显示磁滞回线）</h4>
+      <button class="b" id="btnScope">示波器开机</button>
+      <button class="b" id="btnXY">切换 X-Y 模式</button>
+      <div id="scopePanel"><canvas id="scope" width="388" height="250"></canvas></div>
+      <div class="info" id="scopeShow">未开机</div>
+    </section>
+    <section>
+      <h4>⑤ 记录</h4>
+      <button class="b" id="btnRecV" style="width:100%">📋 记录当前 U 挡的回线顶点 (U_H, U_B)</button>
+      <button class="b" id="btnRec3" style="width:100%">📋 记录 U=3.0 V 回线的 S/R/D 三点（样品2）</button>
+      <div class="info" id="recShow">样品1 顶点 0/10 ｜ 样品2 顶点 0/10 ｜ 三点：未记录</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.26.1　不同电压下 B(μ)-H 曲线数据记录表</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>B(μ)-H 基本磁化曲线（实验点 + 理论曲线）</h4>
+      <canvas class="plot" id="cv1" width="388" height="210"></canvas>
+      <canvas class="plot" id="cv2" width="388" height="210"></canvas>
+    </section>
+    <section>
+      <h4>磁滞回线族与基本磁化曲线（样品1，顶点连线）</h4>
+      <canvas class="plot" id="cv3" width="388" height="230"></canvas>
+    </section>
+    <section>
+      <h4>表 2.26.2　磁滞回线的三点坐标（样品2，U=3.0 V）</h4>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>软磁 vs 硬磁磁滞回线对比与磁滞损耗</h4>
+      <canvas class="plot" id="cv4" width="388" height="230"></canvas>
+      <div id="conclude" class="info">完成全部测量后自动生成。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>磁畴与磁化</h4>
+      <div class="info">铁磁体内部存在自发磁化达饱和的小区域——磁畴（约 10¹²~10¹⁵ 个原子）。无外场时各磁畴取向紊乱、宏观磁效应抵消；外场作用下磁畴磁矩趋于一致排列，物质被磁化。</div>
+    </section>
+    <section>
+      <h4>磁场强度 H 的测定（安培环路定理）</h4>
+      <div class="formula">H = N·i₁/L，　i₁ = U_H/R₁　⟹　H = N·U_H/(L·R₁)　（2.26.1~2.26.2）</div>
+      <div class="info">N=50 匝为励磁绕组，L=60 mm 为平均磁路长度，R₁ 为励磁电流取样电阻。U_H 与 H 成正比，接示波器 X 输入。</div>
+    </section>
+    <section>
+      <h4>磁感应强度 B 的测定（法拉第定律 + RC 积分）</h4>
+      <div class="formula">ε = n·dΦ/dt，　B = Φ/S = (1/nS)∫εdt　（2.26.3~2.26.5）</div>
+      <div class="info">测量绕组 n=150 匝与 R₂、C₂ 串联成积分回路；当 i₂R₂ ≫ Q/C₂ 时 ε≈i₂R₂，得</div>
+      <div class="formula">B = C₂·R₂·U_B/(n·S)　（2.26.10）</div>
+      <div class="info">U_B 为积分电容 C₂ 两端电压，与 B 成正比，接示波器 Y 输入。屏上 X-Y 合成的轨迹即 B-H 磁滞回线。</div>
+    </section>
+    <section>
+      <h4>基本磁化曲线与磁滞回线</h4>
+      <div class="info">退磁后从 H=0 逐挡增大励磁，各磁滞回线顶点的连线称为基本磁化曲线（起始磁化 Oa→bS：缓慢上升—急剧增长—趋于饱和 Bs）。H_s→0→−H_s→0→H_c→H_s 循环一周，B 沿闭 合回线 SRDS′R′D′S 变化——磁滞回线。H=0 时 B=Br（剩磁）；B=0 时 H=−H_c（矫顽力）。磁滞损耗与回线面积成正比。μ=B/H 随 H 变化，不是常数。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 实验前为什么要对样品消磁？如何消磁？<br>(2) 什么是磁滞损耗？磁滞损耗与磁滞回线面积有什么关系？<br>(3) 区别硬磁和软磁的重要指标是什么？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3600); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数与状态 ================= */
+const P={ N:50, n:150, L:0.06, S:80e-6, C2:20e-6, R2:1e4, NL:833.33 }; // NL=N/L（A/m per A）
+P.kUB=P.n*P.S/(P.C2*P.R2);          // U_B = B·kUB（B=U_B/kUB）
+const U_STEPS=[0,0.5,1.0,1.2,1.5,1.8,2.0,2.2,2.5,2.8,3.0];
+const R1_STEPS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0];
+const SMP={
+  s1:{name:'样品1（软磁·硅钢片）', Bs:1.80, Br:0.90, Hc:48,  X:5.3, lam:120,
+      get a(){return this.Hc/Math.atanh(this.Br/this.Bs);}, aan:159},
+  s2:{name:'样品2（硬磁）',        Bs:1.30, Br:0.78, Hc:280, X:1.8, lam:300,
+      get a(){return this.Hc/Math.atanh(this.Br/this.Bs);}, aan:517}
+};
+const state={
+  sample:'s1', U:0, R1:2.5,
+  scopeOn:false, xy:false,
+  demag:{s1:false,s2:false},
+  done1:false, done2:false,   // 步骤①②为"做过即保持"的锁存标志
+  rec:{s1:{},s2:{}},          // {U:{uh,ub}}
+  three:null                  // {S:{h,b},R:{h,b},D:{h,b}}
+};
+/* 无滞回（退磁）曲线与主回线支 */
+const Bvirgin=(h,p)=>p.Bs*Math.tanh(h/p.aan);
+const Bmaj=(d,h,p)=>p.Bs*Math.tanh(d>0?(h-p.Hc)/p.a:(h+p.Hc)/p.a);
+/* 稳态磁滞回线数值模拟（返回顶点、Br、Hc 及末周期轨迹） */
+function simLoop(U,R1,p){
+  const Ip=U/(R1+p.X), Hp=P.NL*Ip;
+  const res={Hp,UH:Ip*R1,Btip:0,Br:0,Hc:0,pts:[]};
+  if(U<=0||Hp<=0){ res.pts=[[0,0]]; return res; }
+  const cyc=8, steps=240*cyc;
+  let dir=1, virgin=true, Hr=0, Bmem=0, hPrev=0, bPrev=0, dhPrev=0;
+  for(let i=0;i<=steps;i++){
+    const h=Hp*Math.sin(2*Math.PI*i/steps*cyc);
+    let b;
+    if(virgin) b=Bvirgin(h,p);
+    else b=Bmaj(dir,h,p)-(Bmaj(dir,Hr,p)-Bmem)*Math.exp(-Math.abs(h-Hr)/p.lam);
+    if(i>0){
+      const dh=h-hPrev;
+      if(dh*dhPrev<0){ Hr=hPrev; Bmem=bPrev; dir=dh>0?1:-1; virgin=false; }
+      if(dh<0&&dhPrev>0) res.Btip=bPrev;                      // 刚过正峰（与换向同帧，须独立判断）
+      if(dir<0&&hPrev>0&&h<=0) res.Br=b;                      // 下降支过 H=0 → 剩磁
+      if(dir>0&&bPrev<0&&b>=0&&h>0) res.Hc=h;                 // 上升支过 B=0 → 矫顽力
+      dhPrev=dh;
+    }
+    if(i>steps-240) res.pts.push([h,b]);                      // 末周期轨迹
+    hPrev=h; bPrev=b;
+  }
+  return res;
+}
+/* 当前 U 挡的标定值（退磁态顶点，用于表2.26.1） */
+function vertexAt(U,R1,p){
+  const Ip=U/(R1+p.X), Hp=P.NL*Ip, B=U>0?Bvirgin(Hp,p):0;
+  return {uh:Ip*R1, ub:B*P.kUB, Hp, B};
+}
+const HofR=(uh,R1)=>P.N*uh/(P.L*R1);          // H=N·U_H/(L·R₁)
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,200,460);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,800);
+camera.position.set(12,30,52);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,7,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.1); dl.position.set(50,110,80); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+function makeLabel(draw,w,h,sx,sy){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  sp.scale.set(sx,sy,1);
+  sp.userData.redraw=(...a)=>{ draw(c.getContext('2d'),w,h,...a); tex.needsUpdate=true; };
+  sp.userData.redraw();
+  return sp;
+}
+/* 实验台 */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(104,3,40), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-1.5; scene.add(bench);
+/* 磁滞回线实验仪（左） */
+const box=new THREE.Mesh(new THREE.BoxGeometry(24,13,10), M(0x2c3648,{roughness:.5}));
+box.position.set(-32,6.5,0); scene.add(box);
+tag(box,'磁滞回线实验仪','由励磁电源（220V 市电隔离降压，U 选择 11 挡 0~3.0 V）、样品1/2 选择、R₁ 取样电阻选择开关及积分电路板（R₂=10kΩ、C₂=20μF）组成。');
+const boxLb=makeLabel((g,w,h)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 38px Microsoft YaHei';
+  g.textAlign='center'; g.fillText('磁滞回线实验仪',w/2,h/2+13); },256,64,13,3.2);
+boxLb.position.set(-32,16.5,0); scene.add(boxLb);
+const knob=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,1,24), M(0xd8dde4,{metalness:.4}));
+knob.rotation.x=Math.PI/2; knob.position.set(-36,9,5.1); scene.add(knob);
+tag(knob,'U 选择旋钮','11 挡波段开关：0、0.5、1.0、1.2、1.5、1.8、2.0、2.2、2.5、2.8、3.0 V（在右侧面板选择）');
+const pwrLamp=new THREE.Mesh(new THREE.SphereGeometry(.55,16,16), new THREE.MeshBasicMaterial({color:0x333333}));
+pwrLamp.position.set(-27,10.5,5.1); scene.add(pwrLamp);
+/* 两只样品变压器（中） */
+function buildSample(x,name,desc,matColor){
+  const grp=new THREE.Group();
+  const coreM=M(matColor,{metalness:.55,roughness:.45});
+  const core=new THREE.Mesh(new THREE.BoxGeometry(8,8,4), coreM); grp.add(core);
+  for(let i=-2;i<=2;i++){ const lam=new THREE.Mesh(new THREE.BoxGeometry(8.15,.18,4.15), M(0x20242c)); lam.position.y=i*1.5; grp.add(lam); }
+  const coilN=new THREE.Mesh(new THREE.TorusGeometry(5.6,.5,10,40), M(0xb87333,{metalness:.7,roughness:.4}));
+  coilN.rotation.y=Math.PI/2; coilN.position.x=-1.6; grp.add(coilN);
+  const coilm=new THREE.Mesh(new THREE.TorusGeometry(5.6,.4,10,40), M(0x3f7f5f,{metalness:.6,roughness:.4}));
+  coilm.rotation.y=Math.PI/2; coilm.position.x=2.2; grp.add(coilm);
+  grp.position.set(x,5.5,0); scene.add(grp);
+  tag(core,name,desc);
+  return {grp,coilN,coilm,coreM};
+}
+const smp1=buildSample(-6,'样品1（软磁·硅钢片 E1 铁芯）','N=50 匝（励磁，铜色）、n=150 匝（测量，绿色）。硅钢软磁：磁滞回线窄长，H_c、剩磁与磁滞损耗均小，是变压器/电机铁芯材料。',0x7a8290);
+const smp2=buildSample(10,'样品2（硬磁 E1 铁芯）','与样品1 尺寸相同（L=60mm、S=80mm²）但磁性不同：硬磁回线较宽，矫顽力大、剩磁强，可用来制造永磁体。',0x8a6a50);
+/* 示波器（右） */
+const scopeBox=new THREE.Mesh(new THREE.BoxGeometry(26,18,11), M(0x27405e,{roughness:.45}));
+scopeBox.position.set(34,9,0); scene.add(scopeBox);
+tag(scopeBox,'双踪示波器','X 输入接 U_H（∝H），Y 输入接 U_B（∝B），X-Y 模式合成显示 B-H 磁滞回线。须先调光点居中。');
+const scopeLb=makeLabel((g,w,h)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 40px Microsoft YaHei';
+  g.textAlign='center'; g.fillText('示波器（X-Y）',w/2,h/2+14); },256,64,13,3.2);
+scopeLb.position.set(34,21.5,0); scene.add(scopeLb);
+/* 示波器屏幕（3D 贴图与面板共享同一 canvas） */
+const scopeCv=$('#scope');
+const scopeTex=new THREE.CanvasTexture(scopeCv);
+const screen=new THREE.Mesh(new THREE.PlaneGeometry(22,14.2), new THREE.MeshBasicMaterial({map:scopeTex}));
+screen.position.set(34,10.5,5.56); scene.add(screen);
+/* 导线 */
+function wire(pts,color=0xcc4444){
+  const curve=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve,40,.2,8), M(color,{roughness:.5})));
+}
+wire([[-30,5,5],[-6,5.5,6.2]],0xcc4444);   // 实验仪→两样品励磁
+wire([[-6,5.5,6.2],[10,5.5,6.2]],0xcc4444);
+wire([[10,5.5,6.2],[26,4,5]],0x3f9f6f);    // 测量绕组→示波器 Y
+wire([[-27,3,5],[26,2.5,4]],0xccaa44);     // R₁ 取样→示波器 X
+/* 样品选择高亮（每帧刷新） */
+function refreshSelectGlow(){
+  smp1.coreM.emissive.setHex(state.sample==='s1'?0x0a3038:0x000000);
+  smp2.coreM.emissive.setHex(state.sample==='s2'?0x0a3038:0x000000);
+}
+
+/* ================= 示波器屏（2D + 3D 共享） ================= */
+function drawScope(){
+  const g=scopeCv.getContext('2d'), W=scopeCv.width, H=scopeCv.height;
+  g.fillStyle='#04160e'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#0f2b1c'; g.lineWidth=1;
+  for(let i=1;i<10;i++){ g.beginPath(); g.moveTo(i*W/10,0); g.lineTo(i*W/10,H); g.stroke(); }
+  for(let i=1;i<6;i++){ g.beginPath(); g.moveTo(0,i*H/6); g.lineTo(W,i*H/6); g.stroke(); }
+  g.strokeStyle='#1a4430'; g.beginPath(); g.moveTo(W/2,0); g.lineTo(W/2,H); g.moveTo(0,H/2); g.lineTo(W,H/2); g.stroke();
+  if(!state.scopeOn){
+    g.fillStyle='#39584a'; g.font='16px Microsoft YaHei'; g.textAlign='center';
+    g.fillText('示波器未开机',W/2,H/2);
+  } else if(!state.xy){
+    g.fillStyle='#39584a'; g.font='16px Microsoft YaHei'; g.textAlign='center';
+    g.fillText('请切换到 X-Y 模式（U_H→X，U_B→Y）',W/2,H/2);
+  } else {
+    const p=SMP[state.sample], L=simLoop(state.U,state.R1,p);
+    /* 标定：X 每格=UHscale，Y 每格=UBscale（随幅值自适应取整） */
+    const uhMax=Math.max(0.5,Math.ceil(L.UH*2/0.5)*0.5/2+0.25);
+    const ubMax=Math.max(0.02,Math.ceil(L.Btip*P.kUB*1.35/0.02)*0.02);
+    const X=v=>W/2+v/uhMax*(W/2), Y=v=>H/2-v/ubMax*(H/2);
+    /* 回线轨迹 */
+    g.strokeStyle='#57e389'; g.lineWidth=2; g.shadowColor='#57e389'; g.shadowBlur=6;
+    g.beginPath();
+    L.pts.forEach((pt,i)=>{ const x=X(pt[0]/P.NL*state.R1), y=Y(pt[1]*P.kUB); i?g.lineTo(x,y):g.moveTo(x,y); });
+    g.closePath(); g.stroke(); g.shadowBlur=0;
+    /* 特征点标注（稳态时） */
+    if(state.U>0&&!isNaN(L.Btip)){
+      g.fillStyle='#ffb454'; g.font='11px Consolas,monospace'; g.textAlign='left';
+      g.fillText('S(Hs,Bs)',X(L.UH)+4,Y(L.Btip*P.kUB)-4);
+      g.beginPath(); g.arc(X(L.UH),Y(L.Btip*P.kUB),3,0,7); g.fill();
+      g.fillText('R(0,Br)',W/2+4,Y(L.Br*P.kUB)-4);
+      g.fillText('D(Hc,0)',X(L.Hc/P.NL*state.R1)+4,H/2+14);
+      g.fillText('Hc='+fmt(L.Hc,0)+' A/m  Br='+fmt(L.Br,2)+' T',10,H-8);
+      g.fillText('U_H±'+fmt(L.UH,2)+' V',10,14);
+    }
+    if(state.U<=0){ g.fillStyle='#57e389'; g.beginPath(); g.arc(W/2,H/2,2.5,0,7); g.fill();
+      g.fillStyle='#39584a'; g.font='12px Microsoft YaHei'; g.textAlign='center'; g.fillText('光点居中（U=0，中性态）',W/2,H/2+20); }
+  }
+  scopeTex.needsUpdate=true;
+  $('#scopeShow').textContent=!state.scopeOn?'未开机':(state.xy
+    ?('X-Y 模式：'+SMP[state.sample].name+'　U='+state.U+' V　R₁='+state.R1+' Ω')
+    :'YT 模式 — 请切换 X-Y');
+}
+
+/* ================= 交互 ================= */
+function setSample(s){
+  state.sample=s;
+  $('#btnS1').classList.toggle('on',s==='s1');
+  $('#btnS2').classList.toggle('on',s==='s2');
+  refreshSelectGlow(); updUI();
+}
+$('#btnS1').onclick=()=>setSample('s1');
+$('#btnS2').onclick=()=>setSample('s2');
+/* U 挡位按钮 */
+U_STEPS.forEach(u=>{
+  const b=document.createElement('button'); b.className='b'+(u===0?' on':''); b.textContent=fmt(u,1)+' V';
+  b.onclick=()=>{ state.U=u;
+    document.querySelectorAll('#uBtns .b').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    checkSteps(); updUI(); };
+  $('#uBtns').appendChild(b);
+});
+/* R₁ 挡位按钮 */
+R1_STEPS.forEach(r=>{
+  const b=document.createElement('button'); b.className='b'+(r===2.5?' on':''); b.textContent=fmt(r,1);
+  b.onclick=()=>{ if(state.R1===r) return;
+    state.R1=r;
+    document.querySelectorAll('#r1Btns .b').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    invalidateRecords('取样电阻 R₁ 已改变');
+    checkSteps(); updUI(); };
+  $('#r1Btns').appendChild(b);
+});
+$('#btnScope').onclick=()=>{
+  state.scopeOn=!state.scopeOn;
+  $('#btnScope').textContent=state.scopeOn?'示波器关机':'示波器开机';
+  $('#btnScope').classList.toggle('on',state.scopeOn);
+  pwrLamp.material.color.setHex(state.scopeOn?0x4cff7a:0x333333);
+  checkSteps(); updUI();
+};
+$('#btnXY').onclick=()=>{ state.xy=!state.xy; $('#btnXY').classList.toggle('on',state.xy); checkSteps(); updUI(); };
+/* 退磁：U 0→3→0 动画，结束置中性态 */
+let demagAnim=null;
+$('#btnDemag').onclick=()=>{
+  if(demagAnim) return;
+  toast('正在退磁：U 从 0 → 3.0 V → 0 往复磁化，消除剩磁…');
+  const seq=[...U_STEPS.slice(1),...[...U_STEPS].reverse()];   // 0.5→3.0→0
+  let i=0;
+  demagAnim=setInterval(()=>{
+    state.U=seq[i];
+    document.querySelectorAll('#uBtns .b').forEach((x,k)=>x.classList.toggle('on',U_STEPS[k]===state.U));
+    if(++i>=seq.length){
+      clearInterval(demagAnim); demagAnim=null;
+      state.U=0;
+      state.demag[state.sample]=true;
+      toast('<b>✓ 退磁完成</b>（'+SMP[state.sample].name+' 处于中性态 B=H=0），可开始测量');
+      checkSteps(); updUI();
+    }
+  },260);
+};
+function invalidateRecords(why){
+  const has=Object.keys(state.rec.s1).length||Object.keys(state.rec.s2).length||state.three;
+  state.done1=false;   // R₁ 已不在设定值，步骤①须重新设置（U=0、R₁=2.5）
+  if(!has) return;
+  state.rec={s1:{},s2:{}}; state.three=null;
+  renderData(); checkSteps();
+  toast('⚠ '+why+'，原有记录已全部清空，请重新测量');
+}
+/* 记录顶点 */
+$('#btnRecV').onclick=()=>{
+  if(!state.scopeOn||!state.xy){ toast('⚠ 请先开机示波器并切换 X-Y 模式'); return; }
+  if(state.U<=0){ toast('⚠ 请先选择励磁电压 U>0（退磁后从 0 逐挡升高）'); return; }
+  if(!state.demag[state.sample]){ toast('⚠ 测基本磁化曲线前必须先对'+SMP[state.sample].name+'退磁'); return; }
+  const v=vertexAt(state.U,state.R1,SMP[state.sample]);
+  state.rec[state.sample][state.U]={uh:+v.uh.toFixed(3), ub:+v.ub.toFixed(4)};
+  renderData(); checkSteps();
+  toast('✓ 已记录 '+SMP[state.sample].name+' U='+state.U+' V 顶点：U_H='+fmt(v.uh,3)+' V, U_B='+fmt(v.ub,4)+' V（H='+fmt(HofR(v.uh,state.R1),1)+' A/m, B='+fmt(v.B,3)+' T）');
+};
+/* 记录 S/R/D 三点 */
+$('#btnRec3').onclick=()=>{
+  if(!state.scopeOn||!state.xy){ toast('⚠ 请先开机示波器并切换 X-Y 模式'); return; }
+  if(state.sample!=='s2'){ toast('⚠ 请先选择样品2（硬磁）'); return; }
+  if(state.U!==3.0){ toast('⚠ 请将 U 调至 3.0 V（回线最大且不出现小环）'); return; }
+  const L=simLoop(3.0,state.R1,SMP.s2);
+  state.three={
+    S:{h:L.Hp,b:L.Btip,uh:L.UH,ub:L.Btip*P.kUB},
+    R:{h:0,b:L.Br,uh:0,ub:L.Br*P.kUB},
+    D:{h:L.Hc,b:0,uh:L.Hc*state.R1/P.N*P.N/P.NL,ub:0}
+  };
+  state.three.D.uh=+((L.Hc/P.NL)*state.R1).toFixed(3);
+  renderData(); checkSteps();
+  toast('✓ 已记录三点：S=('+fmt(L.Hp,0)+' A/m, '+fmt(L.Btip,3)+' T)、R=(0, '+fmt(L.Br,3)+' T)、D=('+fmt(L.Hc,0)+' A/m, 0)');
+};
+function updUI(){
+  const c1=Object.keys(state.rec.s1).length, c2=Object.keys(state.rec.s2).length;
+  $('#recShow').textContent='样品1 顶点 '+c1+'/10 ｜ 样品2 顶点 '+c2+'/10 ｜ 三点：'+(state.three?'已记录':'未记录');
+  $('#demagShow').textContent='样品1：'+(state.demag.s1?'✓ 已退磁':'未退磁')+' ｜ 样品2：'+(state.demag.s2?'✓ 已退磁':'未退磁');
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  const head='<tr><th>电源电压 U/V</th>'+U_STEPS.map(u=>`<th>${fmt(u,1)}</th>`).join('')+'</tr>';
+  const rowOf=(s,label,fn,dec)=>'<tr><td><b>'+label+'</b></td>'+U_STEPS.map(u=>{
+    const r=state.rec[s][u];
+    return `<td class="num ${r?'':'empty'}">${r?fn(r).toFixed(dec):'—'}</td>`;}).join('')+'</tr>';
+  const tbl=s=>'<table>'+head
+    +rowOf(s,'U_H /V',r=>r.uh,3)
+    +rowOf(s,'H /(A/m)',r=>HofR(r.uh,state.R1),1)
+    +rowOf(s,'U_B /V',r=>r.ub,4)
+    +rowOf(s,'B /T',r=>r.ub/P.kUB,3)
+    +rowOf(s,'μ /(10⁻³H/m)',r=>(r.ub/P.kUB)/HofR(r.uh,state.R1)*1e3,2)
+    +'</table>';
+  $('#tbl1').innerHTML='<div class="info" style="margin-bottom:4px"><b>样品1（软磁·硅钢片）</b>　R₁='+state.R1+' Ω</div>'+tbl('s1')
+    +'<div class="info" style="margin:8px 0 4px"><b>样品2（硬磁）</b>　R₁='+state.R1+' Ω</div>'+tbl('s2')
+    +'<div class="info">H=NU_H/(LR₁)；B=C₂R₂U_B/(nS)；μ=B/H（H 单位应为 A/m，教材表中 H/T 为笔误）。</div>';
+  /* 表2.26.2 */
+  const t=state.three;
+  $('#tbl2').innerHTML=t
+    ?'<table><tr><th></th><th>S（饱和顶点）</th><th>R（剩磁 H=0）</th><th>D（矫顽力 B=0）</th></tr>'
+      +'<tr><td><b>U_H/V</b></td><td class="num">'+t.S.uh.toFixed(3)+'</td><td class="num">'+t.R.uh.toFixed(3)+'</td><td class="num">'+t.D.uh.toFixed(3)+'</td></tr>'
+      +'<tr><td><b>H /(A/m)</b></td><td class="num">'+t.S.h.toFixed(0)+'</td><td class="num">'+t.R.h.toFixed(0)+'</td><td class="num">'+t.D.h.toFixed(0)+'</td></tr>'
+      +'<tr><td><b>U_B/V</b></td><td class="num">'+t.S.ub.toFixed(4)+'</td><td class="num">'+t.R.ub.toFixed(4)+'</td><td class="num">'+t.D.ub.toFixed(4)+'</td></tr>'
+      +'<tr><td><b>B /T</b></td><td class="num">'+t.S.b.toFixed(3)+'</td><td class="num">'+t.R.b.toFixed(3)+'</td><td class="num">'+t.D.b.toFixed(3)+'</td></tr></table>'
+      +'<div class="info">硬磁特征：剩磁 B_R='+t.R.b.toFixed(2)+' T、矫顽力 H_C='+t.D.h.toFixed(0)+' A/m 均较大，适合制造永磁体。</div>'
+    :'<div class="info">选择样品2、将 U 调至 3.0 V 后点「记录 S/R/D 三点」。</div>';
+  drawCurves();
+  conclude();
+}
+function axis(g,W,H,x0,x1,y0,y1){
+  const X=x=>34+(x-x0)/(x1-x0)*(W-52), Y=y=>H-26-(y-y0)/(y1-y0)*(H-44);
+  g.strokeStyle='#2a3341';
+  for(let k=0;k<=4;k++){ const v=y0+k/4*(y1-y0); g.beginPath(); g.moveTo(X(x0),Y(v)); g.lineTo(X(x1),Y(v)); g.stroke(); }
+  g.strokeStyle='#8b98a9'; g.beginPath(); g.moveTo(X(x0),Y(y0)); g.lineTo(X(x1),Y(y0)); g.moveTo(X(x0),Y(y0)); g.lineTo(X(x0),Y(y1)); g.stroke();
+  return {X,Y};
+}
+function drawBMH(cv,s){
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height,p=SMP[s];
+  g.fillStyle='#10161f'; g.fillRect(0,0,W,H);
+  const A=axis(g,W,H,0,700,0,p.Bs*1.12);
+  /* 理论曲线 */
+  g.strokeStyle='#4cc2ff'; g.lineWidth=1.6; g.beginPath();
+  for(let h=0;h<=700;h+=7){ const pt=A.X(h),y=A.Y(Bvirgin(h,p)); h?g.lineTo(pt,y):g.moveTo(pt,y); }
+  g.stroke();
+  /* μ-H（虚线，右轴） */
+  g.strokeStyle='#ffb454'; g.setLineDash([4,3]); g.beginPath();
+  let muPeak=[0,0];
+  for(let h=6;h<=700;h+=6){ const b=Bvirgin(h,p),mu=b/h;
+    if(mu>muPeak[1]) muPeak=[h,mu];
+    const y=A.Y(mu/(muPeak[1]*1.15||1)*(p.Bs*1.12)); const pt=A.X(h);
+    h===6?g.moveTo(pt,y):g.lineTo(pt,y); }
+  g.stroke(); g.setLineDash([]);
+  /* 实验点 */
+  g.fillStyle='#3ad17e';
+  Object.values(state.rec[s]).forEach(r=>{ const h=HofR(r.uh,state.R1),b=r.ub/P.kUB;
+    g.beginPath(); g.arc(A.X(Math.min(h,700)),A.Y(b),3.5,0,7); g.fill(); });
+  g.fillStyle='#8b98a9'; g.font='11px Consolas,monospace';
+  g.fillText(p.name+'　B-H（蓝实线/绿点）与 μ-H（橙虚线，峰值 '+fmt(muPeak[1]*1e3,1)+'×10⁻³H/m @ H≈'+muPeak[0]+' A/m）',36,14);
+}
+function drawCurves(){
+  drawBMH($('#cv1'),'s1'); drawBMH($('#cv2'),'s2');
+  /* 回线族（样品1） */
+  const g=$('#cv3').getContext('2d'),W=$('#cv3').width,H=$('#cv3').height,p=SMP.s1;
+  g.fillStyle='#10161f'; g.fillRect(0,0,W,H);
+  const A=axis(g,W,H,-800,800,-0.3,p.Bs*1.05);
+  let prevTip=null;
+  U_STEPS.forEach(u=>{
+    if(u<=0) return;
+    const L=simLoop(u,state.R1,p);
+    g.strokeStyle='rgba(76,194,255,'+(0.25+0.5*u/3)+')'; g.lineWidth=1.2; g.beginPath();
+    L.pts.forEach((pt,i)=>{ const x=A.X(pt[0]),y=A.Y(pt[1]); i?g.lineTo(x,y):g.moveTo(x,y); });
+    g.closePath(); g.stroke();
+    g.fillStyle='#3ad17e'; g.beginPath(); g.arc(A.X(L.Hp),A.Y(Bvirgin(L.Hp,p)),3,0,7); g.fill();
+    if(prevTip){ g.strokeStyle='rgba(58,209,126,.7)'; g.beginPath(); g.moveTo(A.X(prevTip[0]),A.Y(prevTip[1])); g.lineTo(A.X(L.Hp),A.Y(Bvirgin(L.Hp,p))); g.stroke(); }
+    prevTip=[L.Hp,Bvirgin(L.Hp,p)];
+  });
+  g.fillStyle='#8b98a9'; g.font='11px Consolas,monospace';
+  g.fillText('样品1 磁滞回线族（U=0.5~3.0V）＋顶点连线（绿）＝基本磁化曲线',36,14);
+  /* 软硬磁对比 */
+  const g4=$('#cv4').getContext('2d'),W4=$('#cv4').width,H4=$('#cv4').height;
+  g4.fillStyle='#10161f'; g4.fillRect(0,0,W4,H4);
+  const A4=axis(g4,W4,H4,-700,700,-0.35,1.4);
+  const loss=p=>{ const L=simLoop(3.0,state.R1,p); let w=0;
+    for(let i=1;i<L.pts.length;i++){ w+=(L.pts[i-1][0]+L.pts[i][0])/2*(L.pts[i][1]-L.pts[i-1][1]); }
+    return Math.abs(w); };
+  const w1=loss(SMP.s1), w2=loss(SMP.s2);
+  [['s1','#4cc2ff'],['s2','#ff6b6b']].forEach(([s,c])=>{
+    const L=simLoop(3.0,state.R1,SMP[s]);
+    g4.strokeStyle=c; g4.lineWidth=1.8; g4.beginPath();
+    L.pts.forEach((pt,i)=>{ const x=A4.X(pt[0]),y=A4.Y(pt[1]); i?g4.lineTo(x,y):g4.moveTo(x,y); });
+    g4.closePath(); g4.stroke();
+  });
+  g4.fillStyle='#8b98a9'; g4.font='11px Consolas,monospace';
+  g4.fillText('U=3.0V 磁滞回线对比：软磁(蓝,窄) vs 硬磁(红,宽)',36,14);
+  g4.fillText('回线面积∝磁滞损耗：软磁 '+fmt(w1,0)+' vs 硬磁 '+fmt(w2,0)+' J/m³（比值 '+fmt(w2/w1,1)+'）',36,H4-8);
+}
+function conclude(){
+  const c1=Object.keys(state.rec.s1).length, c2=Object.keys(state.rec.s2).length;
+  if(c1<10||c2<10||!state.three){ $('#conclude').innerHTML='完成全部测量后自动生成。（样品1 '+c1+'/10、样品2 '+c2+'/10、三点 '+(state.three?'✓':'未')+'）'; return; }
+  let muPeak=[0,0]; Object.entries(state.rec.s1).forEach(([u,r])=>{
+    const h=HofR(r.uh,state.R1), mu=(r.ub/P.kUB)/h; if(mu>muPeak[1]) muPeak=[+u,mu]; });
+  const t=state.three;
+  $('#conclude').innerHTML='<table><tr><th>比较项</th><th>样品1（软磁）</th><th>样品2（硬磁）</th></tr>'
+    +'<tr><td>饱和磁感应 B_S</td><td class="num">'+(state.rec.s1[3.0].ub/P.kUB).toFixed(2)+' T</td><td class="num">'+t.S.b.toFixed(2)+' T</td></tr>'
+    +'<tr><td>剩磁 B_R</td><td class="num">'+(Bmaj(-1,0,SMP.s1)).toFixed(2)+' T</td><td class="num">'+t.R.b.toFixed(2)+' T</td></tr>'
+    +'<tr><td>矫顽力 H_C</td><td class="num">'+SMP.s1.Hc.toFixed(0)+' A/m</td><td class="num">'+t.D.h.toFixed(0)+' A/m</td></tr>'
+    +'<tr><td>μ 峰值（样品1）</td><td colspan="2" class="num">'+fmt(muPeak[1]*1e3,2)+'×10⁻³ H/m（μ_r≈'+fmt(muPeak[1]/(4*Math.PI*1e-7),0)+'，出现在 U='+fmt(muPeak[0],1)+' V）——μ 随 H 变化，非常数</td></tr></table>'
+    +'<div class="info">结论：① 起始磁化曲线随 H 缓慢—急剧—饱和增长；② 样品1 磁滞回线窄长（H_C 小、损耗小），是软磁材料，适合做变压器/电机铁芯；样品2 回线宽（B_R、H_C 大），是硬磁材料，适合做永磁体；③ 磁滞损耗与回线所围面积成正比；④ μ=B/H 随 H 显著变化，铁磁材料相对磁导率可达数千。</div>';
+}
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  state.sample='s1'; state.R1=2.5; state.scopeOn=true; state.xy=true;
+  state.demag={s1:true,s2:true};
+  state.done1=true; state.done2=true;   // 示例数据视为已完成设置与退磁
+  ['s1','s2'].forEach(s=>{ U_STEPS.forEach(u=>{ if(u>0){
+    const v=vertexAt(u,2.5,SMP[s]);
+    state.rec[s][u]={uh:+v.uh.toFixed(3), ub:+v.ub.toFixed(4)}; } }); });
+  const L=simLoop(3.0,2.5,SMP.s2);
+  state.three={S:{h:L.Hp,b:L.Btip,uh:L.UH,ub:L.Btip*P.kUB},
+               R:{h:0,b:L.Br,uh:0,ub:L.Br*P.kUB},
+               D:{h:L.Hc,b:0,uh:+((L.Hc/P.NL)*2.5).toFixed(3),ub:0}};
+  state.U=3.0;
+  document.querySelectorAll('#uBtns .b').forEach((x,k)=>x.classList.toggle('on',U_STEPS[k]===3.0));
+  $('#btnS1').classList.add('on'); $('#btnS2').classList.remove('on');
+  $('#btnScope').classList.add('on'); $('#btnScope').textContent='示波器关机';
+  $('#btnXY').classList.add('on');
+  pwrLamp.material.color.setHex(0x4cff7a);
+  setSample('s1'); renderData(); checkSteps(); updUI(); drawScope();
+  toast('已自动填入示例数据（R₁=2.5Ω，两样品 11 挡顶点+硬磁三点）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  state.sample='s1'; state.U=0; state.R1=2.5; state.scopeOn=false; state.xy=false;
+  state.demag={s1:false,s2:false}; state.rec={s1:{},s2:{}}; state.three=null;
+  state.done1=false; state.done2=false;
+  document.querySelectorAll('#uBtns .b').forEach((x,k)=>x.classList.toggle('on',U_STEPS[k]===0));
+  document.querySelectorAll('#r1Btns .b').forEach((x,k)=>x.classList.toggle('on',R1_STEPS[k]===2.5));
+  $('#btnScope').textContent='示波器开机'; $('#btnScope').classList.remove('on');
+  $('#btnXY').classList.remove('on'); pwrLamp.material.color.setHex(0x333333);
+  setSample('s1'); renderData(); checkSteps(); updUI(); drawScope();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const c1=Object.keys(state.rec.s1).length, c2=Object.keys(state.rec.s2).length;
+  /* 步骤①②条件满足一次即锁存——升压观察回线（U≥2.0V）与①②的 U=0 条件互斥，
+     若不锁存，步骤③完成时①②会被误熄灭。R₁ 改变时 done1 复位（须重新设置）。 */
+  if(state.sample==='s1'&&state.R1===2.5&&state.U===0&&state.scopeOn&&state.xy) state.done1=true;
+  if(state.demag.s1&&state.U===0) state.done2=true;
+  const s=[
+    state.done1,
+    state.done2,
+    state.scopeOn&&state.xy&&state.U>=2.0,
+    c1>=10,
+    c1>=10&&c2>=10&&!!state.three
+  ];
+  const tips=['设置完成，请退磁。','退磁完成（B=H=0），请升高 U 观察回线。','回线观察完毕，请退磁后从 U=0 逐挡记录顶点。','样品1 完成！切换样品2 重复测量并记录三点。','全部完成：B(μ)-H 曲线、回线族与软硬磁对比已生成！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')&&i>0) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,scopeT=1;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  /* 3D 旋钮随 U 转动 */
+  knob.rotation.z=-(U_STEPS.indexOf(state.U))/10*6.28;
+  scopeT+=1/60;
+  if(scopeT>0.15){ scopeT=0; drawScope(); }
+  controls.update(); renderer.render(scene,camera);
+}
+setSample('s1'); renderData(); checkSteps(); updUI(); drawScope();
+loop();
+</script>
+</body>
+</html>

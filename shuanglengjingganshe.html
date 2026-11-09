@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验28 · 双棱镜干涉</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+#eyepieceBox{position:absolute;left:14px;bottom:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:300px}
+#eyepieceBox h5{font-size:12px;color:var(--accent);margin-bottom:4px}
+#eyeCv{width:100%;background:#05070c;border:1px solid var(--line);border-radius:6px}
+#eyeInfo{font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+#benchRead{position:absolute;left:14px;top:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;font-variant-numeric:tabular-nums}
+#benchRead b{color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+aside{width:440px;flex:0 0 440px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 100px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 3px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums} td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.mv{font-size:12px;color:var(--muted)} .mv b{color:#57e389;font-family:Consolas,monospace}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验28 · 双棱镜干涉</h1>
+  <span class="tag">λ = <b>(d/D)·ΔX</b> · d = d′·u/v · λ₀(钠) = 589.3 nm</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动调好并填示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="benchRead"></div>
+  <div id="eyepieceBox">
+    <h5>测微目镜视场（全量程 8 mm）</h5>
+    <canvas id="eyeCv" width="512" height="300"></canvas>
+    <div id="eyeInfo"></div>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>开机预热与共轴调节</b>：打开钠光灯电源并预热（约 10 s），点亮后进行各光学元件的共轴等高调节</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>调出清晰干涉条纹</b>：调狭缝宽度（&lt;1 mm）与狭缝倾角，使其与双棱镜棱脊平行，直至目镜视场中条纹清晰明亮</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>测量 10 条暗纹并记录 D</b>：移动测微目镜使视场内条纹≥10 条，用叉丝逐条对准暗纹记录 x₁…x₁₀（表 2.28.1），并记录狭缝/目镜的光具座读数得 D</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>共轴成像法测 d′</b>：保持狭缝与双棱镜位置不变，目镜移至距缝 &gt;4f₂=600 mm，插入 f₂=150 mm 凸透镜并移动到两竖直亮线清晰处，测亮线间距 d′ 及物距 u、像距 v（表 2.28.2）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>计算钠光波长</b>：d=d′·u/v，λ=(d/D)·ΔX（逐差法），与标准值 589.3 nm 比较</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 使用数字测微目镜时注意回程差和量程；② 玻璃光学器件易碎请小心使用；③ 钠光灯避免意外碰倒；④ 步骤④须保持狭缝与双棱镜位置与步骤③记录时一致，否则 d′ 无效。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 钠光灯与共轴</h4>
+      <button class="b" id="btnLamp">打开钠光灯</button>
+      <div class="info" id="warmShow">未开机</div>
+      <button class="b" id="btnAlign" disabled>共轴等高调节</button>
+    </section>
+    <section>
+      <h4>② 狭缝与棱脊调节</h4>
+      <div class="row"><label>狭缝宽度 w</label><input type="range" id="sldW" min="0.1" max="2" step="0.05" value="1.5"><span id="vW" style="flex:0 0 60px;text-align:right">1.50 mm</span></div>
+      <div class="row"><label>狭缝倾角 θs</label><input type="range" id="sldT" min="0" max="2" step="0.05" value="0.2"><span id="vT" style="flex:0 0 60px;text-align:right">0.20 °</span></div>
+      <div class="info">双棱镜棱脊倾角 θb=0.80°（已固定）。要求 w&lt;1 mm 且 |θs−θb| 尽量小，条纹清晰度≥0.8 方可测量。</div>
+    </section>
+    <section>
+      <h4>③ 光具座元件位置</h4>
+      <div class="row"><label>狭缝位置</label><button class="b" data-xs="-10">−10</button><button class="b" data-xs="-1">−1</button><button class="b" data-xs="1">+1</button><button class="b" data-xs="10">+10</button><span class="mv"><b id="vXS"></b> cm</span></div>
+      <div class="row"><label>双棱镜位置</label><button class="b" data-xb="-10">−10</button><button class="b" data-xb="-1">−1</button><button class="b" data-xb="1">+1</button><button class="b" data-xb="10">+10</button><span class="mv"><b id="vXB"></b> cm</span></div>
+      <div class="row"><label>目镜位置</label><button class="b" data-xf="-50">−50</button><button class="b" data-xf="-10">−10</button><button class="b" data-xf="-1">−1</button><button class="b" data-xf="1">+1</button><button class="b" data-xf="10">+10</button><button class="b" data-xf="50">+50</button><span class="mv"><b id="vXF"></b> cm</span></div>
+      <div class="info">条纹间距 ΔX=(D/d)λ·(D=X_F−X_S)：目镜移远条纹变疏，缝-棱镜距 a 变大虚光源间距 d 变大、条纹变密。</div>
+    </section>
+    <section>
+      <h4>④ 测微目镜测量</h4>
+      <div class="row"><label>叉丝位置 x_e</label><button class="b" data-xe="-0.5">−0.5</button><button class="b" data-xe="-0.1">−0.1</button><button class="b" data-xe="-0.01">−0.01</button><button class="b" data-xe="0.01">+0.01</button><button class="b" data-xe="0.1">+0.1</button><button class="b" data-xe="0.5">+0.5</button></div>
+      <button class="b" id="btnSnap">⟲ 微调对准最近目标（暗纹/亮线）</button>
+      <button class="b" id="btnRecX">📋 记录当前暗纹读数</button>
+      <button class="b" id="btnRecD" disabled>📋 记录光具座读数（X_S、X_F）</button>
+      <div class="mv">已记录暗纹 <b id="nxShow">0</b>/10</div>
+    </section>
+    <section>
+      <h4>⑤ 凸透镜 L₂（f₂=150 mm）成像测 d′</h4>
+      <button class="b" id="btnL2">插入 L₂ / 移除</button>
+      <div class="row"><label>L₂ 位置</label><button class="b" data-xl="-10">−10</button><button class="b" data-xl="-1">−1</button><button class="b" data-xl="1">+1</button><button class="b" data-xl="10">+10</button><span class="mv"><b id="vXL">—</b> cm</span></div>
+      <button class="b" id="btnRecL">📋 记录亮线1（x₁）</button>
+      <button class="b" id="btnRecR">📋 记录亮线2（x₂）</button>
+      <button class="b" id="btnRecUV" disabled>📋 记录物距 u、像距 v</button>
+      <div class="mv" id="l2Show">L₂ 未插入</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.28.1　双棱镜干涉条纹间距实验数据记录</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>表 2.28.2　双棱镜干涉狭缝虚像间距实验数据记录</h4>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>波长计算与结论</h4>
+      <button class="b" id="btnCalc">计算钠光波长</button>
+      <div id="conclude" class="info">完成全部测量后点「计算钠光波长」。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>菲涅耳双棱镜</h4>
+      <div class="info">菲涅耳 1818 年设计的分波面干涉装置：两折射棱角很小（30′~1°）的直角棱镜底面相接构成一体光学元件，截面近似底角极小的等腰三角形。缝光源 S 发出的光经双棱镜折射后，其反向延长线交于与 S 同平面上的两个虚像 S₁、S₂（虚光源），间距为 d（随 S 与双棱镜距离 a 变化，d=2a(n−1)α）。</div>
+    </section>
+    <section>
+      <h4>干涉条纹与波长测量</h4>
+      <div class="formula">δ = d·X/D　（2.28.2）　ΔX = (D/d)·λ　（2.28.4）　⟹　λ = (d/D)·ΔX　（2.28.5）</div>
+      <div class="info">屏上形成等间距、明暗相间的直条纹。测得 ΔX、D 和 d 即可求波长。</div>
+    </section>
+    <section>
+      <h4>共轴成像法测虚光源间距 d</h4>
+      <div class="formula">M = d′/d = v/u　⟹　d = d′·(u/v)　（2.28.7）</div>
+      <div class="info">在双棱镜与观察屏间放入焦距 f₂ 的凸透镜 L（D&gt;4f₂），移动 L 可在屏上获得两虚光源的像——两条竖直亮线，其间距 d′ 由测微目镜测出；再测物距 u、像距 v，由放大率公式求 d。</div>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <div class="info">钠光灯（λ₀=589.3 nm）及电源、光具座、凸透镜（f₁=50 mm、f₂=150 mm）、可调狭缝、双棱镜、数字测微目镜（量程 8 mm、最小读数 0.01 mm）、白屏。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 双棱镜是怎样实现双光束干涉的？条纹宽度、数目由哪些因素决定？<br>(2) 为什么光源和双棱镜之间要放一狭缝？为什么狭缝很窄才能得到清晰的干涉条纹？<br>(3) 当调整单缝与双棱镜间的距离时，条纹疏密程度应怎样变化？为什么？<br>(4) 给出衍射法、干涉法或贝塞尔法测定虚光源间距 d′ 的实验方案。</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),4000); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数与状态 ================= */
+const LAMBDA=589.3e-6;                 // 钠光波长 mm
+const N_P=1.50, ALPHA=0.75*Math.PI/180;// 双棱镜：折射率、棱角
+const F1=50, F2=150;                   // 透镜焦距 mm
+const state={
+  lampOn:false, warmT:0, warmed:false, aligned:false,
+  done1:false, done2:false, done3:false, done4:false, solved:false,
+  slitW:1.5, slitTilt:0.2, ridgeTilt:0.8,
+  XS:200, XB:350, XF:550,              // 光具座读数 mm
+  L2in:false, XL:750,
+  xe:4.0,                              // 叉丝位置 mm（0~8）
+  xs:[],                               // 10 个暗纹读数
+  lockS:null, lockF:null, lockA:null,  // 步骤③锁定的光具座读数
+  img1:null, img2:null, uRec:null, vRec:null, dPr:null
+};
+const aGap=()=>state.XB-state.XS;                     // 缝-棱镜距 a
+const dVirt=()=>2*aGap()*(N_P-1)*ALPHA;               // 虚光源间距 d=2a(n−1)α
+const DVal=()=>state.XF-state.XS;                     // 缝到目镜 D
+const dX=()=>DVal()/dVirt()*LAMBDA;                   // 条纹间距 ΔX
+function clarity(){                                    // 条纹清晰度
+  if(!state.lampOn||!state.warmed||!state.aligned) return 0;
+  const w=state.slitW;
+  const g=w<=1? 1-0.35*(w-0.5)*(w-0.5) : Math.max(0.12,1-0.9*(w-1));
+  const dt=Math.abs(state.slitTilt-state.ridgeTilt);
+  const h=Math.exp(-(dt/0.35)*(dt/0.35));
+  return Math.max(0,Math.min(1,g*h));
+}
+function focus4(){                                     // L₂ 成像清晰度（0~1）
+  if(!state.L2in) return 0;
+  const u=state.XL-state.XS, vImg=1/(1/F2-1/u);        // u>f₂ 才成实像
+  if(u<=F2) return 0;
+  const dv=state.XF-state.XL-vImg;
+  return Math.exp(-(dv*dv)/(40*40));
+}
+const darkCenters=()=>{                                // 视场 0~8mm 内暗纹中心
+  const dx=dX(), out=[];
+  let k=Math.ceil((0-4)/dx-0.5);
+  for(;4+k*dx<8;k++){ const c=4+(k+0.5)*dx; if(c>=0&&c<=8) out.push(c); }
+  return out;
+};
+const linePair=()=>{                                   // L₂ 像的两条亮线位置
+  const u=state.XL-state.XS, v=state.XF-state.XL;
+  const dIm=dVirt()*v/u;
+  return [4-dIm/2,4+dIm/2];
+};
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,300,900);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(10,110,400); camera.lookAt(0,8,0);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,8,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.8));
+const dl=new THREE.DirectionalLight(0xffffff,1.0); dl.position.set(60,120,90); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+const SX=v=>(v-600)/2.2;               // 光具座 mm → 3D x
+const OH=12;                            // 光学元件中心高度（立在滑座立杆上）
+/* 导轨 + 端部支架 + 标尺 */
+const rail=new THREE.Mesh(new THREE.BoxGeometry(1260/2.2,3,10), M(0x3a3f4a,{metalness:.4,roughness:.6}));
+rail.position.set(0,1,0); scene.add(rail);
+[[-262],[262]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(7,2.4,15), M(0x2c3036,{roughness:.6}));
+  leg.position.set(p[0],0.6,0); scene.add(leg);
+});
+(function(){ const g=new THREE.CanvasTexture((function(){ const c=document.createElement('canvas'); c.width=1024;c.height=32;
+  const x=c.getContext('2d'); x.fillStyle='#20242c'; x.fillRect(0,0,1024,32); x.strokeStyle='#5a6474';
+  for(let i=0;i<=24;i++){ x.beginPath(); x.moveTo(i*1024/24,20); x.lineTo(i*1024/24,32); x.stroke(); }
+  x.fillStyle='#8b98a9'; x.font='14px Consolas'; x.fillText('0',2,14); x.fillText('60 cm',480,14); x.fillText('120 cm',950,14);
+  return c; })());
+  const s=new THREE.Mesh(new THREE.PlaneGeometry(600,16), new THREE.MeshBasicMaterial({map:g}));
+  s.rotation.x=-Math.PI/2; s.position.set(0,2.6,8); scene.add(s); })();
+/* 光具座滑座：鞍座（卡导轨）+ 立杆 + 顶横臂，各元件挂杆顶 */
+function addMount(g){
+  const saddle=new THREE.Mesh(new THREE.BoxGeometry(6,2.6,14), M(0x33383f,{metalness:.5,roughness:.55}));
+  saddle.position.set(0,2.9,0); g.add(saddle);
+  const knobM=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.9,10), M(0x8a92a0,{metalness:.6}));
+  knobM.rotation.z=Math.PI/2; knobM.position.set(0,2.9,7.4); g.add(knobM);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,6.6,12), M(0x9aa2b0,{metalness:.65,roughness:.35}));
+  post.position.set(0,7.6,0); g.add(post);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(5,0.9,2.2), M(0x3d434c,{metalness:.5}));
+  arm.position.set(0,10.6,0); g.add(arm);
+}
+/* 透镜框（金属环框+压圈，元件居框心） */
+function lensCell(r){
+  const g=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(r+0.4,0.55,10,36), M(0x454b54,{metalness:.55,roughness:.4}));
+  g.add(ring);
+  const inner=new THREE.Mesh(new THREE.TorusGeometry(r+0.42,0.18,8,36), M(0x20242a));
+  g.add(inner);
+  return g;
+}
+/* 钠光灯（GP20Na：圆筒灯罩+出光口+电源箱+开关，装滑座） */
+const lampG=new THREE.Group();
+const lampBody=new THREE.Mesh(new THREE.CylinderGeometry(5,5,15,24), M(0xb8bdc4,{metalness:.35,roughness:.45}));
+lampBody.rotation.z=Math.PI/2; lampBody.position.set(-2,OH,0); lampG.add(lampBody);
+const lampMouth=new THREE.Mesh(new THREE.TorusGeometry(4.6,0.5,10,26), M(0x8a8f98,{metalness:.5}));
+lampMouth.rotation.y=Math.PI/2; lampMouth.position.set(5.5,OH,0); lampG.add(lampMouth);
+const bulb=new THREE.Mesh(new THREE.SphereGeometry(3.1,20,16), new THREE.MeshStandardMaterial({color:0xffc23d,emissive:0xff9500,emissiveIntensity:0}));
+bulb.position.set(0,OH,0); lampG.add(bulb);
+const lampBox=new THREE.Mesh(new THREE.BoxGeometry(8,6,9), M(0x565e6c,{roughness:.55}));
+lampBox.position.set(-8,4.8,0); lampG.add(lampBox);
+const lampSw=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,.6,14), M(0xc23b3b));
+lampSw.rotation.z=Math.PI/2; lampSw.position.set(-8,6.4,4.6); lampG.add(lampSw);
+addMount(lampG);
+lampG.position.set(SX(40),0,0); scene.add(lampG);
+tag(lampG,'钠光灯','λ₀=589.3 nm。打开电源后需预热 2~5 min（仿真约 10 s）才能稳定发光，注意避免碰倒灯座。');
+/* f₁ 聚焦透镜（带镜框） */
+const lens1G=new THREE.Group();
+const lens1=new THREE.Mesh(new THREE.CylinderGeometry(8,8,1.6,36), M(0xbcd8ee,{transparent:true,opacity:.45,roughness:.1}));
+lens1.rotation.z=Math.PI/2; lens1G.add(lens1);
+lens1G.add(lensCell(8));
+addMount(lens1G);
+lens1G.position.set(SX(120),0,0); scene.add(lens1G);
+tag(lens1G,'凸透镜 f₁=50 mm','将扩展光源发出的光会聚成像于狭缝 S 上，形成缝光源。');
+/* 狭缝（金属架+上下刀片+缝宽调节鼓轮） */
+const slitG=new THREE.Group();
+const sFrame=new THREE.Mesh(new THREE.BoxGeometry(2,26,4.5), M(0x2c3648,{metalness:.5}));
+sFrame.position.set(0,OH,0); slitG.add(sFrame);
+const sGap=new THREE.Mesh(new THREE.BoxGeometry(1.2,18,3.2), M(0x0c0e12));
+sGap.position.set(0.55,OH,0); slitG.add(sGap);
+const bl1=new THREE.Mesh(new THREE.BoxGeometry(1.4,20,3), M(0x14161a)); bl1.position.set(0,OH+2.2,0); slitG.add(bl1);
+const bl2=new THREE.Mesh(new THREE.BoxGeometry(1.4,20,3), M(0x14161a)); bl2.position.set(0,OH-2.2,0); slitG.add(bl2);
+const drumW=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1.4,20), M(0x8a92a0,{metalness:.6}));
+drumW.rotation.x=Math.PI/2; drumW.position.set(0,OH+15.5,0); slitG.add(drumW);
+addMount(slitG);
+slitG.position.set(SX(state.XS),0,0); scene.add(slitG);
+tag(slitG,'可调狭缝 S','缝光源。宽度调至 <1 mm（波面上普通光源的空间相干性所限），倾角须与双棱镜棱脊平行，否则条纹变糊甚至消失。顶部鼓轮调缝宽。');
+/* 双棱镜（玻璃棱柱装金属托框） */
+const bpShape=new THREE.Shape();
+bpShape.moveTo(-7,0); bpShape.lineTo(7,0); bpShape.lineTo(0,4.2); bpShape.closePath();
+const bpG=new THREE.Group();
+const bp=new THREE.Mesh(new THREE.ExtrudeGeometry(bpShape,{depth:16,bevelEnabled:false}), M(0xaad4f0,{transparent:true,opacity:.4,roughness:.05,metalness:.1}));
+bp.rotation.y=Math.PI/2; bp.position.set(0,OH-1.4,0); bpG.add(bp);
+const bpTray=new THREE.Mesh(new THREE.BoxGeometry(4,1.2,18), M(0x454b54,{metalness:.55,roughness:.4}));
+bpTray.position.set(0,OH-1.9,0); bpG.add(bpTray);
+[[-8.4],[8.4]].forEach(p=>{
+  const clamp=new THREE.Mesh(new THREE.BoxGeometry(1.2,5.6,1.2), M(0x20242a,{metalness:.5}));
+  clamp.position.set(0,OH+1,p[0]); bpG.add(clamp);
+});
+addMount(bpG);
+bpG.position.set(SX(state.XB),0,0); scene.add(bpG);
+tag(bpG,'菲涅耳双棱镜','折射棱角 α=0.75°（45′）、n=1.50 的一体双棱镜：缝光经上下两半折射，形成虚光源 S₁、S₂，相当于间距 d=2a(n−1)α 的双缝。');
+/* L₂ 透镜（带镜框，默认隐藏） */
+const lens2G=new THREE.Group();
+const lens2=new THREE.Mesh(new THREE.CylinderGeometry(9,9,2,36), M(0xbcd8ee,{transparent:true,opacity:.45,roughness:.1}));
+lens2.rotation.z=Math.PI/2; lens2G.add(lens2);
+lens2G.add(lensCell(9));
+addMount(lens2G);
+lens2G.visible=false; lens2G.position.set(SX(state.XL),0,0); scene.add(lens2G);
+tag(lens2G,'凸透镜 L₂（f₂=150 mm）','共轴成像法：把两虚光源 S₁S₂ 成实像为两条竖直亮线于目镜焦面，测像间距 d′ 与物距 u、像距 v，得 d=d′u/v。');
+/* 测微目镜（镜筒+目镜+读数鼓轮带刻度+滑座） */
+const eyeG=new THREE.Group();
+const tube=new THREE.Mesh(new THREE.CylinderGeometry(5.5,6.5,16,28), M(0x2c3648,{metalness:.5}));
+tube.rotation.z=Math.PI/2; tube.position.set(2,OH,0); eyeG.add(tube);
+const eyep=new THREE.Mesh(new THREE.CylinderGeometry(3.4,4.4,4,24), M(0x1a2029));
+eyep.rotation.z=Math.PI/2; eyep.position.set(-9,OH,0); eyeG.add(eyep);
+const drum=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,5,20), M(0x8a92a0,{metalness:.6}));
+drum.rotation.x=Math.PI/2; drum.position.set(2,OH,7.5); eyeG.add(drum);
+/* 鼓轮刻度线（0.01mm 读数） */
+for(let i=0;i<12;i++){
+  const tick=new THREE.Mesh(new THREE.BoxGeometry(.12,1.2,.1), M(0x14161a));
+  const ang=i/12*Math.PI*2;
+  tick.position.set(Math.cos(ang)*2.62,Math.sin(ang)*2.62,10.05);
+  tick.rotation.z=ang; eyeG.add(tick);
+}
+addMount(eyeG);
+eyeG.position.set(SX(state.XF),0,0); scene.add(eyeG);
+tag(eyeG,'数字测微目镜','量程 8 mm、最小读数 0.01 mm。旋转鼓轮移动叉丝，对准暗纹中心读数；视场见左下角实时显示。');
+/* 光路可视化 */
+const beamMat=new THREE.MeshBasicMaterial({color:0xffc23d,transparent:true,opacity:.20,side:THREE.DoubleSide,depthWrite:false});
+const beam0=new THREE.Mesh(new THREE.PlaneGeometry(1,1), beamMat.clone());   // 灯→f₁→狭缝
+const beam1=new THREE.Mesh(new THREE.PlaneGeometry(1,1), beamMat.clone());
+const beam2=new THREE.Mesh(new THREE.PlaneGeometry(1,1), beamMat.clone());
+scene.add(beam0,beam1,beam2);
+/* 钠灯点光源（照亮灯周元件） */
+const plamp=new THREE.PointLight(0xffb040,0,500); plamp.position.set(6,OH,0); lampG.add(plamp);
+function updBeams(){
+  const xs=SX(state.XS), xb=SX(state.XB), xf=SX(state.XF);
+  const vis=clarity();
+  const spread=8;                              // 缝到棱镜光锥半宽
+  const g1=new THREE.PlaneGeometry(Math.hypot(xb-xs,spread),10);
+  beam1.geometry.dispose(); beam1.geometry=g1;
+  beam1.position.set((xs+xb)/2,OH,0);
+  beam1.rotation.z=Math.atan2(spread,xb-xs);
+  beam2.geometry=g1.clone();
+  beam2.position.set((xs+xb)/2,OH,0);
+  beam2.rotation.z=-Math.atan2(spread,xb-xs);
+  /* 棱镜后交叠光楔：上光下折、下光上折 */
+  const len=xf-xb, wedge=10;
+  const g2=new THREE.PlaneGeometry(Math.hypot(len,wedge),12);
+  beam1.geometry=g2;
+  beam1.position.set((xb+xf)/2,OH+wedge/4,0);
+  beam1.rotation.z=Math.atan2(-wedge,len);
+  beam2.position.set((xb+xf)/2,OH-wedge/4,0);
+  beam2.rotation.z=Math.atan2(wedge,len);
+  const op=Math.min(.24,vis*.24);
+  beam1.material.opacity=op; beam2.material.opacity=op;
+  beam1.visible=beam2.visible=vis>0.02&&state.lampOn;
+  /* 灯→f₁→狭缝入射光锥 */
+  const xl=SX(40)+5.5, xsl=SX(state.XS);
+  const gl=new THREE.PlaneGeometry(Math.hypot(xsl-xl,6),9);
+  beam0.geometry.dispose(); beam0.geometry=gl;
+  beam0.position.set((xl+xsl)/2,OH,0);
+  beam0.rotation.z=Math.atan2(0,xsl-xl);
+  beam0.material.opacity=state.lampOn?(state.warmed?.22:.1):0;
+  beam0.visible=state.lampOn;
+}
+
+/* ================= 目镜视场 canvas ================= */
+const eyeCv=$('#eyeCv'), eg=eyeCv.getContext('2d');
+function drawEye(){
+  const W=512,H=300;
+  eg.fillStyle='#04060b'; eg.fillRect(0,0,W,H);
+  /* 视场光阑圆 */
+  eg.save();
+  eg.beginPath(); eg.arc(W/2,H/2,140,0,7); eg.clip();
+  eg.fillStyle='#070a12'; eg.fillRect(0,0,W,H);
+  const vis=clarity(), f4=focus4();
+  if(state.lampOn&&state.warmed&&state.aligned){
+    if(!state.L2in){
+      /* 干涉条纹：竖直条纹（可因倾角失配而倾斜） */
+      const dx=dX(), scale=140*2/8;               // 8mm ↔ 280px
+      const tilt=(state.slitTilt-state.ridgeTilt)*Math.PI/180*3;
+      const amp=Math.min(1,vis*1.1);
+      for(let px=0;px<W;px++){
+        const xm=(px-W/2)/scale;                  // 视场内 mm 坐标
+        for(let py=0;py<H;py++){
+          const ym=(py-H/2)/scale;
+          const xs_=xm*Math.cos(tilt)+ym*Math.sin(tilt);
+          const ph=2*Math.PI*(xs_-4)/dx;          // 以 4mm 为参考中心
+          const I=0.5+0.5*Math.cos(ph);
+          const v=Math.round(20+Math.min(1,amp)*(I*160));
+          if(v>24){ eg.fillStyle='rgb('+Math.round(v*0.95)+','+Math.round(v*0.85)+','+Math.round(v*0.55)+')'; eg.fillRect(px,py,1,1); }
+        }
+      }
+    } else {
+      /* L₂ 成像：两竖直亮线 */
+      const f=focus4();
+      if(f>0.1){
+        const scale=140*2/8;
+        const [c1,c2]=linePair();
+        for(const c of [c1,c2]){
+          const px=W/2+(c-4)*scale;
+          const wgt=Math.min(1,f*1.15);
+          const grd=eg.createLinearGradient(px-10,0,px+10,0);
+          grd.addColorStop(0,'rgba(255,220,120,0)');
+          grd.addColorStop(.5,'rgba(255,224,130,'+(0.9*wgt)+')');
+          grd.addColorStop(1,'rgba(255,220,120,0)');
+          eg.fillStyle=grd; eg.fillRect(px-10,0,20,H);
+        }
+      }
+    }
+    if(!state.L2in&&vis>0&&vis<0.75){
+      eg.fillStyle='rgba(255,120,80,'+(0.5*(1-vis))+')';
+      eg.font='26px Microsoft YaHei'; eg.textAlign='center';
+      eg.fillText('条纹模糊：调狭缝宽度/倾角',W/2,H/2-90);
+    }
+  } else if(state.lampOn&&!state.warmed){
+    eg.fillStyle='rgba(255,180,80,.5)'; eg.font='24px Microsoft YaHei'; eg.textAlign='center';
+    eg.fillText('钠光灯预热中…',W/2,H/2);
+  } else {
+    eg.fillStyle='rgba(140,150,170,.4)'; eg.font='24px Microsoft YaHei'; eg.textAlign='center';
+    eg.fillText('视场暗（未开机/未共轴）',W/2,H/2);
+  }
+  /* 叉丝：竖丝位置 = x_e */
+  const scale=140*2/8;
+  const pxm=W/2+(state.xe-4)*scale;
+  eg.strokeStyle='#4aa3ff'; eg.lineWidth=1.4;
+  eg.beginPath(); eg.moveTo(pxm,H/2-140); eg.lineTo(pxm,H/2+140); eg.stroke();
+  eg.beginPath(); eg.moveTo(W/2-140,H/2); eg.lineTo(W/2+140,H/2); eg.stroke();
+  eg.restore();
+  /* 外圈与读数 */
+  eg.strokeStyle='#3a4a63'; eg.beginPath(); eg.arc(W/2,H/2,140,0,7); eg.stroke();
+  eg.strokeStyle='#5a6a82';
+  for(let i=0;i<=8;i++){ const x=W/2+(i-4)*scale;
+    eg.beginPath(); eg.moveTo(x,H/2+130); eg.lineTo(x,H/2+140); eg.stroke();
+    if(i%2===0){ eg.fillStyle='#8b98a9'; eg.font='11px Consolas'; eg.textAlign='center'; eg.fillText(i+'',x,H/2+156); } }
+  /* 最近目标高亮 */
+  let tgt=null;
+  if(state.L2in&&focus4()>0.6){ const [c1,c2]=linePair();
+    const d1=Math.abs(state.xe-c1), d2=Math.abs(state.xe-c2);
+    tgt=d1<d2?c1:c2;
+  } else if(!state.L2in&&clarity()>0.6){
+    const cs=darkCenters(); let bd=1e9;
+    cs.forEach(c=>{ if(Math.abs(state.xe-c)<bd){bd=Math.abs(state.xe-c); tgt=c;} });
+  }
+  if(tgt!==null){
+    const px=W/2+(tgt-4)*scale;
+    eg.strokeStyle='#ff6b6b'; eg.setLineDash([4,4]);
+    eg.beginPath(); eg.moveTo(px,H/2-140); eg.lineTo(px,H/2+140); eg.stroke();
+    eg.setLineDash([]);
+  }
+  $('#eyeInfo').innerHTML='叉丝读数 x_e=<b style="color:#4cc2ff">'+fmt(state.xe,2)+' mm</b>'
+    +(state.L2in?('　｜　L₂ 成像清晰度 <b>'+fmt(focus4()*100,0)+'%</b>（须≥85%）'):'　｜　条纹清晰度 <b>'+fmt(clarity()*100,0)+'%</b>（须≥80%）');
+  $('#benchRead').innerHTML='狭缝 X_S=<b>'+fmt(state.XS/10,1)+'</b> cm　双棱镜 X_B=<b>'+fmt(state.XB/10,1)+'</b> cm　目镜 X_F=<b>'+fmt(state.XF/10,1)+'</b> cm'
+    +'<br>a=X_B−X_S=<b>'+fmt(aGap()/10,1)+'</b> cm　D=X_F−X_S=<b>'+fmt(DVal()/10,1)+'</b> cm　d=2a(n−1)α=<b>'+fmt(dVirt(),2)+'</b> mm　ΔX=<b>'+fmt(dX()*1000,0)+' μm</b>';
+}
+
+/* ================= 交互 ================= */
+$('#btnLamp').onclick=()=>{
+  state.lampOn=!state.lampOn;
+  $('#btnLamp').textContent=state.lampOn?'关闭钠光灯':'打开钠光灯';
+  $('#btnLamp').classList.toggle('on',state.lampOn);
+  if(state.lampOn) toast('钠光灯已点亮，请等待预热（约 10 s）');
+  else { state.warmed=false; state.done1=false; checkSteps(); }
+  updWarm(); checkSteps();
+};
+function updWarm(){
+  const el=$('#warmShow');
+  if(!state.lampOn){ el.textContent='未开机'; $('#btnAlign').disabled=true; return; }
+  if(!state.warmed){ el.innerHTML='预热中 <b id="wpct">'+fmt(Math.min(100,state.warmT/10*100),0)+'%</b>（预热后方可共轴调节）'; $('#btnAlign').disabled=true; }
+  else { el.innerHTML='✓ 预热完成，光输出稳定'; $('#btnAlign').disabled=false; }
+}
+$('#btnAlign').onclick=()=>{
+  if(!state.warmed){ toast('⚠ 钠光灯尚未预热完成'); return; }
+  state.aligned=true; state.done1=true;
+  checkSteps(); updWarm();
+  toast('✓ 各光学元件已共轴等高：狭缝、双棱镜、透镜、测微目镜同轴，狭缝与双棱镜棱脊竖直');
+};
+$('#sldW').addEventListener('input',e=>{
+  state.slitW=+e.target.value; $('#vW').textContent=fmt(state.slitW,2)+' mm';
+  bl1.position.y=OH+(2.2+state.slitW*3); bl2.position.y=OH-(2.2+state.slitW*3);
+  drumW.rotation.y=state.slitW*2;
+  if(state.slitW>1&&state.done2){ state.done2=false; toast('⚠ 狭缝宽度已超过 1 mm，条纹空间相干性变差，步骤②须重新调节'); }
+  checkSteps();
+});
+$('#sldT').addEventListener('input',e=>{
+  state.slitTilt=+e.target.value; $('#vT').textContent=fmt(state.slitTilt,2)+' °';
+  slitG.rotation.z=-state.slitTilt*Math.PI/180*1.2;
+  const dt=Math.abs(state.slitTilt-state.ridgeTilt);
+  if(dt>0.2&&state.done2){ state.done2=false; toast('⚠ 狭缝与棱脊不平行（相差 '+fmt(dt,2)+'°），步骤②须重新调节'); }
+  checkSteps();
+});
+document.querySelectorAll('[data-xs]').forEach(b=>b.onclick=()=>{ state.XS=Math.max(150,Math.min(400,state.XS+ +b.dataset.xs*10)); updPos(); });
+document.querySelectorAll('[data-xb]').forEach(b=>b.onclick=()=>{ state.XB=Math.max(state.XS+30,Math.min(600,state.XB+ +b.dataset.xb*10)); updPos(); });
+document.querySelectorAll('[data-xf]').forEach(b=>b.onclick=()=>{ state.XF=Math.max(400,Math.min(1150,state.XF+ +b.dataset.xf*10)); updPos(); });
+document.querySelectorAll('[data-xl]').forEach(b=>b.onclick=()=>{ if(!state.L2in) return;
+  state.XL=Math.max(state.XB+30,Math.min(state.XF-30,state.XL+ +b.dataset.xl*10)); updPos(); });
+document.querySelectorAll('[data-xe]').forEach(b=>b.onclick=()=>{
+  state.xe=Math.max(0,Math.min(8,state.xe+ +b.dataset.xe)); updPos();
+});
+function updPos(){
+  $('#vXS').textContent=fmt(state.XS/10,1); $('#vXB').textContent=fmt(state.XB/10,1);
+  $('#vXF').textContent=fmt(state.XF/10,1); $('#vXL').textContent=state.L2in?fmt(state.XL/10,1):'—';
+  slitG.position.x=SX(state.XS); bpG.position.x=SX(state.XB);
+  eyeG.position.x=SX(state.XF); lens2G.position.x=SX(state.XL);
+  updBeams();
+}
+/* L₂ 插入/移除 */
+$('#btnL2').onclick=()=>{
+  state.L2in=!state.L2in;
+  lens2G.visible=state.L2in;
+  $('#btnL2').classList.toggle('on',state.L2in);
+  if(state.L2in){
+    if(DVal()<=4*F2){ toast('⚠ 当前 D=X_F−X_S='+fmt(DVal()/10,1)+' cm ≤ 4f₂=60 cm，屏上无法得到两虚光源的实像，请先将目镜移远（X_F−X_S>600 mm）'); }
+    else toast('✓ 已插入 L₂（f₂=150 mm）。移动 L₂ 位置，在目镜视场中找到两条竖直亮线');
+  } else toast('已移除 L₂，回到条纹观察');
+  updPos(); updL2();
+};
+function updL2(){
+  $('#l2Show').textContent=state.L2in
+    ?('L₂ 已插入（X_L='+fmt(state.XL/10,1)+' cm）　u='+fmt((state.XL-state.XS)/10,1)+' cm　v='
+      +fmt((state.XF-state.XL)/10,1)+' cm　成像清晰度 '+fmt(focus4()*100,0)+'%')
+    :'L₂ 未插入';
+  $('#btnRecUV').disabled=!(state.img1!==null&&state.img2!==null);
+}
+/* 微调对准 */
+$('#btnSnap').onclick=()=>{
+  if(!state.lampOn||!state.warmed||!state.aligned){ toast('⚠ 请先完成开机预热与共轴'); return; }
+  let cs;
+  if(state.L2in){
+    if(focus4()<0.6){ toast('⚠ 两亮线尚不清晰，先移动 L₂ 到成像清晰处（清晰度≥60%后可辅助对准）'); return; }
+    cs=linePair().filter(c=>!(state.img1!==null&&Math.abs(state.img1-c)<0.1)&&!(state.img2!==null&&Math.abs(state.img2-c)<0.1));
+    if(!cs.length){ toast('两条亮线均已记录'); return; }
+    if(cs.length>1) cs=[cs[0]];   // 两线均未记录时先对准亮线1（引导 x₁→x₂ 顺序）
+  } else {
+    if(clarity()<0.6){ toast('⚠ 条纹尚不清晰，请先完成步骤②调节'); return; }
+    /* 优先吸附未记录过的最近暗纹（模拟逐条测量） */
+    cs=darkCenters().filter(c=>!state.xs.some(r=>Math.abs(r-c)<0.05));
+    if(!cs.length){ toast('视场内暗纹均已记录，请沿导轨移动目镜换一批条纹'); return; }
+  }
+  let best=cs[0], bd=1e9;
+  cs.forEach(c=>{ if(Math.abs(state.xe-c)<bd){bd=Math.abs(state.xe-c); best=c;} });
+  if(!state.L2in&&bd>0.5){ toast('⚠ 最近暗纹距叉丝 '+fmt(bd,2)+' mm，请先用 ±0.5/±0.1 粗调靠近'); return; }
+  state.xe=+best.toFixed(2); updPos();
+  toast('✓ 已微调对准'+(state.L2in?'亮线':'暗纹')+'（x_e='+fmt(state.xe,2)+' mm）');
+};
+/* 记录暗纹 */
+$('#btnRecX').onclick=()=>{
+  if(clarity()<0.8){ toast('⚠ 条纹清晰度不足 80%（当前 '+fmt(clarity()*100,0)+'%），请先完成步骤②'); return; }
+  if(state.xs.length>=10){ toast('10 条暗纹已记录完毕，请记录光具座读数（X_S、X_F）'); return; }
+  const cs=darkCenters(); let best=null,bd=1e9;
+  cs.forEach(c=>{ if(Math.abs(state.xe-c)<bd){bd=Math.abs(state.xe-c);best=c;} });
+  if(best===null||bd>0.06){ toast('⚠ 叉丝未对准暗纹中心（最近偏差 '+fmt(bd,2)+' mm &gt; 0.06 mm），请用「微调对准」'); return; }
+  const rd=+(best+(Math.random()-0.5)*0.008).toFixed(2);   // 读数误差 ±0.004mm
+  if(state.xs.includes(rd)){ toast('⚠ 该暗纹已记录过（x='+fmt(rd,2)+'）'); return; }
+  if(state.xs.length&&rd<=state.xs[state.xs.length-1]){ toast('⚠ 请沿同一方向依次记录（新读数应大于上一条 '+fmt(state.xs[state.xs.length-1],2)+'）'); return; }
+  state.xs.push(rd);
+  $('#nxShow').textContent=state.xs.length;
+  $('#btnRecD').disabled=state.xs.length<10;
+  renderTable(); checkSteps();
+  toast('✓ 已记录第 '+state.xs.length+' 条暗纹 x='+fmt(rd,2)+' mm'+(state.xs.length===10?'，10 条齐了！请记录光具座读数':''));
+};
+/* 记录 X_S X_F */
+$('#btnRecD').onclick=()=>{
+  if(state.xs.length<10){ toast('⚠ 请先记录 10 条暗纹'); return; }
+  state.lockS=state.XS; state.lockF=state.XF; state.lockA=aGap();
+  checkSteps(); renderTable();
+  toast('✓ 已记录：X_S='+fmt(state.XS/10,1)+' cm、X_F='+fmt(state.XF/10,1)+' cm → D='+fmt(DVal()/10,1)+' cm，d(记录时)='+fmt(dVirt(),2)+' mm。<b>接下来保持狭缝与双棱镜不动</b>，将目镜移至距缝 &gt;60 cm 后进入步骤④');
+};
+/* 亮线记录 */
+function recLine(which){
+  if(!state.L2in){ toast('⚠ 请先插入 L₂'); return; }
+  if(DVal()<=4*F2){ toast('⚠ D=X_F−X_S='+fmt(DVal()/10,1)+' cm ≤ 4f₂，无法成像，请移远目镜'); return; }
+  if(state.lockS!==null&&(state.XS!==state.lockS||aGap()!==state.lockA)){
+    toast('⚠ 狭缝/双棱镜位置已变（须与记录 D 时一致），请恢复后重试'); return; }
+  if(focus4()<0.85){ toast('⚠ 两竖直亮线不清晰（成像清晰度 '+fmt(focus4()*100,0)+'% &lt; 85%），请微调 L₂ 位置'); return; }
+  const [c1,c2]=linePair(); const tgt=which===1?c1:c2;
+  if(Math.abs(state.xe-tgt)>0.08){ toast('⚠ 叉丝未对准'+(which===1?'亮线1':'亮线2')+'（偏差 '+fmt(Math.abs(state.xe-tgt),2)+' mm），请用「微调对准」'); return; }
+  const rd=+(state.xe+(Math.random()-0.5)*0.008).toFixed(2);
+  if(which===1){ state.img1=rd; toast('✓ 亮线1读数 x₁='+fmt(rd,2)+' mm'); }
+  else {
+    if(state.img1===null){ toast('⚠ 请先记录亮线1（x₁）'); return; }
+    state.img2=rd; state.dPr=+Math.abs(state.img2-state.img1).toFixed(2);
+    toast('✓ 亮线2读数 x₂='+fmt(rd,2)+' mm → d′=|x₂−x₁|='+fmt(state.dPr,2)+' mm。请记录物距 u、像距 v');
+  }
+  renderTable(); checkSteps(); updL2();
+}
+$('#btnRecL').onclick=()=>recLine(1);
+$('#btnRecR').onclick=()=>recLine(2);
+$('#btnRecUV').onclick=()=>{
+  state.uRec=state.XL-state.XS; state.vRec=state.XF-state.XL;
+  checkSteps(); renderTable();
+  toast('✓ 已记录：u='+fmt(state.uRec/10,1)+' cm、v='+fmt(state.vRec/10,1)+' cm（v/u='+fmt(state.vRec/state.uRec,3)+'）');
+};
+
+/* ================= 数据处理 ================= */
+function renderTable(){
+  const xs=state.xs.slice().sort((a,b)=>a-b);
+  let r1='<tr><th>读数序号</th>'+Array.from({length:10},(_,i)=>`<th>x${i+1}</th>`).join('')+'</tr>';
+  r1+='<tr><td><b>x /mm</b></td>'+Array.from({length:10},(_,i)=>`<td class="num ${xs[i]!==undefined?'':'empty'}">${xs[i]!==undefined?fmt(xs[i],2):'—'}</td>`).join('')+'</tr>';
+  r1+='<tr><td><b>光具座 /cm</b></td><td colspan="2">X_S='+(state.lockS!==null?fmt(state.lockS/10,1):'—')+'</td><td colspan="2">X_F='+(state.lockF!==null?fmt(state.lockF/10,1):'—')+'</td><td colspan="6">D=|X_S−X_F|='+(state.lockF!==null?fmt((state.lockF-state.lockS)/10,1)+' cm':'—')+'</td></tr>';
+  $('#tbl1').innerHTML='<table>'+r1+'</table>';
+  let r2='<tr><th>数字测微目镜读数 /mm</th><th>x₁</th><th>x₂</th><th>d′=|x₁−x₂|</th></tr>'
+    +'<tr><td><b>/mm</b></td>'
+    +'<td class="num '+(state.img1!==null?'':'empty')+'">'+(state.img1!==null?fmt(state.img1,2):'—')+'</td>'
+    +'<td class="num '+(state.img2!==null?'':'empty')+'">'+(state.img2!==null?fmt(state.img2,2):'—')+'</td>'
+    +'<td class="num '+(state.dPr!==null?'':'empty')+'">'+(state.dPr!==null?fmt(state.dPr,2):'—')+'</td></tr>';
+  r2+='<tr><th>光具座读数 /cm</th><th>X_S</th><th>X_L</th><th>X_F</th></tr>'
+    +'<tr><td><b>/cm</b></td>'
+    +'<td class="num '+(state.uRec!==null?'':'empty')+'">'+(state.uRec!==null?fmt(state.XS/10,1):'—')+'</td>'
+    +'<td class="num '+(state.uRec!==null?'':'empty')+'">'+(state.uRec!==null?fmt(state.XL/10,1):'—')+'</td>'
+    +'<td class="num '+(state.uRec!==null?'':'empty')+'">'+(state.uRec!==null?fmt(state.XF/10,1):'—')+'</td></tr>';
+  r2+='<tr><td><b>物距/像距</b></td><td colspan="2">u=|X_S−X_L|='+(state.uRec!==null?fmt(state.uRec/10,1)+' cm':'—')+'</td><td colspan="2" style="border-left:none">v=|X_L−X_F|='+(state.vRec!==null?fmt(state.vRec/10,1)+' cm':'—')+'</td>'
+    +'<td>d=d′·u/v='+(state.dPr!==null&&state.uRec!==null?fmt(state.dPr*state.uRec/state.vRec,2)+' mm':'—')+'</td></tr>';
+  $('#tbl2').innerHTML='<table>'+r2+'</table>';
+}
+$('#btnCalc').onclick=()=>{
+  if(!(state.lockF!==null&&state.dPr!==null&&state.uRec!==null&&state.xs.length>=10)){
+    toast('⚠ 数据不全：需要 10 条暗纹、D、d′、u、v 全部记录完毕'); return; }
+  const xs=state.xs.slice().sort((a,b)=>a-b);
+  let s=0; for(let i=0;i<5;i++) s+=xs[i+5]-xs[i];
+  const dx=s/25;                                  // 逐差法：5×5ΔX
+  const d=state.dPr*state.uRec/state.vRec;
+  const D=state.lockF-state.lockS;
+  const lam=d/D*dx/LAMBDA*589.3;
+  const err=Math.abs(lam-589.3)/589.3*100;
+  state.solved=err<=10;
+  $('#conclude').innerHTML='<table>'
+    +'<tr><th>比较项</th><th>数值</th></tr>'
+    +'<tr><td>逐差法条纹间距 ΔX</td><td class="num">'+fmt(dx,3)+' mm</td></tr>'
+    +'<tr><td>虚光源间距 d=d′u/v</td><td class="num">'+fmt(d,3)+' mm</td></tr>'
+    +'<tr><td>缝到目镜距离 D</td><td class="num">'+fmt(D/10,1)+' cm</td></tr>'
+    +'<tr><td>测得波长 λ=(d/D)ΔX</td><td class="num"><b>'+fmt(lam,1)+' nm</b></td></tr>'
+    +'<tr><td>标准值 λ₀</td><td class="num">589.3 nm</td></tr>'
+    +'<tr><td>相对误差</td><td class="num">'+fmt(err,2)+'%'+(err<=10?' ✓':'（偏大，检查 d′ 或 ΔX 读数）')+'</td></tr></table>'
+    +'<div class="info">结论：① 双棱镜将缝光源分成两个相距 d 的虚光源（分波面双光束干涉），屏上形成等间距直条纹；② 由逐差法 ΔX 与共轴成像法 d′u/v 求得钠光波长 λ='+fmt(lam,1)+' nm，与标准值 589.3 nm 相对误差 '+fmt(err,2)+'%；③ 条纹间距 ΔX∝D/d：目镜移远（D 增大）条纹变疏，缝-棱镜距 a 增大（d 增大）条纹变密。</div>';
+  checkSteps();
+};
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  Object.assign(state,{lampOn:true,warmT:10,warmed:true,aligned:true,done1:true,done2:true,
+    slitW:0.5,slitTilt:0.8,XS:200,XB:350,XF:850,L2in:false,XL:750,xe:4});
+  $('#sldW').value=0.5; $('#vW').textContent='0.50 mm';
+  $('#sldT').value=0.8; $('#vT').textContent='0.80 °';
+  $('#btnLamp').textContent='关闭钠光灯'; $('#btnLamp').classList.add('on');
+  updWarm(); updPos();
+  /* 10 条暗纹 */
+  state.lockS=200; state.lockF=850; state.lockA=150;
+  const dx=dX();
+  state.xs=[];
+  for(let i=0;i<10;i++) state.xs.push(+((4+(i+1.5)*dx)+(Math.random()-0.5)*0.006).toFixed(2));
+  $('#nxShow').textContent=10; $('#btnRecD').disabled=true;
+  /* 步骤④：L₂ 置于成像清晰位置（u=234.85mm, v=415.15mm 满足 1/u+1/v=1/f₂） */
+  state.L2in=true; lens2G.visible=true; $('#btnL2').classList.add('on');
+  state.XL=434.85; updPos();
+  state.img1=+((4-dVirt()*(state.XF-state.XL)/(state.XL-state.XS)/2)).toFixed(2);
+  state.img2=+((4+dVirt()*(state.XF-state.XL)/(state.XL-state.XS)/2)).toFixed(2);
+  state.dPr=+Math.abs(state.img2-state.img1).toFixed(2);
+  state.uRec=state.XL-state.XS; state.vRec=state.XF-state.XL;
+  $('#btnRecD').disabled=true;
+  renderTable(); updL2(); $('#btnCalc').click();
+  toast('已自动调好并填入示例数据（D=65 cm、L₂ 共轴成像）。请到「数据处理」页查看波长计算结果。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(state,{lampOn:false,warmT:0,warmed:false,aligned:false,done1:false,done2:false,done3:false,done4:false,solved:false,
+    slitW:1.5,slitTilt:0.2,XS:200,XB:350,XF:550,L2in:false,XL:750,xe:4,
+    xs:[],lockS:null,lockF:null,lockA:null,img1:null,img2:null,uRec:null,vRec:null,dPr:null});
+  $('#btnLamp').textContent='打开钠光灯'; $('#btnLamp').classList.remove('on');
+  $('#sldW').value=1.5; $('#vW').textContent='1.50 mm';
+  $('#sldT').value=0.2; $('#vT').textContent='0.20 °';
+  bl1.position.y=OH+2.2; bl2.position.y=OH-2.2; slitG.rotation.z=0; drumW.rotation.y=0;
+  lens2G.visible=false; $('#btnL2').classList.remove('on');
+  $('#nxShow').textContent=0; $('#btnRecD').disabled=true; $('#btnRecUV').disabled=true;
+  updWarm(); updPos(); updL2(); renderTable();
+  $('#conclude').innerHTML='完成全部测量后点「计算钠光波长」。';
+  toast('实验已重置');
+  checkSteps();
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  /* ①做过即锁存（关灯复位）；②清晰度≥0.8 锁存，缝宽/倾角破坏后复位（见 input 事件） */
+  const n=state.xs.length;
+  const s=[
+    state.done1,
+    state.done2||(clarity()>=0.8&&(state.done2=true)),
+    state.lockF!==null&&n>=10,
+    state.dPr!==null&&state.uRec!==null&&state.vRec!==null,
+    state.solved===true
+  ];
+  const tips=['请调狭缝宽度（<1 mm）与倾角，使条纹清晰度≥80%。','条纹已清晰，请沿导轨移动目镜并逐条记录 10 条暗纹。','10 条暗纹与 D 已记录，请移远目镜（D>60 cm）插入 L₂ 测 d′、u、v。','d′、u、v 已记录，请到数据处理页计算波长。','全部完成：波长测量成功，分波面干涉原理验证完毕！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let eyeT=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  if(state.lampOn&&!state.warmed){
+    state.warmT+=1/60;
+    if(state.warmT>=10){ state.warmed=true; updWarm(); toast('✓ 钠光灯预热完成，光输出稳定，可进行共轴调节'); checkSteps(); }
+    else if(Math.floor(state.warmT*10)%3===0) updWarm();
+  }
+  bulb.material.emissiveIntensity=state.lampOn?(state.warmed?1.4:0.5+0.3*Math.sin(state.warmT*6)):0;
+  plamp.intensity=state.lampOn?(state.warmed?2.4:1.2):0;
+  updBeams();
+  eyeT+=1/60;
+  if(eyeT>0.2){ eyeT=0; drawEye(); }
+  controls.update(); renderer.render(scene,camera);
+}
+updWarm(); updPos(); updL2(); renderTable(); checkSteps(); drawEye();
+loop();
+</script>
+</body>
+</html>

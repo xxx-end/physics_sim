@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>实验 22 · RLC 串联谐振</title>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<style>
+  :root { --panel: #0e1826; --line: #1d3252; --cyan: #29d2ff; --gold: #ffd54f;
+          --green: #69f0ae; --red: #ff8a80; --text: #c9dcf2; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #060a12; color: var(--text);
+    font: 14px/1.65 "Microsoft YaHei", "PingFang SC", sans-serif; overflow: hidden; }
+  #app { display: flex; height: 100vh; }
+  /* 左侧面板 */
+  #panel { width: 380px; min-width: 380px; background: var(--panel); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; }
+  #expTitle { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+  #expTitle h1 { font-size: 17px; color: #eaf6ff; }
+  #expTitle p { font-size: 12px; color: #6fa8dc; margin-top: 2px; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tab { flex: 1; text-align: center; padding: 9px 0; cursor: pointer; font-size: 13px;
+    color: #6fa8dc; border-bottom: 2px solid transparent; user-select: none; }
+  .tab:hover { color: #9fc3e8; }
+  .tab.on { color: var(--cyan); border-bottom-color: var(--cyan); }
+  #panelBody { flex: 1; overflow-y: auto; padding: 12px; }
+  #panelBody::-webkit-scrollbar { width: 6px; }
+  #panelBody::-webkit-scrollbar-thumb { background: #22364f; border-radius: 3px; }
+  .tabBody { display: none; }
+  .tabBody.on { display: block; }
+  .card { background: #0b1420; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #9fc3e8; margin-bottom: 8px; }
+  .step { display: flex; gap: 10px; padding: 9px 10px; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid transparent; align-items: flex-start; }
+  .step .box { width: 20px; height: 20px; min-width: 20px; border-radius: 5px;
+    border: 1.5px solid #35507a; margin-top: 2px; text-align: center; line-height: 19px;
+    font-size: 12px; color: transparent; }
+  .step.done { background: rgba(105, 240, 174, 0.06); border-color: rgba(105, 240, 174, 0.35); }
+  .step.done .box { background: var(--green); border-color: var(--green); color: #04240f; }
+  .step.done .box::after { content: "✓"; font-weight: 700; }
+  .step.current { background: rgba(41, 210, 255, 0.07); border-color: rgba(41, 210, 255, 0.45); }
+  .step.current .box { border-color: var(--cyan); color: var(--cyan); }
+  .step.current .box::after { content: "▶"; font-size: 10px; }
+  .btn { display: inline-block; background: #123152; color: #cfeaff; border: 1px solid #2a5f8f;
+    border-radius: 7px; padding: 7px 13px; font-size: 13px; cursor: pointer; margin: 3px 4px 3px 0;
+    font-family: inherit; }
+  .btn:hover:not(:disabled) { background: #17405f; }
+  .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn.primary { background: #14532d; border-color: #2e7d32; color: #c8f7d8; }
+  .btn.primary:hover:not(:disabled) { background: #1b6b3a; }
+  .chip { display: inline-block; background: #101f30; border: 1px solid #2a4a70; color: #9fc3e8;
+    border-radius: 14px; padding: 3px 11px; font-size: 12px; cursor: pointer; margin: 2px 3px; user-select: none; }
+  .chip.on { background: #0d3a52; border-color: var(--cyan); color: var(--cyan); }
+  .chip:disabled { opacity: 0.4; cursor: not-allowed; }
+  #gridChips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 2px; }
+  #gridChips .gc, #bwChips .gc { font-family: Consolas, monospace; font-size: 11px; padding: 2px 8px; border-radius: 12px;
+    border: 1px solid #2a4a70; background: #101f30; color: #6fa8dc; cursor: pointer; user-select: none; }
+  #gridChips .gc:hover, #bwChips .gc:hover { border-color: var(--cyan); }
+  #gridChips .gc.done { background: #10331f; border-color: var(--green); color: var(--green); }
+  #gridChips .gc.at { background: #0d3a52; border-color: var(--gold); color: var(--gold); }
+  #gridChips .gc.done.at { border-color: var(--gold); color: var(--gold); }
+  #bwChips .gc { border-color: rgba(255, 213, 79, .55); color: var(--gold); }
+  #bwChips .gc:hover { border-color: var(--cyan); color: var(--cyan); }
+  .muted { color: #6fa8dc; font-size: 12px; }
+  .good { color: var(--green); }
+  .warn { color: var(--gold); }
+  input[type=range] { width: 100%; accent-color: var(--cyan); }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin: 6px 0; }
+  th, td { border: 1px solid #1d3252; padding: 4px 6px; text-align: center; font-variant-numeric: tabular-nums; }
+  th { background: #101f30; color: #9fc3e8; }
+  tr.hl td { background: rgba(255, 213, 79, 0.08); color: var(--gold); }
+  .kv { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #1d3252; font-size: 13px; }
+  .kv b { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+  .formula { background: #0a1522; border: 1px solid #1d3252; border-radius: 8px; padding: 10px 12px;
+    font-family: "Cambria Math", Georgia, serif; font-size: 14px; color: #ffe9a8; margin: 8px 0;
+    overflow-x: auto; white-space: nowrap; }
+  .formula i { color: #9fc3e8; font-style: normal; font-size: 12px; }
+  /* 3D 视口 */
+  #view { flex: 1; position: relative; background: radial-gradient(ellipse at 50% 30%, #0d1626, #05080f 75%); }
+  #scene { width: 100%; height: 100%; display: block; touch-action: none; }
+  #meterHud { position: absolute; top: 254px; left: 14px; z-index: 5; pointer-events: none;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 14px; font-size: 12px; color: #9fc3e8; }
+  #ampOv { position: absolute; top: 14px; left: 14px; z-index: 5; pointer-events: none;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #meterHud .big { font-size: 20px; color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; font-variant-numeric: tabular-nums; }
+  #genOv { position: absolute; top: 14px; right: 14px; z-index: 5; pointer-events: none;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #swOv { position: absolute; bottom: 14px; right: 14px; z-index: 5; pointer-events: none;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5;
+    pointer-events: none; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid var(--line); border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 9;
+    pointer-events: none; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid var(--cyan); border-radius: 8px; padding: 8px 18px; font-size: 13px;
+    color: #eaf6ff; max-width: 78%; }
+  #infoCard { position: absolute; top: 70px; right: 330px; z-index: 8; display: none;
+    background: rgba(13, 24, 40, 0.96); border: 1px solid #2a5f8f; border-radius: 10px;
+    padding: 12px 16px; max-width: 300px; }
+  #infoCard h4 { color: var(--cyan); font-size: 14px; margin-bottom: 4px; }
+  #infoCard p { font-size: 12px; color: #b9d4ee; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <div id="expTitle">
+      <h1>实验 22 · RLC 串联谐振</h1>
+      <p>电学方法模拟受迫振动 · 幅频特性曲线 · 品质因数</p>
+    </div>
+    <div class="tabs">
+      <div class="tab on" data-tab="guide">操作指引</div>
+      <div class="tab" data-tab="meas">测量操作</div>
+      <div class="tab" data-tab="data">数据处理</div>
+      <div class="tab" data-tab="theory">原理</div>
+    </div>
+    <div id="panelBody">
+      <div class="tabBody on" id="tab-guide">
+        <div class="step" id="st1"><div class="box"></div><div><b>连接电路</b>：信号发生器 → C、L、R 串联成回路 → 示波器探头接在 <b>R 两端</b>（U_R→I=U_R/R）→ 开机</div></div>
+        <div class="step" id="st2"><div class="box"></div><div><b>估算理论谐振频率</b> f₀=1/(2π√LC) 并填表；信号发生器选<b>正弦波</b>、输出调至 <b>5V</b>、频率调到理论值，确认设置</div></div>
+        <div class="step" id="st3"><div class="box"></div><div><b>寻找实测谐振频率 f₀'</b>：保持输出 5V 不变，在理论值附近反复调节频率，使 <b>U_R 达到最大</b>（示波器波形最高），点击「标记实测 f₀'」</div></div>
+        <div class="step" id="st4"><div class="box"></div><div><b>等差采点测幅频曲线</b>：选定 Δf（50~500Hz 可调），在实测 <b>f₀'±kΔf（k=0,1,2,3）共 7 个标准点</b>记录 U_R；若 0.707 半功率点未落入网格，可在任意频率处<b>补测点</b> —— 表格中心 f₀ 为实测值</div></div>
+        <div class="step" id="st5"><div class="box"></div><div><b>更换元件参数重复</b>：C=0.047μF（表2.22.3）、L=50mH（表2.22.4）、R=500Ω（表2.22.5），共 <b>4 组</b>幅频曲线</div></div>
+        <div class="step" id="st6"><div class="box"></div><div><b>数据处理</b>：由 0.707·U_Rmax 的通频带宽度求 <b>Q=f₀'/Δf</b>，与参数法 <b>Q₀=√(L/C)/R</b> 比较；分析力学模拟对应关系</div></div>
+        <div class="card">
+          <button class="btn" id="btnSample">一键示例（自动完成全部测量）</button>
+          <button class="btn" id="btnReset">重置实验</button>
+        </div>
+      </div>
+      <div class="tabBody" id="tab-meas">
+        <div class="card">
+          <h3>① 电路连接（按图 2.22.1，分步接线）</h3>
+          <button class="btn primary" id="btnWire">连接串联回路（发生器→C→L→R）</button>
+          <button class="btn" id="btnProbe" disabled>接示波器探头至 R 两端</button>
+          <button class="btn" id="btnPwr" disabled>开启信号发生器电源</button>
+          <p class="muted" id="connState">未连接。先接串联回路，再接探头，最后开机。</p>
+        </div>
+        <div class="card">
+          <h3>② 元件配置（表 2.22.2~2.22.5）</h3>
+          <div id="cfgChips"></div>
+          <p class="muted" id="cfgState"></p>
+          <button class="btn" id="btnTheo">估算理论 f₀ 并填表</button>
+          <p class="muted">波形模式：</p><div id="waveChips"></div>
+          <div class="muted" style="margin-top:4px">输出幅值：<b id="vAmp" style="color:#ffd54f">2.0 V</b>（须调至 <b>5.0 V</b>）</div>
+          <input type="range" id="sAmp" min="0.2" max="10" step="0.1" value="2" disabled>
+          <button class="btn" id="btnSigSet">确认设置（波形+幅值+频率）</button>
+        </div>
+        <div class="card">
+          <h3>③④ 频率调节与采点</h3>
+          <input type="range" id="sFreq" min="300" max="5000" step="1" value="1591" disabled>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="muted" style="min-width:70px">f = <b id="vFreq">1591</b> Hz</span>
+            <button class="btn" id="bFm10" disabled style="padding:2px 8px">−10</button>
+            <button class="btn" id="bFm1" disabled style="padding:2px 8px">−1</button>
+            <button class="btn" id="bFp1" disabled style="padding:2px 8px">+1</button>
+            <button class="btn" id="bFp10" disabled style="padding:2px 8px">+10</button>
+          </div>
+          <p class="muted" id="resState">等待信号发生器设置。</p>
+          <button class="btn" id="btnMarkF0">标记实测 f₀'（U_R 最大时）</button>
+          <div style="margin-top:6px"><span class="muted">通频带采点间隔 Δf（50~500 Hz 可调）：</span><b id="vDf" style="color:#ffd54f">200 Hz</b></div>
+          <input type="range" id="sDf" min="50" max="500" step="10" value="200" disabled>
+          <button class="btn primary" id="btnRec">记录此频率点的 U_R</button>
+          <button class="btn" id="btnCurve">绘制幅频特性曲线</button>
+          <p class="muted" id="gridState">采点进度：0 / 7（f₀'±kΔf，k=0,1,2,3）</p>
+          <div id="gridChips"></div>
+          <div id="bwChips" style="margin-top:4px"></div>
+        </div>
+        <div class="card">
+          <h3>幅频特性曲线（当前配置）</h3>
+          <canvas id="ampCurve" width="340" height="230" style="width:100%;background:#05070a;border:1px solid #1d3252;border-radius:8px"></canvas>
+          <p class="muted" id="curveNote">完成 7 点记录后点击「绘制幅频特性曲线」。</p>
+        </div>
+        <div class="card">
+          <h3>⑥ 模拟分析</h3>
+          <button class="btn" id="btnAnalyze">生成力学模拟分析结论</button>
+          <p class="muted" id="anaState">完成 4 组测量后生成结论（R↔阻尼、1/C↔劲度、L↔质量）。</p>
+        </div>
+      </div>
+      <div class="tabBody" id="tab-data">
+        <div class="card"><h3>四个测量表（表 2.22.2~2.22.5，中心 f₀ 为<b>实测值</b>）</h3><div id="tbTables" class="muted">尚未测量。</div></div>
+        <div class="card"><h3>Q 值对比汇总（通频带法 vs 参数法）</h3><div id="tbSum" class="muted">尚未测量。</div></div>
+        <div class="card"><h3>归一化幅频曲线对比（I/I₀）</h3>
+          <canvas id="cmpCurve" width="392" height="250" style="width:100%;background:#05070a;border:1px solid #1d3252;border-radius:8px"></canvas>
+          <p class="muted" id="cmpNote">完成多组测量后自动叠加对比（横轴 f/f₀'，纵轴 I/I_max）。</p></div>
+        <div class="card"><h3>实验结论</h3><div id="concl" class="muted">完成测量后自动给出结论。</div></div>
+      </div>
+      <div class="tabBody" id="tab-theory">
+        <div class="card">
+          <h3>相似系统（电学方法模拟受迫振动）</h3>
+          <p class="muted">RLC 串联电路电荷 q 的微分方程 L·d²q/dt²+R·dq/dt+q/C=U₀sin ωt 与力学受迫振动 m·d²s/dt²+δ·ds/dt+ks=F₀sin ωt 形式相同 —— 相似量对应：</p>
+          <table><tr><th>力学系统</th><th>电学系统</th></tr>
+            <tr><td>质量 m</td><td>电感 L</td></tr><tr><td>阻尼系数 δ</td><td>电阻 R</td></tr>
+            <tr><td>劲度系数 k</td><td>电容倒数 1/C</td></tr><tr><td>策动力幅值 F₀</td><td>电压幅值 U₀</td></tr>
+            <tr><td>位移 s / 速度 v</td><td>电荷 q / 电流 I</td></tr>
+            <tr><td>固有角频率 √(k/m)</td><td>谐振角频率 1/√(LC)</td></tr>
+            <tr><td>品质因数 √(km)/δ</td><td>品质因数 √(L/C)/R</td></tr></table>
+        </div>
+        <div class="card">
+          <h3>串联谐振与幅频特性</h3>
+          <div class="formula">Z = √( R² + (ωL − 1/(ωC))² )　　I = U₀ / Z　<i>(2.22.3)</i></div>
+          <div class="formula">ω₀ = 2πf₀ = 1/√(LC)　<i>(2.22.4)</i>　谐振时 U_L=U_C 反相抵消，Z 最小，I 最大</div>
+          <div class="formula">通频带宽度 Δf = f₂ − f₁　（I 降到 0.707·I_max 的两频率）</div>
+          <div class="formula">Q = U_L/U₀ = (1/ω₀C)/R = √(L/C)/R　<i>(2.22.6)</i>　　Q = f₀/Δf　<i>(2.22.7)</i></div>
+          <p class="muted">Q 越大，曲线越陡峭、通频带越窄、选频能力越强（图 2.22.3）。</p>
+        </div>
+        <div class="card">
+          <h3>思考题与拓展</h3>
+          <p class="muted">① RLC 并联（电流激励）可得到形式相同的微分方程与参量对应表。② 模拟法举例：用电流场模拟静电场等。拓展：电压幅值↔策动力幅值、电感量↔质量，可研究其对幅频特性的影响。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="view">
+    <canvas id="scene"></canvas>
+    <canvas id="ampOv" width="300" height="240"></canvas>
+    <div id="meterHud">
+      <div>激励频率 f：<span class="big" id="hudF">— Hz</span></div>
+      <div class="row2">U_R = <span id="hudUR">—</span>　I = <span id="hudI">—</span></div>
+      <div class="row2" id="hudState">电路未连接</div>
+    </div>
+    <canvas id="genOv" width="290" height="150"></canvas>
+    <canvas id="swOv" width="320" height="230"></canvas>
+    <div id="infoCard"><h4></h4><p></p></div>
+    <div id="toast"></div>
+    <div id="hint">左键旋转 · 滚轮缩放 · 点击部件查看说明</div>
+  </div>
+</div>
+<script>
+/* ================= 基础 ================= */
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function toast(html){ const t=$('#toast'); t.innerHTML=html; t.style.display='block';
+  clearTimeout(toast._tm); toast._tm=setTimeout(()=>t.style.display='none',3600); }
+let infoTm=null;
+function showInfo(title,text){ const c=$('#infoCard'); c.querySelector('h4').textContent=title;
+  c.querySelector('p').innerHTML=text; c.style.display='block';
+  clearTimeout(infoTm); infoTm=setTimeout(()=>c.style.display='none',4200); }
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.tabBody').forEach(b=>b.classList.toggle('on',b.id==='tab-'+t.dataset.tab));
+});
+
+/* ================= 真值与配置 ================= */
+const TRUE={U0:5, configs:[
+  {name:'表2.22.2',R:1000,L:0.100,C:0.1e-6,off: 0.004},
+  {name:'表2.22.3',R:1000,L:0.100,C:0.047e-6,off:-0.003},
+  {name:'表2.22.4',R:1000,L:0.050,C:0.1e-6,off: 0.005},
+  {name:'表2.22.5',R:500, L:0.100,C:0.1e-6,off:-0.004}]};
+TRUE.configs.forEach(c=>{ c.f0theo=1/(2*Math.PI*Math.sqrt(c.L*c.C));
+  c.f0true=c.f0theo*(1+c.off); c.Q0=Math.sqrt(c.L/c.C)/c.R; c.color=['#29d2ff','#ffd54f','#ff8a80','#69f0ae']; });
+const Iof=(f,c)=>TRUE.U0/Math.hypot(c.R,2*Math.PI*f*c.L-1/(2*Math.PI*f*c.C));
+const URof=(f,c)=>Iof(f,c)*c.R;
+
+const CFG={connected:false,wired:false,probed:false,powered:false,wave:'sine',amp:2.0,
+  ci:0,freq:1591,f0meas:null,df:null,lastDf:200,
+  cfgs:TRUE.configs.map(()=>({theo:false,f0meas:null,df:null,pts:{},curve:false})),
+  steps:[false,false,false,false,false,false]};
+const gl={phase:0};
+const cur=()=>TRUE.configs[CFG.ci], curS=()=>CFG.cfgs[CFG.ci];
+const nPts=c=>Object.keys(c.pts).length;
+const nGrid=c=>[-3,-2,-1,0,1,2,3].filter(k=>c.pts[k]!=null).length;
+function noise(r){ return 1+r*(Math.random()+Math.random()-1); }
+/* 波形采样（示波器显示跟随波形选择；实验须用正弦） */
+function waveSamp(u){
+  if(CFG.wave==='sqr') return Math.sin(u)>=0?1:-1;
+  if(CFG.wave==='tri') return 2/Math.PI*Math.asin(Math.sin(u));
+  return Math.sin(u);
+}
+
+/* ================= 场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b12);
+scene.fog=new THREE.Fog(0x070b12,2.6,5.5);
+const camera=new THREE.PerspectiveCamera(46,1,0.05,30);
+camera.position.set(0.02,1.10,1.28);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0.02,0.94,0); controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.maxPolarAngle=Math.PI*0.52; controls.minDistance=0.4; controls.maxDistance=3.2;
+scene.add(new THREE.AmbientLight(0x8899bb,0.55));
+const keyLight=new THREE.DirectionalLight(0xfff2dd,1.15);
+keyLight.position.set(0.7,1.9,0.9); keyLight.castShadow=true;
+keyLight.shadow.mapSize.set(2048,2048); keyLight.shadow.camera.left=-1; keyLight.shadow.camera.right=1;
+keyLight.shadow.camera.top=1.4; keyLight.shadow.camera.bottom=-0.4; keyLight.shadow.bias=-0.0004;
+scene.add(keyLight);
+const fillLight=new THREE.DirectionalLight(0x7fb2ff,0.35); fillLight.position.set(-1,0.8,-0.6); scene.add(fillLight);
+const glowLight=new THREE.PointLight(0x66ddff,0.15,0.8); glowLight.position.set(0.02,0.86,0.16); scene.add(glowLight);
+/* 地面与桌台 */
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(8,8),
+  new THREE.MeshStandardMaterial({color:0x101826,roughness:0.95}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-0.001; floor.receiveShadow=true; scene.add(floor);
+const grid=new THREE.GridHelper(8,32,0x1c3350,0x14243c); grid.position.y=0.001; scene.add(grid);
+const table=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.05,1.0),
+  new THREE.MeshStandardMaterial({color:0x2a3546,roughness:0.6,metalness:0.2}));
+table.position.y=0.755; table.receiveShadow=true; table.castShadow=true; scene.add(table);
+const tableEdge=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.012,1.0),
+  new THREE.MeshStandardMaterial({color:0x3d4c62,roughness:0.4,metalness:0.4}));
+tableEdge.position.y=0.784; scene.add(tableEdge);
+function M(color,opt={}){ return new THREE.MeshStandardMaterial(Object.assign({color,roughness:0.5},opt)); }
+function tag(mesh,title,text){ mesh.userData.tag={title,text}; }
+
+/* ---- canvas 面板纹理工具 ---- */
+function panelTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h;
+  draw(c.getContext('2d')); const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t; }
+
+/* ---- 信号发生器（左，精修） ---- */
+const genGrp=new THREE.Group(); scene.add(genGrp);
+const genBody=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.14,0.21),
+  M(0xd8d2c4,{roughness:0.5})); genBody.position.set(-0.46,0.852,0.10);
+genBody.castShadow=true; genBody.receiveShadow=true; genGrp.add(genBody);
+/* 面板丝印纹理 */
+const genFaceTex=panelTex(512,256,g=>{
+  g.fillStyle='#c9c2b2'; g.fillRect(0,0,512,256);
+  g.fillStyle='#3d4a5c'; g.font='bold 26px Arial'; g.fillText('FUNCTION  GENERATOR',18,34);
+  g.font='18px Arial'; g.fillText('EE1641B1',400,32);
+  g.strokeStyle='#8a8474'; g.lineWidth=3; g.strokeRect(14,50,484,196);
+  g.fillStyle='#4a5568'; g.font='16px Arial';
+  g.fillText('FREQUENCY',330,120); g.fillText('AMPLITUDE',330,210);
+  g.fillText('SINE  ▿',30,120); g.fillText('OUTPUT',30,210);
+});
+const genFace=new THREE.Mesh(new THREE.PlaneGeometry(0.292,0.132),
+  new THREE.MeshStandardMaterial({map:genFaceTex,roughness:0.55}));
+genFace.position.set(-0.46,0.852,0.209); genGrp.add(genFace);
+/* LCD */
+const genLcdCanvas=document.createElement('canvas'); genLcdCanvas.width=192; genLcdCanvas.height=72;
+const genLcdTexture=new THREE.CanvasTexture(genLcdCanvas);
+const genLcdFrame=new THREE.Mesh(new THREE.BoxGeometry(0.152,0.064,0.006),M(0x22262e,{roughness:0.35}));
+genLcdFrame.position.set(-0.545,0.888,0.212); genGrp.add(genLcdFrame);
+const genLcd=new THREE.Mesh(new THREE.PlaneGeometry(0.14,0.052),
+  new THREE.MeshBasicMaterial({map:genLcdTexture}));
+genLcd.position.set(-0.545,0.888,0.216); genGrp.add(genLcd);
+/* 旋钮（带滚花外缘+指针） */
+function makeKnob(r){ const grp=new THREE.Group();
+  const k=new THREE.Mesh(new THREE.CylinderGeometry(r,r*1.08,r*0.5,28),
+    M(0x2e3a4c,{roughness:0.3,metalness:0.55})); grp.add(k);
+  for(let i=0;i<12;i++){ const fl=new THREE.Mesh(new THREE.BoxGeometry(0.002,0.004,r*2),
+    M(0x3c4a5e,{roughness:0.4,metalness:0.4}));
+    fl.position.set(Math.cos(i/12*2*Math.PI)*r*1.04,0,Math.sin(i/12*2*Math.PI)*r*1.04);
+    fl.rotation.y=-i/12*2*Math.PI; grp.add(fl); }
+  const mark=new THREE.Mesh(new THREE.BoxGeometry(0.0025,0.001,r*1.6),M(0xffe082));
+  mark.position.set(0,r*0.26,-r*0.5); grp.add(mark);
+  grp.rotation.x=Math.PI/2; return grp; }
+const genKnob=makeKnob(0.017); genKnob.position.set(-0.385,0.855,0.216); genGrp.add(genKnob);
+const genKnob2=makeKnob(0.013); genKnob2.position.set(-0.385,0.815,0.216); genGrp.add(genKnob2);
+/* 按键排 */
+for(let i=0;i<4;i++){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.014,0.008,0.004),
+  M(i===0?0x3f6f52:0x4a5568,{roughness:0.4}));
+  b.position.set(-0.545+0.028*i,0.818,0.216); genGrp.add(b); }
+/* BNC 输出端子（机身右侧面，沿 x 朝外） */
+const post1=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.018,12),M(0xc9a636,{metalness:0.75,roughness:0.3}));
+post1.rotation.z=Math.PI/2; post1.position.set(-0.308,0.852,0.145); scene.add(post1);
+const post2=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.018,12),M(0x2a2e34,{metalness:0.5}));
+post2.rotation.z=Math.PI/2; post2.position.set(-0.308,0.852,0.170); scene.add(post2);
+tag(genGrp,'信号发生器','输出正弦交流电压 U=U₀sin ωt（本实验幅值固定 5V，频率连续可调）。改变频率即改变"策动力频率"。');
+
+/* ---- 双踪示波器（右，精修） ---- */
+const scopeGrp=new THREE.Group(); scene.add(scopeGrp);
+const scBody=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.26,0.25),
+  M(0x455070,{roughness:0.45,metalness:0.2})); scBody.position.set(0.47,0.91,-0.06);
+scBody.castShadow=true; scBody.receiveShadow=true; scopeGrp.add(scBody);
+const scFace=new THREE.Mesh(new THREE.PlaneGeometry(0.35,0.25),
+  M(0x38425c,{roughness:0.5})); scFace.position.set(0.456,0.91,0.069); scFace.rotation.y=-0.32; scopeGrp.add(scFace);
+/* 屏幕内嵌边框 */
+const scBezel=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.17,0.012),M(0x141a26,{roughness:0.3}));
+scBezel.position.set(0.442,0.96,0.076); scBezel.rotation.y=-0.32; scopeGrp.add(scBezel);
+const scScreenCanvas=document.createElement('canvas'); scScreenCanvas.width=256; scScreenCanvas.height=160;
+const scScreenTexture=new THREE.CanvasTexture(scScreenCanvas);
+const scScreen=new THREE.Mesh(new THREE.PlaneGeometry(0.22,0.14),
+  new THREE.MeshBasicMaterial({map:scScreenTexture}));
+scScreen.position.set(0.4475,0.96,0.088); scScreen.rotation.y=-0.32; scopeGrp.add(scScreen);
+/* 控制区：旋钮×3 + 按键×6 + CH 端子 */
+const scKnob=makeKnob(0.011); scKnob.position.set(0.40,0.845,0.082); scKnob.rotation.y=-0.32; scopeGrp.add(scKnob);
+const scKnob2=makeKnob(0.009); scKnob2.position.set(0.442,0.842,0.074); scKnob2.rotation.y=-0.32; scopeGrp.add(scKnob2);
+const scKnob3=makeKnob(0.009); scKnob3.position.set(0.482,0.842,0.074); scKnob3.rotation.y=-0.32; scopeGrp.add(scKnob3);
+for(let i=0;i<6;i++){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.011,0.006,0.003),
+  M(0x5a6884,{roughness:0.4}));
+  b.position.set(0.395+0.016*(i%3),0.822-Math.floor(i/3)*0.012,0.095-Math.floor(i/3)*0.006);
+  b.rotation.y=-0.32; scopeGrp.add(b); }
+const ch1=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.014,10),M(0xc9a636,{metalness:0.7}));
+ch1.position.set(0.53,0.838,0.072); ch1.rotation.x=Math.PI/2; scopeGrp.add(ch1);
+tag(scopeGrp,'双踪示波器','CH1 探头接电阻 R 两端，显示 U_R 波形。谐振时 U_R（=I·R）最大。');
+/* 探头线（带 BNC 头与探钩）：从示波器 CH1 到电路板 R 两端 */
+const probeCurve=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0.53,0.838,0.055),new THREE.Vector3(0.42,0.79,0.13),
+  new THREE.Vector3(0.28,0.80,0.14),new THREE.Vector3(0.185,0.808,0.06)]);
+const probeWire=new THREE.Mesh(new THREE.TubeGeometry(probeCurve,48,0.0026,8),
+  M(0x9a7c40,{roughness:0.4})); probeWire.visible=false; scene.add(probeWire);
+const probeTip=new THREE.Mesh(new THREE.CylinderGeometry(0.0016,0.0016,0.012,8),M(0xd8c04a,{metalness:0.7}));
+probeTip.rotation.x=Math.PI/2; probeTip.position.set(0.183,0.812,0.05); probeTip.visible=false; scene.add(probeTip);
+const probeClip=new THREE.Mesh(new THREE.CylinderGeometry(0.0028,0.0028,0.008,8),M(0x3a3f4a,{metalness:0.5}));
+probeClip.position.set(0.121,0.806,0.045); probeClip.visible=false; scene.add(probeClip);
+tag(probeWire,'示波器探头','接在电阻 R 两端：U_R=I·R，由 U_R 可得回路电流 I（谐振判定依据）。');
+
+/* ---- RLC 电路板（中，精修：PCB + 孔阵丝印 + 立体元件 + 香蕉插座） ---- */
+const bdGrp=new THREE.Group(); scene.add(bdGrp);
+const boardTex=panelTex(768,352,g=>{
+  g.fillStyle='#1e5c3c'; g.fillRect(0,0,768,352);
+  /* 铜箔走线（浅绿） */
+  g.strokeStyle='#2e7a52'; g.lineWidth=5;
+  [[60,176,710,176],[150,60,150,176],[620,176,620,290],[300,60,300,176],[460,176,460,290]].forEach(([a,b,c2,d])=>{
+    g.beginPath(); g.moveTo(a,b); g.lineTo(c2,d); g.stroke(); });
+  /* 孔阵 */
+  g.fillStyle='#0f3a26';
+  for(let x=24;x<760;x+=24) for(let y=24;y<340;y+=24){ g.beginPath(); g.arc(x,y,3.4,0,7); g.fill(); }
+  /* 丝印 */
+  g.fillStyle='#cfe8d8'; g.font='bold 22px Arial';
+  g.fillText('C1',108,110); g.fillText('L1',268,110); g.fillText('R1',600,140);
+  g.font='16px Arial'; g.fillText('RLC SERIES  RESONANCE  BOARD',230,330);
+  g.fillText('+ −',40,300);
+});
+const board=new THREE.Mesh(new THREE.BoxGeometry(0.48,0.012,0.22),
+  [M(0x14402a),M(0x14402a),new THREE.MeshStandardMaterial({map:boardTex,roughness:0.6}),
+   M(0x14402a),M(0x14402a),M(0x14402a)]);
+board.position.set(0.02,0.79,0.02);
+board.castShadow=true; board.receiveShadow=true; bdGrp.add(board);
+[[-0.19,0.10],[0.23,0.10],[-0.19,-0.06],[0.23,-0.06]].forEach(([x,z])=>{
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.009,0.024,10),M(0x3a3f4a,{metalness:0.4}));
+  leg.position.set(x,0.776,z); bdGrp.add(leg); });
+/* 电解电容 C（蓝壳+顶部十字刻痕+极性条+引线） */
+const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,0.026,20),
+  M(0x2456a8,{roughness:0.3,metalness:0.25})); cap.rotation.z=Math.PI/2;
+cap.position.set(-0.12,0.819,0.02); cap.castShadow=true; bdGrp.add(cap);
+const capTop=new THREE.Mesh(new THREE.CylinderGeometry(0.0112,0.0112,0.002,20),M(0x9aa4b0,{metalness:0.7,roughness:0.3}));
+capTop.rotation.z=Math.PI/2; capTop.position.set(-0.134,0.819,0.02); bdGrp.add(capTop);
+const capStripe=new THREE.Mesh(new THREE.BoxGeometry(0.004,0.02,0.0225),M(0xd8dee6));
+capStripe.position.set(-0.113,0.819,0.02); bdGrp.add(capStripe);
+[[0x1a1a1a,-0.098],[0x1a1a1a,-0.142]].forEach(([col,dx])=>{
+  const lead=new THREE.Mesh(new THREE.CylinderGeometry(0.0012,0.0012,0.014,6),M(0xb9c2cc,{metalness:0.8}));
+  lead.rotation.z=Math.PI/2; lead.position.set(-0.12+dx,0.808,0.02); bdGrp.add(lead); });
+tag(cap,'电容 C','1/C ↔ 力学劲度系数 k。容抗 1/(ωC) 随频率升高而减小。');
+/* 电感 L（工字磁芯密绕） */
+const coreL=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.046,18),
+  M(0x5a4636,{roughness:0.65})); coreL.rotation.z=Math.PI/2; coreL.position.set(0.02,0.819,0.02); bdGrp.add(coreL);
+const flangeM=new THREE.Mesh(new THREE.CylinderGeometry(0.017,0.017,0.003,18),M(0x4c3a2c,{roughness:0.65}));
+flangeM.rotation.z=Math.PI/2; flangeM.position.set(0.002,0.819,0.02); bdGrp.add(flangeM);
+const flangeP=flangeM.clone(); flangeP.position.x=0.038; bdGrp.add(flangeP);
+for(let i=0;i<11;i++){
+  const turn=new THREE.Mesh(new THREE.TorusGeometry(0.0145,0.0019,8,20),
+    M(0xd29a45,{metalness:0.85,roughness:0.25}));
+  turn.rotation.y=Math.PI/2; turn.position.set(0.006+0.0028*i,0.819,0.02); bdGrp.add(turn); }
+tag(coreL,'电感 L','L ↔ 力学质量 m。感抗 ωL 随频率升高而增大；谐振时 ωL=1/(ωC)。');
+/* 电阻 R（4 色环：棕黑红金 = 1kΩ ±5%） */
+const res=new THREE.Mesh(new THREE.CylinderGeometry(0.0058,0.0058,0.04,16),
+  M(0xd8c8a8,{roughness:0.4})); res.rotation.z=Math.PI/2; res.position.set(0.15,0.819,0.02);
+res.castShadow=true; bdGrp.add(res);
+[[0x8B4513,-0.013],[0x1a1a1a,-0.008],[0xd8452a,-0.003],[0xd8b23a,0.004]].forEach(([col,dx])=>{
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.0038,16),M(col,{roughness:0.35}));
+  band.rotation.z=Math.PI/2; band.position.set(0.15+dx,0.819,0.02); bdGrp.add(band); });
+[[0.128,0.172]].forEach(()=>{ [0.128,0.172].forEach(dx=>{
+  const lead=new THREE.Mesh(new THREE.CylinderGeometry(0.0011,0.0011,0.012,6),M(0xb9c2cc,{metalness:0.8}));
+  lead.rotation.z=Math.PI/2; lead.position.set(dx,0.808,0.02); bdGrp.add(lead); }); });
+tag(res,'电阻 R','色环 棕黑红金 = 1kΩ±5%。R ↔ 力学阻尼系数 δ。探头测 R 上电压 U_R → I=U_R/R；谐振时 U_R 最大。');
+/* 香蕉插座×6（红黑相间） */
+[[-0.155,'#c9403a'],[-0.085,'#c9403a'],[-0.02,'#2a2e34'],[0.055,'#2a2e34'],[0.115,'#c9403a'],[0.185,'#2a2e34']].forEach(([x,col])=>{
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.0055,0.004,10),
+    M(col,{roughness:0.4})); base.position.set(x,0.798,0.02); bdGrp.add(base);
+  const p=new THREE.Mesh(new THREE.CylinderGeometry(0.0035,0.0035,0.014,10),
+    M(0xd8c04a,{metalness:0.75})); p.position.set(x,0.807,0.02); bdGrp.add(p); });
+tag(bdGrp,'RLC 电路板','R、L、C 串联元件板。改变 C（表2.22.3）、L（表2.22.4）、R（表2.22.5）研究参量对谐振的影响。');
+/* 主回路导线：红（信号）+黑（回流），发生器→C→L→R→发生器 */
+const loopCurve=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-0.355,0.845,0.14),new THREE.Vector3(-0.26,0.83,0.15),
+  new THREE.Vector3(-0.155,0.812,0.02), new THREE.Vector3(-0.085,0.812,0.02),
+  new THREE.Vector3(-0.02,0.812,0.02), new THREE.Vector3(0.055,0.812,0.02),
+  new THREE.Vector3(0.115,0.812,0.02), new THREE.Vector3(0.185,0.812,0.02),
+  new THREE.Vector3(0.14,0.83,0.16),new THREE.Vector3(-0.28,0.82,0.18),
+  new THREE.Vector3(-0.355,0.845,0.165)]);
+const mainWire=new THREE.Mesh(new THREE.TubeGeometry(loopCurve,90,0.0022,8),
+  M(0xb03a2e,{roughness:0.4,metalness:0.3})); mainWire.visible=false; scene.add(mainWire);
+tag(mainWire,'串联回路导线','信号发生器—C—L—R 串联回路。发光粒子的流速正比于回路电流 I —— 谐振时最亮最快。');
+/* 电流粒子 */
+const flowDots=[];
+for(let i=0;i<12;i++){
+  const d=new THREE.Mesh(new THREE.SphereGeometry(0.0032,8,8),
+    new THREE.MeshBasicMaterial({color:0xffe082,transparent:true,opacity:0.9}));
+  d.visible=false; scene.add(d); flowDots.push(d); }
+
+/* ================= 叠加面板绘制 ================= */
+function drawGenLcd(){
+  const g=genLcdCanvas.getContext('2d');
+  g.fillStyle='#071108'; g.fillRect(0,0,192,72);
+  g.strokeStyle='#1d5a38'; g.strokeRect(2,2,188,68);
+  g.fillStyle='#6dff9e'; g.font='bold 17px Consolas,monospace'; g.textAlign='center';
+  g.fillText(CFG.freq.toFixed(0)+' Hz',96,26);
+  g.font='12px Consolas,monospace'; g.fillStyle='#c8ffd8';
+  g.fillText((CFG.connected&&curS().sigSet?'SINE  '+cur().R+'Ω '+ (cur().L*1000).toFixed(0)+'mH':'STANDBY'),96,44);
+  g.fillText(CFG.connected&&curS().sigSet?'5.0 Vp':'0.0 Vp',96,60);
+  genLcdTexture.needsUpdate=true;
+  /* 右上叠加面板：信号发生器大读数 */
+  const g2=$('#genOv').getContext('2d');
+  g2.fillStyle='#05070a'; g2.fillRect(0,0,290,150);
+  g2.strokeStyle='#1d5a38'; g2.strokeRect(3,3,284,144);
+  g2.font='12px "Microsoft YaHei",sans-serif'; g2.fillStyle='#6fa8dc'; g2.textAlign='left';
+  g2.fillText('信号发生器（正弦 U₀=5V）',14,22);
+  g2.fillStyle='#071108'; g2.fillRect(14,30,262,52); g2.strokeStyle='#29d2ff'; g2.strokeRect(14,30,262,52);
+  g2.fillStyle='#6dff9e'; g2.font='bold 26px Consolas,monospace'; g2.textAlign='center';
+  g2.fillText(CFG.freq.toFixed(0)+' Hz',100,68);
+  g2.font='bold 15px Consolas,monospace'; g2.fillStyle='#c8ffd8';
+  g2.fillText('5.0 Vp',225,54);
+  g2.font='13px Consolas,monospace';
+  /* 正弦示意 */
+  g2.strokeStyle='#57e389'; g2.beginPath();
+  for(let i=0;i<=80;i++){ const x=14+262*i/80, y=110-14*Math.sin(i/80*4*Math.PI);
+    i?g2.lineTo(x,y):g2.moveTo(x,y); }
+  g2.stroke();
+  g2.fillStyle='#9fc3e8'; g2.font='11px "Microsoft YaHei",sans-serif'; g2.textAlign='left';
+  g2.fillText(CFG.connected?(curS().sigSet?'输出已开启 · 旋钮调频':'待设置（需先估算理论 f₀）'):'输出关闭',14,140);
+}
+/* 3D 示波器屏纹理 */
+function drawScope3D(){
+  const g=scScreenCanvas.getContext('2d');
+  g.fillStyle='#04101a'; g.fillRect(0,0,256,160);
+  g.strokeStyle='rgba(60,140,200,.25)'; g.beginPath();
+  for(let i=1;i<6;i++){ g.moveTo(0,160*i/6); g.lineTo(256,160*i/6); }
+  for(let i=1;i<10;i++){ g.moveTo(256*i/10,0); g.lineTo(256*i/10,160); }
+  g.stroke();
+  const on=CFG.connected&&curS().sigSet;
+  const ampN=on?clamp(URof(CFG.freq,cur())/TRUE.U0,0,1):0;
+  g.strokeStyle='#57e389'; g.lineWidth=2; g.beginPath();
+  const cyc=4+6*clamp((CFG.freq-300)/4700,0,1);
+  for(let i=0;i<=128;i++){
+    const x=256*i/128, y=80-ampN*62*waveSamp(i/128*2*Math.PI*cyc+gl.phase*2);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.stroke(); g.lineWidth=1;
+  g.fillStyle='#57e389'; g.font='12px Consolas,monospace'; g.textAlign='left';
+  g.fillText('CH1 '+(on?URof(CFG.freq,cur()).toFixed(2)+'V':'—'),8,150);
+  scScreenTexture.needsUpdate=true;
+}
+function drawScope(){
+  const g=$('#swOv').getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,320,230);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,314,224);
+  g.font='11px "Microsoft YaHei",sans-serif'; g.fillStyle='#6fa8dc'; g.textAlign='left';
+  g.fillText('双踪示波器 · CH1：U_R（R 两端）',12,18);
+  /* 屏幕 */
+  const L=12,T=26,W=296,H=150;
+  g.fillStyle='#04101a'; g.fillRect(L,T,W,H); g.strokeStyle='#123a5c'; g.strokeRect(L,T,W,H);
+  g.strokeStyle='rgba(60,140,200,.18)'; g.beginPath();
+  for(let i=1;i<6;i++){ g.moveTo(L,T+H*i/6); g.lineTo(L+W,T+H*i/6); }
+  for(let i=1;i<10;i++){ g.moveTo(L+W*i/10,T); g.lineTo(L+W*i/10,T+H); } g.stroke();
+  const c=cur(), cS=curS();
+  const ur=CFG.connected&&cS.sigSet?URof(CFG.freq,c):0;
+  const ampN=clamp(ur/TRUE.U0,0,1);
+  /* 波形：幅度∝U_R，扫描频率视觉映射 */
+  g.strokeStyle='#57e389'; g.lineWidth=1.8; g.beginPath();
+  const cyc=4+6*clamp((CFG.freq-300)/4700,0,1), ph=gl.phase;
+  for(let i=0;i<=180;i++){
+    const x=L+W*i/180;
+    const y=T+H/2-ampN*(H/2-10)*waveSamp(i/180*2*Math.PI*cyc+ph);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.stroke(); g.lineWidth=1;
+  g.fillStyle='#57e389'; g.font='11px Consolas,monospace';
+  g.fillText('CH1  '+ur.toFixed(3)+' Vp  '+(ampN*100).toFixed(1)+'%',L+6,T+H-6);
+  /* 下方读数 */
+  g.font='12px "Microsoft YaHei",sans-serif';
+  g.fillStyle='#ffd54f';
+  g.fillText('U_R='+(ur?ur.toFixed(3):'—')+' V　I='+(ur?ur/c.R*1000:0).toFixed(2)+' mA',12,196);
+  g.fillStyle=ampN>0.995?'#69f0ae':'#9fc3e8';
+  g.fillText(ampN>0.995?'✔ 已达谐振（U_R 最大）':'调频中：U_R 越大越接近谐振',12,214);
+}
+/* 左上 HUD */
+function drawHud(){
+  const c=cur(), cS=curS();
+  const on=CFG.connected&&cS.sigSet;
+  const ur=on?URof(CFG.freq,c):0;
+  $('#hudF').textContent=on?CFG.freq.toFixed(0)+' Hz':'— Hz';
+  $('#hudUR').textContent=on?ur.toFixed(3)+' V':'—';
+  $('#hudI').textContent=on?(ur/c.R*1000).toFixed(2)+' mA':'—';
+  $('#hudState').textContent=!CFG.connected?'电路未连接':
+    (!cS.sigSet?'信号发生器待设置':(cS.f0meas?('f₀\'(实测)='+cS.f0meas.toFixed(0)+' Hz · Δf='+(cS.df??'—')+' · 标准点 '+nGrid(cS)+'/7'):'请寻找实测 f₀\'（理论 f₀ 仅用于初始设置）'));
+}
+
+/* ================= 配置 chips ================= */
+$('#cfgChips').innerHTML=TRUE.configs.map((c,i)=>`<span class="chip" data-i="${i}">${c.name}</span>`).join('');
+function renderCfgChips(){
+  document.querySelectorAll('#cfgChips .chip').forEach(ch=>{
+    const i=+ch.dataset.i, c=CFG.cfgs[i];
+    ch.classList.toggle('on',i===CFG.ci);
+    ch.textContent=TRUE.configs[i].name+(c.curve?' ✔':'');
+  });
+  const c=cur(), cS=curS();
+  $('#cfgState').innerHTML='R=<b>'+c.R+'Ω</b>，L=<b>'+(c.L*1000).toFixed(0)+'mH</b>，C=<b>'+(c.C*1e6).toFixed(3)+'μF</b>'+
+    '　→　理论 f₀='+(cS.theo?c.f0theo.toFixed(1)+' Hz（已填表）':'待估算')+'，参数法 Q₀='+c.Q0.toFixed(3);
+}
+document.querySelectorAll('#cfgChips .chip').forEach(ch=>ch.onclick=()=>{
+  CFG.ci=+ch.dataset.i; CFG.f0meas=curS().f0meas;
+  /* 新配置自动沿用当前 Δf（四个表的采点网格/chips 立即可用） */
+  if(curS().df==null&&CFG.lastDf!=null) curS().df=CFG.lastDf;
+  if(curS().df!=null){ $('#sDf').value=curS().df; $('#vDf').textContent=curS().df+' Hz'; }
+  renderCfgChips(); renderData(); drawCurve(); refresh();
+  toast('已切换到 <b>'+cur().name+'</b>（R='+cur().R+'Ω，L='+(cur().L*1000).toFixed(0)+'mH，C='+(cur().C*1e9).toFixed(0)+'nF）—— 采点间隔沿用 Δf='+(curS().df??'未设')+' Hz');
+});
+
+/* ================= Δf 滑块（50~500Hz 连续可调） ================= */
+$('#sDf').oninput=e=>{
+  const v=+e.target.value;
+  CFG.lastDf=v;
+  if(curS().f0meas!=null&&nPts(curS())>0&&curS().df!==v){
+    curS().pts={}; toast('Δf 改为 <b>'+v+' Hz</b>，网格点全部改变 —— 已清空本配置采点，请重新按 f₀\'±kΔf 采点');
+  }
+  curS().df=v; CFG.df=v; $('#vDf').textContent=v+' Hz';
+  refresh(); renderData();
+};
+
+/* ================= 交互 ================= */
+/* ① 连接三步：串联回路 → 探头 → 开机 */
+$('#btnWire').onclick=()=>{
+  if(CFG.wired){ toast('串联回路已接好'); return; }
+  CFG.wired=true; mainWire.visible=true; flowDots.forEach(d=>d.visible=false);
+  $('#btnProbe').disabled=false;
+  $('#connState').textContent='串联回路已接通（发生器—C—L—R）。接下来接示波器探头。';
+  toast('<b>串联回路已连接</b>：信号发生器输出 → C → L → R → 回到发生器。下一步把探头接在 R 两端');
+  refresh();
+};
+$('#btnProbe').onclick=()=>{
+  if(CFG.probed){ toast('探头已接好'); return; }
+  if(!CFG.wired){ toast('请先连接串联回路'); return; }
+  CFG.probed=true; probeWire.visible=true; probeTip.visible=true; probeClip.visible=true;
+  $('#btnPwr').disabled=false;
+  $('#connState').textContent='探头已接 R 两端（CH1）。最后开启信号发生器电源。';
+  toast('<b>探头已接 R 两端</b>：U_R=I·R，谐振判定依据。下一步开机');
+  refresh();
+};
+$('#btnPwr').onclick=()=>{
+  if(CFG.powered){ toast('电源已开启'); return; }
+  if(!CFG.probed){ toast('请先接好探头'); return; }
+  CFG.powered=true; CFG.connected=true;
+  $('#connState').innerHTML='<span class="good">✔ 电路连接完成：串联回路 + 探头 + 电源已开</span>';
+  toast('<b>信号发生器已开机</b>：请选择元件配置 → 估算理论 f₀ → 选择波形/调幅值/调频率');
+  refresh();
+};
+$('#btnTheo').onclick=()=>{
+  if(!CFG.connected){ toast('请先连接电路'); return; }
+  const cS=curS();
+  if(cS.theo){ toast(cur().name+' 的理论 f₀ 已填表：'+cur().f0theo.toFixed(1)+' Hz'); return; }
+  cS.theo=true;
+  toast('<b>理论谐振频率</b>：f₀=1/(2π√LC)=<b>'+cur().f0theo.toFixed(1)+' Hz</b>（已填入 '+cur().name+'）—— 请设置信号发生器为正弦 5V、频率=理论值');
+  refresh(); renderData();
+};
+/* ② 波形选择（教材要求正弦波；选错波形时示波器显示对应波形，确认时拦截） */
+$('#waveChips').innerHTML=[['sine','正弦波 ~'],['tri','三角波 ⋀'],['sqr','方波 ⊓']]
+  .map(([k,n])=>`<span class="chip" data-w="${k}">${n}</span>`).join('');
+document.querySelectorAll('#waveChips .chip').forEach(ch=>ch.onclick=()=>{
+  if(curS().sigSet){ toast('信号已开启，波形已锁定（复位后可改）'); return; }
+  if(!CFG.powered){ toast('请先开启信号发生器电源'); return; }
+  CFG.wave=ch.dataset.w;
+  document.querySelectorAll('#waveChips .chip').forEach(x=>x.classList.toggle('on',x===ch));
+  toast(CFG.wave==='sine'?'<b>已选正弦波</b>（教材要求）':'⚠ 已选'+ch.textContent+'—— 教材要求正弦波，确认设置时将拦截');
+});
+$('#sAmp').oninput=e=>{
+  CFG.amp=+e.target.value; $('#vAmp').textContent=CFG.amp.toFixed(1)+' V';
+};
+$('#btnSigSet').onclick=()=>{
+  const cS=curS(), c=cur();
+  if(!CFG.powered){ toast('请先开启信号发生器电源'); return; }
+  if(!cS.theo){ toast('请先点击「估算理论 f₀ 并填表」'); return; }
+  if(cS.sigSet){ toast('信号已开启：'+(CFG.wave==='sine'?'正弦':'非正弦')+' '+CFG.amp.toFixed(1)+'V，f='+CFG.freq.toFixed(0)+' Hz'); return; }
+  if(CFG.wave!=='sine'){ toast('⚠ 波形不是正弦波 —— 本实验研究幅频特性，须用<b>正弦波</b>激励（式 2.22.3）。请重新选择'); return; }
+  if(Math.abs(CFG.amp-5)>0.1){ toast('⚠ 输出幅值 '+CFG.amp.toFixed(1)+'V ≠ 5V —— 请拖动「输出幅值」滑块调至 5.0±0.1 V'); return; }
+  if(Math.abs(CFG.freq-c.f0theo)>2){ toast('⚠ 当前 f='+CFG.freq.toFixed(0)+' Hz ≠ 理论值 '+c.f0theo.toFixed(0)+' Hz —— 请拖动频率滑块调到理论值附近（±2 Hz）再确认'); return; }
+  cS.sigSet=true;
+  toast('<b>信号发生器已设置</b>：正弦波 U₀='+CFG.amp.toFixed(1)+'V，f='+CFG.freq.toFixed(0)+' Hz（理论值）。示波器出现 U_R 波形 —— 请微调频率找实测 f₀\'');
+  refresh();
+};
+function setFreq(f){
+  CFG.freq=clamp(Math.round(f),300,5000);
+  $('#sFreq').value=CFG.freq; $('#vFreq').textContent=CFG.freq.toFixed(0);
+  genKnob.rotation.z=-(CFG.freq-300)/4700*4*Math.PI;
+  refresh();
+}
+$('#sFreq').oninput=e=>setFreq(+e.target.value);
+$('#bFm10').onclick=()=>setFreq(CFG.freq-10);
+$('#bFm1').onclick=()=>setFreq(CFG.freq-1);
+$('#bFp1').onclick=()=>setFreq(CFG.freq+1);
+$('#bFp10').onclick=()=>setFreq(CFG.freq+10);
+$('#btnMarkF0').onclick=()=>{
+  const c=cur(), cS=curS();
+  if(cS.f0meas!=null){ toast(c.name+' 的实测 f₀\'已标记：'+cS.f0meas.toFixed(0)+' Hz'); return; }
+  const ur=URof(CFG.freq,c);
+  if(ur<0.997*TRUE.U0){ toast('当前 U_R='+ur.toFixed(3)+' V，还未达到最大值。请在理论值附近继续微调（1Hz 步进），<b>U_R 最大时</b>再标记'); return; }
+  cS.f0meas=Math.round(c.f0true+2*(Math.random()+Math.random()-1));
+  CFG.f0meas=cS.f0meas;
+  /* 标记 f₀' 后若尚未设 Δf，自动沿用当前滑块值 —— k=−3…+3 采点 chips 立即可见 */
+  cS.df=recommendDf(c); CFG.lastDf=cS.df;
+  $('#sDf').value=cS.df; $('#vDf').textContent=cS.df+' Hz';
+  toast('<b>实测谐振频率 f₀\'='+cS.f0meas.toFixed(0)+' Hz</b>（理论 '+c.f0theo.toFixed(1)+' Hz，相对偏差 '+
+    (Math.abs(cS.f0meas-c.f0theo)/c.f0theo*100).toFixed(2)+'%）。<br>采点间隔 Δf 已按 Q₀ 自动取 <b>'+cS.df+' Hz</b>（使 ±3Δf 能跨过 0.707 半功率点；需要更密可拖滑块）—— 点击下方 7 个 k 网格点逐一记录');
+  refresh();
+};
+/* Δf 推荐值：半功率带宽的一半（保证 ±3Δf 网格能跨过 0.707 点），限 50~500Hz */
+function recommendDf(c){
+  const f0=(curS().f0meas!=null?curS().f0meas:c.f0theo);
+  return clamp(Math.round(f0/(2*c.Q0)/10)*10, 50, 500);
+}
+/* 0.707 半功率穿越频率扫描（峰两侧找 U_R 首次降到 0.707U₀ 以下的频率） */
+function halfPowerTargets(){
+  const c=cur(), cS=curS();
+  if(cS.f0meas==null) return null;
+  const lvl=0.707*TRUE.U0, f0=cS.f0meas;
+  let lo=null, hi=null;
+  for(let k=1;k<=110;k++){ const f=Math.round(f0*(1-0.01*k)); if(f<300) break;
+    if(URof(f,c)<lvl){ lo=f; break; } }
+  for(let k=1;k<=110;k++){ const f=Math.round(f0*(1+0.01*k)); if(f>5000) break;
+    if(URof(f,c)<lvl){ hi=f; break; } }
+  const pts=Object.values(cS.pts);
+  const loCovered=pts.some(p=>p.f<f0&&p.UR<lvl), hiCovered=pts.some(p=>p.f>f0&&p.UR<lvl);
+  return { lo: loCovered?null:lo, hi: hiCovered?null:hi, lvl };
+}
+/* 补测引导 chips：带宽未捕获时提示跳到 0.707 穿越频率补点 */
+function renderBwChips(){
+  const box=$('#bwChips'), cS=curS();
+  if(cS.f0meas==null || (cS.curve&&bandwidth(cS))){ box.innerHTML=''; return; }
+  const t=halfPowerTargets();
+  if(!t || (!t.lo && !t.hi)){ box.innerHTML=''; return; }
+  box.innerHTML='<span class="muted" style="font-size:11px">0.707 半功率点（U_R 降到 '+t.lvl.toFixed(2)+' V 以下）还没测到 → 点下方建议频率跳到该处再「记录」：</span><br>'+
+    (t.lo?`<span class="gc" data-f="${t.lo}">↓ 峰左侧 f≈${t.lo}Hz</span> `:'')+
+    (t.hi?`<span class="gc" data-f="${t.hi}">↑ 峰右侧 f≈${t.hi}Hz</span>`:'');
+  box.querySelectorAll('.gc').forEach(el=>el.onclick=()=>{
+    setFreq(+el.dataset.f);
+    toast('已跳到 f='+el.dataset.f+' Hz —— 示波器 U_R 应已降到 '+(t.lvl).toFixed(2)+' V 以下，点「记录 U_R」补测此点');
+  });
+}
+/* 网格点：f0'+kΔf */
+function gridTargets(){
+  const cS=curS();
+  if(cS.f0meas==null||cS.df==null) return [];
+  return [-3,-2,-1,0,1,2,3].map(k=>({k,f:clamp(Math.round(cS.f0meas+k*cS.df),300,5000)}));
+}
+/* 记录：网格点(k=−3..3) 优先；非网格点作为补充采点（覆盖半功率点用） */
+$('#btnRec').onclick=()=>{
+  const c=cur(), cS=curS();
+  if(!CFG.connected){ toast('请先连接电路'); return; }
+  if(!cS.sigSet){ toast('请先设置信号发生器'); return; }
+  if(cS.f0meas==null){ toast('请先标记实测 f₀\''); return; }
+  const t=gridTargets().find(g=>Math.abs(g.f-CFG.freq)<=1.5);
+  if(t){
+    if(cS.pts[t.k]!=null){ toast('k='+t.k+' 点已记录，无需重复'); return; }
+    cS.pts[t.k]={f:t.f,UR:URof(t.f,c)*noise(0.003)};
+    toast('<b>已记录标准点</b> k='+t.k+'：f='+t.f+' Hz，U_R='+cS.pts[t.k].UR.toFixed(3)+' V，I='+(cS.pts[t.k].UR/c.R*1000).toFixed(2)+' mA　（'+nGrid(cS)+'/7）');
+  } else {
+    const key='x'+CFG.freq;
+    if(cS.pts[key]!=null){ toast('f='+CFG.freq.toFixed(0)+' Hz 补充点已记录'); return; }
+    cS.pts[key]={f:CFG.freq,UR:URof(CFG.freq,c)*noise(0.003),extra:true};
+    toast('<b>已记录补充点</b>：f='+CFG.freq.toFixed(0)+' Hz，U_R='+cS.pts[key].UR.toFixed(3)+' V（0.707 半功率点未落入 ±3Δf 网格时，在峰两侧补测即可）');
+  }
+  refresh(); renderData();
+};
+$('#btnCurve').onclick=()=>{
+  const cS=curS();
+  if(nGrid(cS)<7){ toast('7 个标准点（f₀\'±kΔf）还未采满，当前 '+nGrid(cS)+'/7 —— 请继续采点'); return; }
+  cS.curve=true;
+  const bw=bandwidth(cS);
+  drawCurve(); renderData(); refresh();
+  if(!bw){ toast('<b>曲线已绘出</b>，但 0.707 半功率点（U_R 降到 3.54 V 以下）还没测到 —— 点下方<b>金色「补测」按钮</b>跳到峰两侧建议频率，各「记录」1~2 点，再重新绘制'); }
+  else toast('<b>'+cur().name+' 幅频特性曲线完成</b>：Δf带宽='+bw.df.toFixed(0)+' Hz，Q=f₀\'/Δf='+ (Math.round(cS.f0meas)/bw.df).toFixed(2)+'。请切换下一组元件配置');
+};
+$('#btnAnalyze').onclick=()=>{
+  if(CFG.cfgs.filter(s=>s.curve&&bandwidth(s)).length<4){ toast('需完成全部 4 组曲线（含 0.707 半功率点捕获 —— 不足处在峰两侧补测）'); return; }
+  $('#anaState').innerHTML='<span class="good">✔ 力学模拟对应：R↑（阻尼↑）→ 曲线变平缓、Q↓；C↑（劲度 k=1/C↓）→ f₀↓；L↑（质量↑）→ f₀↓。谐振即位移共振，Q 即品质因数。</span>';
+  toast('<b>分析完成</b>：改变 R、L、C 对幅频特性/f₀/Q 的影响，等价于研究阻尼、质量、劲度对受迫振动的影响 —— 电学模拟法验证完成');
+  refresh(); renderData();
+};
+$('#btnSample').onclick=()=>{
+  CFG.connected=true; CFG.wired=true; CFG.probed=true; CFG.powered=true;
+  CFG.wave='sine'; CFG.amp=5;
+  $('#vAmp').textContent='5.0 V'; $('#sAmp').value=5; $('#sAmp').disabled=false;
+  document.querySelectorAll('#waveChips .chip').forEach(x=>x.classList.toggle('on',x.dataset.w==='sine'));
+  mainWire.visible=true; probeWire.visible=true; probeTip.visible=true; probeClip.visible=true;
+  $('#connState').innerHTML='<span class="good">✔ 已连接并开机（示例）</span>';
+  TRUE.configs.forEach((c,i)=>{
+    const s=CFG.cfgs[i];
+    s.theo=true; s.sigSet=true;
+    s.f0meas=Math.round(c.f0true+2*(Math.random()+Math.random()-1));
+    s.df=100;
+    for(let k=-3;k<=3;k++) s.pts[k]={f:Math.round(s.f0meas+k*s.df),UR:URof(Math.round(s.f0meas+k*s.df),c)*noise(0.003)};
+    /* 自动补点：在 f₁、f₂ 两侧各取多点（最外侧必低于 0.707 线），保证捕获半功率点 */
+    const Q=c.Q0, x1=(-1/Q+Math.sqrt(1/Q/Q+4))/2, x2=(1/Q+Math.sqrt(1/Q/Q+4))/2;
+    [x1,x2].forEach(x=>{
+      [0.99,0.995,0.999,1.001,1.005,1.01].forEach(m=>{
+        const f=clamp(Math.round(s.f0meas*x*m),300,5000), key='x'+f;
+        if(s.pts[key]==null) s.pts[key]={f,UR:URof(f,c)*noise(0.003),extra:true};
+      });
+    });
+    s.curve=true;
+  });
+  CFG.ci=0; CFG.freq=Math.round(TRUE.configs[0].f0true);
+  $('#sFreq').value=CFG.freq; $('#vFreq').textContent=CFG.freq.toFixed(0);
+  $('#sDf').value=100; $('#vDf').textContent='100 Hz';
+  $('#anaState').innerHTML='<span class="good">✔ 已生成（示例）</span>';
+  renderCfgChips(); drawCurve(); renderData(); refresh();
+  $('#cmpNote').textContent='4 组归一化幅频曲线：R=500Ω（Q=2）最陡峭，L=50mH（Q=0.71）最平缓 —— Q 越大选频性越好。';
+  toast('<b>已自动完成全部测量</b>（4 组 × 7 标准点 + 半功率点补测 + 曲线 + Q 对比）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(CFG,{connected:false,wired:false,probed:false,powered:false,wave:'sine',amp:2.0,
+    ci:0,freq:1591,f0meas:null,df:null,
+    cfgs:TRUE.configs.map(()=>({theo:false,sigSet:false,f0meas:null,df:null,pts:{},curve:false})),
+    steps:[false,false,false,false,false,false]});
+  $('#sFreq').value=1591; $('#vFreq').textContent='1591';
+  $('#sDf').value=200; $('#vDf').textContent='200 Hz';
+  $('#sAmp').value=2; $('#vAmp').textContent='2.0 V'; $('#sAmp').disabled=true;
+  document.querySelectorAll('#waveChips .chip').forEach(x=>x.classList.remove('on'));
+  mainWire.visible=false; probeWire.visible=false; probeTip.visible=false; probeClip.visible=false;
+  $('#connState').textContent='未连接。先接串联回路，再接探头，最后开机。';
+  $('#resState').textContent='等待信号发生器设置。';
+  $('#gridState').textContent='采点进度：0 / 7（f₀\'±kΔf，k=0,1,2,3）';
+  $('#anaState').textContent='完成 4 组测量后生成结论（R↔阻尼、1/C↔劲度、L↔质量）。';
+  $('#cmpNote').textContent='完成多组测量后自动叠加对比（横轴 f/f₀\'，纵轴 I/I_max）。';
+  const g=$('#ampCurve').getContext('2d'); g.clearRect(0,0,340,230);
+  const g2=$('#cmpCurve').getContext('2d'); g2.clearRect(0,0,392,250);
+  renderCfgChips(); renderData(); refresh();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定与门控 ================= */
+const TIPS=['电路连接完成！','理论 f₀ 已估算、信号发生器已设置！','实测 f₀\' 已找到！','第一组幅频曲线已绘出！','4 组元件配置全部完成！','模拟分析结论已生成！'];
+/* k=-3..+3 网格点可视化 chips：点击跳频，已测变绿，当前点金色 */
+function renderGridChips(){
+  const box=$('#gridChips'), cS=curS();
+  if(cS.f0meas==null||cS.df==null){
+    box.innerHTML='<span class="muted" style="font-size:11px">'+(cS.f0meas==null?'标记实测 f₀\' 后在此显示 7 个标准采点（k=−3…+3）':'设置 Δf 后在此显示 7 个标准采点')+'</span>';
+    return;
+  }
+  box.innerHTML=gridTargets().map(g=>{
+    const done=cS.pts[g.k]!=null, at=Math.abs(g.f-CFG.freq)<=1.5;
+    return `<span class="gc${done?' done':''}${at?' at':''}" data-k="${g.k}" title="${done?'已记录':'点击调频到此点'}">k=${g.k>0?'+'+g.k:g.k} · ${g.f}Hz${done?' ✓':''}</span>`;
+  }).join('')+`<span class="muted" style="font-size:11px;align-self:center;margin-left:6px">（点击 chip 跳到该频率，再「记录 U_R」）</span>`;
+  box.querySelectorAll('.gc').forEach(el=>el.onclick=()=>{
+    const g=gridTargets().find(x=>x.k===+el.dataset.k);
+    setFreq(g.f);
+    toast(curS().pts[g.k]!=null?('k='+g.k+'（'+g.f+' Hz）已记录：U_R='+curS().pts[g.k].UR.toFixed(3)+' V'):
+      ('已调到标准点 k='+g.k+'（f='+g.f+' Hz）—— 点击「记录 U_R」完成采点'));
+  });
+}
+function refresh(){
+  const s=CFG.steps, c=cur(), cS=curS();
+  const nDone=CFG.cfgs.filter(x=>x.curve&&bandwidth(x)).length;
+  s[0]=CFG.connected;
+  s[1]=CFG.cfgs.some(x=>x.theo&&x.sigSet);
+  s[2]=CFG.cfgs.some(x=>x.f0meas!=null);
+  s[3]=nDone>=1;
+  s[4]=nDone>=4;
+  s[5]=s[4]&&$('#anaState').innerHTML.indexOf('✔')>=0;
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+TIPS[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+  /* 所有按钮永不禁用：未就绪时点击给出引导（ready 高亮表示当前可执行） */
+  const sigOn=CFG.connected&&cS.sigSet;
+  const ur=sigOn?URof(CFG.freq,c):0;
+  $('#btnWire').disabled=CFG.wired;
+  $('#btnProbe').disabled=CFG.probed||!CFG.wired;
+  $('#btnPwr').disabled=CFG.powered||!CFG.probed;
+  $('#btnWire').classList.toggle('primary',!CFG.wired);
+  $('#btnProbe').classList.toggle('primary',CFG.wired&&!CFG.probed);
+  $('#btnPwr').classList.toggle('primary',CFG.probed&&!CFG.powered);
+  $('#btnTheo').classList.toggle('primary',CFG.powered&&!cS.theo);
+  $('#btnSigSet').classList.toggle('primary',cS.theo&&!cS.sigSet);
+  $('#sAmp').disabled=!CFG.powered||cS.sigSet;
+  $('#sFreq').disabled=!sigOn;
+  $('#sDf').disabled=false;
+  ['bFm10','bFm1','bFp1','bFp10'].forEach(id=>$('#'+id).disabled=!sigOn);
+  $('#btnMarkF0').classList.toggle('primary',sigOn&&ur>=0.997*TRUE.U0&&cS.f0meas==null);
+  /* 采点状态 */
+  let gridMsg='标准点 '+nGrid(cS)+' / 7（f₀\'±kΔf）', onGrid=null, canRec=sigOn&&cS.f0meas!=null&&cS.df!=null;
+  if(cS.f0meas==null) gridMsg='请先标记实测 f₀\'，再设 Δf 采点';
+  else{
+    const extraN=nPts(cS)-nGrid(cS);
+    gridMsg+=(extraN>0?' + 补充点 '+extraN:'')+'　已测：'+gridTargets().filter(g=>cS.pts[g.k]!=null).map(g=>'k='+g.k).join('、');
+    if(cS.df!=null){
+      const t=gridTargets().find(g=>Math.abs(g.f-CFG.freq)<=1.5);
+      onGrid=t&&cS.pts[t.k]==null?t:null;
+    }
+  }
+  $('#gridState').textContent=gridMsg;
+  renderGridChips(); renderBwChips();
+  $('#btnRec').classList.toggle('primary',canRec&&(onGrid||cS.df!=null));
+  $('#btnRec').textContent=onGrid?'● 记录标准点 k='+onGrid.k+'（f='+onGrid.f+' Hz）':
+    (canRec?'记录当前频率 f='+CFG.freq.toFixed(0)+' Hz（标准点外的补充点）':'记录此频率点的 U_R');
+  $('#btnCurve').classList.toggle('primary',nGrid(cS)>=7);
+  $('#btnAnalyze').classList.toggle('primary',nDone>=4);
+  /* 谐振接近度提示（区分理论 f₀ 与实测 f₀'） */
+  $('#resState').innerHTML=!sigOn?'等待信号发生器设置。':
+    (cS.f0meas==null?('理论 f₀=<b>'+c.f0theo.toFixed(1)+' Hz</b>（仅用于初始设置）。当前 U_R=<b>'+ur.toFixed(3)+' V</b>（最大 5.000 V）'+(ur>=0.997*TRUE.U0?' —— <span class="good">已达最大，可标记实测 f₀\'</span>':'，继续微调频率…')):
+    ('实测 f₀\'=<b>'+cS.f0meas.toFixed(0)+' Hz</b>（表格以此为中心）· 理论 '+c.f0theo.toFixed(1)+' Hz · Q₀(参数法)='+c.Q0.toFixed(3)+'。当前 U_R='+ur.toFixed(3)+' V'));
+  renderCfgChips(); drawHud(); drawLive();
+}
+
+/* ================= 曲线绘制 ================= */
+function drawCurve(){
+  const cv=$('#ampCurve'), g=cv.getContext('2d');
+  g.clearRect(0,0,340,230);
+  const c=cur(), cS=curS();
+  if(nPts(cS)===0) return;
+  g.fillStyle='#05070a'; g.fillRect(0,0,340,230);
+  const L=42,T=14,W=284,H=170;
+  g.strokeStyle='#1d3252'; g.strokeRect(L,T,W,H);
+  const pts=Object.values(cS.pts);
+  const urMax=TRUE.U0, urMin=0;
+  const fLo=Math.min(...pts.map(p=>p.f),cS.f0meas||1e9)*0.94, fHi=Math.max(...pts.map(p=>p.f),cS.f0meas||0)*1.06;
+  const X=f=>L+W*(f-fLo)/(fHi-fLo), Y=u=>T+H-(u-urMin)/(urMax-urMin)*H;
+  g.font='10px Consolas,monospace'; g.fillStyle='#6fa8dc'; g.textAlign='right';
+  [1,2,3,4,5].forEach(u=>{ g.fillText(u.toFixed(0),L-4,Y(u)+3);
+    g.strokeStyle='rgba(80,220,160,.15)'; g.beginPath(); g.moveTo(L,Y(u)); g.lineTo(L+W,Y(u)); g.stroke(); });
+  g.textAlign='center';
+  pts.forEach(p=>{ g.fillText(p.f.toFixed(0),X(p.f),T+H+12); });
+  g.fillText('f/Hz',L+W,T+H+24);
+  g.save(); g.translate(10,T+H/2); g.rotate(-Math.PI/2); g.textAlign='center';
+  g.fillText('U_R /V',0,0); g.restore();
+  /* 理论曲线（虚线） */
+  g.setLineDash([4,3]); g.strokeStyle='rgba(120,180,255,.5)'; g.beginPath();
+  for(let i=0;i<=100;i++){ const f=fLo+(fHi-fLo)*i/100;
+    i?g.lineTo(X(f),Y(URof(f,c))):g.moveTo(X(f),Y(URof(f,c))); }
+  g.stroke(); g.setLineDash([]);
+  /* 实测点连线（补充点=空心圆） */
+  const sp=[...pts].sort((a,b)=>a.f-b.f);
+  g.strokeStyle=c.color; g.lineWidth=1.8; g.beginPath();
+  sp.forEach((p,i)=>{ i?g.lineTo(X(p.f),Y(p.UR)):g.moveTo(X(p.f),Y(p.UR)); });
+  g.stroke(); g.lineWidth=1;
+  sp.forEach(p=>{ 
+    if(p.extra){ g.strokeStyle=c.color; g.beginPath(); g.arc(X(p.f),Y(p.UR),3,0,7); g.stroke(); }
+    else { g.fillStyle=c.color; g.beginPath(); g.arc(X(p.f),Y(p.UR),3.2,0,7); g.fill(); }
+  });
+  /* 0.707 线与 f1 f2 */
+  const lvl=0.707*TRUE.U0;
+  g.setLineDash([3,3]); g.strokeStyle='#ffd54f';
+  g.beginPath(); g.moveTo(L,Y(lvl)); g.lineTo(L+W,Y(lvl)); g.stroke(); g.setLineDash([]);
+  if(cS.curve){
+    const bw=bandwidth(cS);
+    if(bw){ g.fillStyle='#ffd54f'; g.textAlign='center';
+      g.fillText('f₁='+bw.f1.toFixed(0),X(bw.f1),Y(lvl)-6);
+      g.fillText('f₂='+bw.f2.toFixed(0),X(bw.f2),Y(lvl)-6);
+      g.strokeStyle='#ff8a80';
+      [bw.f1,bw.f2].forEach(f=>{ g.beginPath(); g.moveTo(X(f),Y(lvl)-3); g.lineTo(X(f),T+H); g.stroke(); });
+    }
+  }
+  g.fillStyle='#9fc3e8'; g.textAlign='left'; g.font='10px "Microsoft YaHei",sans-serif';
+  g.fillText(c.name+'　● 标准点　○ 补充点　--- 理论　-- 0.707U_Rmax',L+4,T+H+38);
+}
+/* 左上角实时幅频曲线（当前配置：理论曲线 + 已采点 + 当前频率光标） */
+function drawLive(){
+  const cv=$('#ampOv'), g=cv.getContext('2d');
+  const c=cur(), cS=curS();
+  g.fillStyle='#05070a'; g.fillRect(0,0,300,240);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,294,234);
+  g.font='11px "Microsoft YaHei",sans-serif'; g.fillStyle='#6fa8dc'; g.textAlign='left';
+  const on=CFG.connected&&cS.sigSet;
+  g.fillText('幅频特性（实时）· '+c.name+(cS.f0meas!=null?' · f₀\'='+cS.f0meas.toFixed(0)+' Hz':''),12,18);
+  const L=40,T=26,W=246,H=170;
+  g.fillStyle='#04101a'; g.fillRect(L,T,W,H); g.strokeStyle='#123a5c'; g.strokeRect(L,T,W,H);
+  /* 频率范围：已采点 ∪ 当前频率 ∪ 理论 f₀，外扩 */
+  let fs=[c.f0theo];
+  if(cS.f0meas!=null){ fs.push(cS.f0meas); if(cS.df){ for(let k=-3;k<=3;k++) fs.push(cS.f0meas+k*cS.df); } }
+  Object.values(cS.pts).forEach(p=>fs.push(p.f));
+  if(on) fs.push(CFG.freq);
+  fs=fs.filter(f=>f>50);
+  let fLo=Math.min(...fs), fHi=Math.max(...fs);
+  if(fHi-fLo<200){ fLo-=100; fHi+=100; }
+  fLo=Math.max(200,fLo-(fHi-fLo)*0.08); fHi+=(fHi-fLo)*0.08;
+  const X=f=>L+W*(f-fLo)/(fHi-fLo), Y=u=>T+H-u/TRUE.U0*H;
+  g.font='9px Consolas,monospace'; g.fillStyle='#4d7ba6'; g.textAlign='right';
+  [1,2,3,4,5].forEach(u=>{ g.fillText(u,L-3,Y(u)+3);
+    g.strokeStyle='rgba(80,220,160,.12)'; g.beginPath(); g.moveTo(L,Y(u)); g.lineTo(L+W,Y(u)); g.stroke(); });
+  /* 0.707 线 */
+  g.setLineDash([3,3]); g.strokeStyle='rgba(255,213,79,.55)';
+  g.beginPath(); g.moveTo(L,Y(0.707*TRUE.U0)); g.lineTo(L+W,Y(0.707*TRUE.U0)); g.stroke(); g.setLineDash([]);
+  /* 理论曲线 */
+  if(on||cS.curve){
+    g.strokeStyle='rgba(120,180,255,.6)'; g.setLineDash([4,3]); g.beginPath();
+    for(let i=0;i<=110;i++){ const f=fLo+(fHi-fLo)*i/110;
+      const u=URof(f,c); i?g.lineTo(X(f),Y(u)):g.moveTo(X(f),Y(u)); }
+    g.stroke(); g.setLineDash([]);
+  }
+  /* 已采点 */
+  const sp=[...Object.values(cS.pts)].sort((a,b)=>a.f-b.f);
+  if(sp.length){
+    g.strokeStyle=c.color; g.lineWidth=1.6; g.beginPath();
+    sp.forEach((p,i)=>{ i?g.lineTo(X(p.f),Y(p.UR)):g.moveTo(X(p.f),Y(p.UR)); });
+    g.stroke(); g.lineWidth=1;
+    sp.forEach(p=>{ p.extra?(g.strokeStyle=c.color,g.beginPath(),g.arc(X(p.f),Y(p.UR),2.6,0,7),g.stroke())
+      :(g.fillStyle=c.color,g.beginPath(),g.arc(X(p.f),Y(p.UR),2.8,0,7),g.fill()); });
+  }
+  /* 当前频率光标 */
+  if(on){
+    const u=URof(CFG.freq,c), x=X(CFG.freq);
+    g.strokeStyle='#69f0ae'; g.setLineDash([2,2]);
+    g.beginPath(); g.moveTo(x,T); g.lineTo(x,T+H); g.stroke(); g.setLineDash([]);
+    g.fillStyle='#69f0ae'; g.beginPath(); g.arc(x,Y(u),3.5,0,7); g.fill();
+    g.font='10px Consolas,monospace'; g.textAlign='left';
+    g.fillText(CFG.freq.toFixed(0)+'Hz',clamp(x+4,L,W+L-52),Y(u)-6);
+  }
+  g.fillStyle='#9fc3e8'; g.font='10px "Microsoft YaHei",sans-serif'; g.textAlign='left';
+  g.fillText('f: '+fLo.toFixed(0)+'~'+fHi.toFixed(0)+' Hz　U_R/V 纵轴',L,T+H+32);
+}
+/* 通频带与 Q：0.707 线性插值 */
+function bandwidth(cS){
+  const sp=[...Object.values(cS.pts)].sort((a,b)=>a.f-b.f);
+  const lvl=0.707*Math.max(...sp.map(p=>p.UR));
+  let f1=null,f2=null;
+  for(let i=0;i<sp.length-1;i++){
+    const a=sp[i],b=sp[i+1];
+    const lo=Math.min(a.UR,b.UR), hi=Math.max(a.UR,b.UR);
+    if(lvl>=lo&&lvl<=hi){
+      const f=a.f+(b.f-a.f)*(lvl-a.UR)/(b.UR-a.UR);
+      if(a.f<b.f){ if(f1==null&&a.UR<lvl) f1=f; f2=f; }
+    }
+  }
+  return (f1!=null&&f2!=null&&f2>f1)?{f1,f2,df:f2-f1}:null;
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  /* 汇总表与结论均以「曲线完成且捕获半功率点」为准 */
+  const done=CFG.cfgs.map((s,i)=>({s,i})).filter(x=>x.s.curve&&bandwidth(x.s));
+  $('#tbSum').innerHTML=done.length?`<table><tr><th>配置</th><th>R/Ω</th><th>L/mH</th><th>C/μF</th><th>f₀理论/Hz</th><th>f₀'实测/Hz</th><th>Δf带宽/Hz</th><th>Q=f₀'/Δf</th><th>Q₀=√(L/C)/R</th><th>Q 偏差</th></tr>${done.map(({s,i})=>{
+    const c=TRUE.configs[i], bw=bandwidth(s), Qb=bw?Math.round(s.f0meas)/bw.df:null;
+    const dev=Qb?Math.abs(Qb-c.Q0)/c.Q0*100:null;
+    return `<tr><td>${c.name}</td><td>${c.R}</td><td>${(c.L*1000).toFixed(0)}</td><td>${(c.C*1e6).toFixed(3)}</td><td>${c.f0theo.toFixed(1)}</td><td>${s.f0meas}</td><td>${bw?bw.df.toFixed(0):'—'}</td><td>${Qb?Qb.toFixed(3):'—'}</td><td>${c.Q0.toFixed(3)}</td><td>${dev!=null?dev.toFixed(1)+' %':'—'}</td></tr>`;
+  }).join('')}</table>`:'尚未完成任何一组曲线。';
+  /* 教材式四表（表 2.22.2~2.22.5）：中心 f₀ 为实测值 */
+  $('#tbTables').innerHTML=TRUE.configs.map((c,i)=>{
+    const s=CFG.cfgs[i];
+    const has=s.f0meas!=null;
+    let body;
+    if(!has) body='<p class="muted">待测量：切换到该配置 → 估算理论 f₀ → 设置信号发生器 → 找实测 f₀\' → 采点。</p>';
+    else{
+      const d=s.df??200;
+      const cols=[-3,-2,-1,0,1,2,3];
+      const syms=cols.map(k=>k===0?'f₀\'':(k<0?'f₀′−'+(-k)+'Δ':'f₀′+'+k+'Δ'));
+      const fRow=cols.map(k=>{ const p=s.pts[k]; return p?p.f:'—'; });
+      const urRow=cols.map(k=>{ const p=s.pts[k]; return p?p.UR.toFixed(3):'—'; });
+      const iRow=cols.map(k=>{ const p=s.pts[k]; return p?(p.UR/c.R).toFixed(6):'—'; });
+      const extras=Object.values(s.pts).filter(p=>p.extra);
+      const bw=bandwidth(s), Qb=bw?Math.round(s.f0meas)/bw.df:null;
+      body=`<table><tr><th>f/Hz</th>${syms.map((sy,j)=>`<th>${sy}</th>`).join('')}</tr>`+
+        `<tr><td><b>f (Hz)</b></td>${fRow.map(v=>`<td>${v}</td>`).join('')}</tr>`+
+        `<tr><td><b>U_R (V)</b></td>${urRow.map(v=>`<td>${v}</td>`).join('')}</tr>`+
+        `<tr><td><b>I (A)</b></td>${iRow.map(v=>`<td>${v}</td>`).join('')}</tr></table>`+
+        `<p class="muted" style="font-size:11px">Δf=${d} Hz${extras.length?'；补充点：'+extras.map(p=>p.f+'Hz/'+p.UR.toFixed(3)+'V').join('，'):''}`+
+        (bw?` —— 0.707U_Rmax 处：f₁=${bw.f1.toFixed(0)} Hz，f₂=${bw.f2.toFixed(0)} Hz，Δf带宽=${bw.df.toFixed(0)} Hz，<b style="color:#ffd54f">Q=f₀'/Δf=${Qb.toFixed(2)}</b>，Q₀=√(L/C)/R=${c.Q0.toFixed(2)}`:' —— 0.707 半功率点未捕获，请在峰两侧补测点')+'</p>';
+    }
+    return `<div style="margin-bottom:10px"><b style="color:#9fc3e8">${c.name}　R=${c.R}Ω，L=${(c.L*1000).toFixed(0)}mH，C=${(c.C*1e6).toFixed(3)}μF，f₀(理论)=${s.theo?c.f0theo.toFixed(1)+' Hz':'____'}${has?'，f₀\'(实测)='+s.f0meas+' Hz':''}${s.curve&&bandwidth(s)?'　<span class="good">✔</span>':''}</b>${body}</div>`;
+  }).join('');
+  /* 当前配置 */
+  const c=cur(), cS=curS();
+  /* 结论 */
+  if(done.length===4){
+    let ok=true, rows='';
+    done.forEach(({s,i})=>{
+      const c2=TRUE.configs[i], bw=bandwidth(s), Qb=bw?Math.round(s.f0meas)/bw.df:null;
+      const dF0=Math.abs(s.f0meas-c2.f0theo)/c2.f0theo*100;
+      const dQ=Qb?Math.abs(Qb-c2.Q0)/c2.Q0*100:null;
+      if(dF0>2||(dQ!=null&&dQ>10)) ok=false;
+      rows+=`<div class="kv"><span>${c2.name}：f₀' ${s.f0meas} Hz（偏差 ${dF0.toFixed(2)}%），Q=${Qb?Qb.toFixed(2):'—'} vs Q₀=${c2.Q0.toFixed(2)}（偏差 ${dQ!=null?dQ.toFixed(1):'—'}%）</span><b class="${dF0<2&&(dQ==null||dQ<10)?'good':''}">${dF0<2&&(dQ==null||dQ<10)?'✔':'✘'}</b></div>`;
+    });
+    $('#concl').innerHTML=rows+(ok?
+      '<div class="good">✔ 各组 f₀\' 与 1/(2π√LC) 一致；通频带法 Q 与参数法 Q₀=√(L/C)/R 一致。R=500Ω（Q 大）曲线最陡、通频带最窄 —— 串联谐振与力学受迫振动的模拟关系得到验证，实验成功</div>'
+      :'<div style="color:#ff8a80">✘ 部分偏差偏大：检查频率读数与采点间隔 Δf</div>');
+  } else $('#concl').innerHTML='完成 4 组测量后自动给出结论。';
+  /* 归一化对比曲线：横轴 f/f₀' ∈ [0.4, 2.0]（覆盖各组半功率点） */
+  const cv=$('#cmpCurve'), g=cv.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,392,250);
+  const L2=42,T2=16,W2=330,H2=190;
+  g.strokeStyle='#1d3252'; g.strokeRect(L2,T2,W2,H2);
+  g.font='10px Consolas,monospace'; g.fillStyle='#6fa8dc'; g.textAlign='right';
+  [0,0.2,0.4,0.6,0.707,0.8,1].forEach(v=>{ g.fillText(v.toFixed(2),L2-4,T2+H2-v*H2+3);
+    g.strokeStyle=v===0.707?'rgba(255,213,79,.4)':'rgba(80,220,160,.12)';
+    g.beginPath(); g.moveTo(L2,T2+H2-v*H2); g.lineTo(L2+W2,T2+H2-v*H2); g.stroke(); });
+  g.textAlign='center';
+  [0.5,1,1.5,2].forEach(v=>g.fillText('×'+v.toFixed(1),L2+W2*(v-0.4)/1.6,T2+H2+14));
+  g.fillText("f / f₀'",L2+W2,T2+H2+28);
+  const leg=[];
+  done.forEach(({s,i})=>{
+    const c2=TRUE.configs[i];
+    const sp=[...Object.values(s.pts)].sort((a,b)=>a.f-b.f);
+    g.strokeStyle=c2.color; g.lineWidth=1.7; g.beginPath();
+    sp.forEach((p,j)=>{
+      const x=L2+W2*(p.f/s.f0meas-0.4)/1.6, y=T2+H2-(p.UR/TRUE.U0)*H2;
+      j?g.lineTo(x,y):g.moveTo(x,y);
+    });
+    g.stroke(); g.lineWidth=1;
+    sp.forEach(p=>{ g.fillStyle=c2.color;
+      g.beginPath(); g.arc(L2+W2*(p.f/s.f0meas-0.4)/1.6,T2+H2-(p.UR/TRUE.U0)*H2,2.6,0,7); g.fill(); });
+    leg.push(c2.name+' Q₀='+c2.Q0.toFixed(2));
+  });
+  leg.forEach((txt,i)=>{ g.fillStyle=done[i]?TRUE.configs[done[i].i].color:'#9fc3e8';
+    g.textAlign='left'; g.font='10px "Microsoft YaHei",sans-serif';
+    g.fillText('— '+txt,L2+6,T2+14+i*13); });
+  if(done.length===4) $('#cmpNote').textContent='横轴 f/f₀\'。R=500Ω（Q=2）峰最窄最陡、通频带最窄；L=50mH（Q=0.71）最宽最平缓 —— Q 越大选频性越好（图 2.22.3）。';
+}
+
+/* ================= 3D 点击拾取 ================= */
+canvas.addEventListener('pointerup',e=>{
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const pick=[[genGrp,'信号发生器','正弦波输出 U₀=5V，频率连续可调（LCD 与旋钮实时显示）。改变 f 即改变策动力频率 ω。'],
+    [scopeGrp,'双踪示波器','CH1 探头接 R 两端。谐振判据：输出不变时 U_R 最大 → I 最大。'],
+    [cap,'电容 C','容抗 1/(ωC)。C↔1/k：改变 C 改变"劲度系数"，谐振频率移动（表2.22.3）。'],
+    [coreL,'电感 L','感抗 ωL。L↔质量 m：改变 L 即改变"惯性"（表2.22.4）。'],
+    [res,'电阻 R','R↔阻尼 δ：R 越小 Q=√(L/C)/R 越大，曲线越尖锐（表2.22.5）。'],
+    [mainWire,'串联回路','粒子流速∝电流 I=U₀/Z —— 谐振时 Z 最小，粒子最亮最快。'],
+    [probeWire,'示波器探头','U_R=I·R，由 U_R 得到回路电流。'],
+    [board,'RLC 电路板','R、L、C 串联。f₀=1/(2π√LC)，Q₀=√(L/C)/R。']];
+  for(const [obj,title,text] of pick){
+    if(ray.intersectObject(obj,true).length){ showInfo(title,text); return; }
+  }
+  showInfo('RLC 串联谐振实验装置','信号发生器 + RLC 串联电路板 + 双踪示波器。用幅频特性曲线研究谐振，验证力学受迫振动的电学模拟。');
+});
+
+/* ================= 主循环 ================= */
+let lastT=performance.now();
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;
+  gl.phase+=dt*(2+8*clamp(URof(CFG.freq,cur())/TRUE.U0,0,1));
+  /* 电流粒子：流速与亮度∝I/Imax */
+  const on=CFG.connected&&curS().sigSet;
+  const amp=on?clamp(URof(CFG.freq,cur())/TRUE.U0,0,1):0;
+  flowDots.forEach((d,i)=>{
+    d.visible=on&&amp>0.02;
+    if(d.visible){
+      const u=((now*0.00004*(0.15+amp)+i/10)%1);
+      d.position.copy(loopCurve.getPointAt(u));
+      d.material.opacity=0.25+0.75*amp;
+      d.material.color.setHSL(0.12-0.12*amp,0.9,0.55+0.2*amp);
+    }
+  });
+  glowLight.intensity=0.12+0.75*amp;
+  drawGenLcd(); drawScope3D(); drawScope(); drawHud();
+  if(!drawLive._tm||now-drawLive._tm>120){ drawLive._tm=now; drawLive(); }
+  controls.update(); renderer.render(scene,camera);
+}
+/* 首帧初始化 */
+const ndc=new THREE.Vector2(), ray=new THREE.Raycaster();
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>{ downXY=[e.clientX,e.clientY,e.clientX,e.clientY]; });
+canvas.addEventListener('pointermove',e=>{ downXY[2]=e.clientX; downXY[3]=e.clientY; });
+renderCfgChips(); refresh(); renderData();
+resize(); renderer.render(scene,camera);
+loop();
+
+window.CFG=CFG; window.TRUE=TRUE; window.gl=gl; window.curS=curS; window.cur=cur;
+window.Iof=Iof; window.URof=URof; window.bandwidth=bandwidth; window.gridTargets=gridTargets;
+</script>
+</body>
+</html>

@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验15 · 在气垫导轨上验证动量守恒定律</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--bad:#ff6b6b;--radius:10px;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:380px;flex:0 0 380px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--accent)}
+.val{flex:0 0 72px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#counterBox{position:absolute;right:14px;bottom:14px;width:260px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#counterBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#counterBox .bar b{color:var(--text);font-weight:600;flex:1}
+.lamp{width:10px;height:10px;border-radius:50%;background:#333;display:inline-block}
+#counterLcd{width:100%;height:110px;display:block}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:4px 5px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.good{color:var(--ok)} .info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验15 · 在气垫导轨上验证动量守恒定律</h1>
+  <span class="tag">气垫导轨 · 光电门×2 + <b>MUJ-5B 计时计数测速仪</b> · 验证动量守恒</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动完成全部测量</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="counterBox">
+    <div class="bar"><b>MUJ-5B 计时计数测速仪 · 计时1</b>
+      P1<span class="lamp" id="lampP1"></span> P2<span class="lamp" id="lampP2"></span></div>
+    <canvas id="counterLcd" width="258" height="110"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div>打开<b>气泵电源</b>与 <b>MUJ-5B 毫秒计电源</b>（功能选"计时1"挡），观察出气孔出气均匀、气膜将滑块托起</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>动态调平导轨</b>：轻推滑块沿运动方向依次通过光电门1、2，调节调平螺钉直至 <b>|t1 − t2| ≤ 2 ms</b>（不强调绝对水平）</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div>用<b>游标卡尺</b>测挡光片宽度 d、<b>电子天平</b>称滑块 A（M）、B（m）的质量</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>滑块A碰撞静止B</b>：分别以右→左、左→右两方向各测 6 次（B 靠近碰撞点保持静止），记入表 2.15.1、2.15.2</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>改用<b>滑块B碰撞静止A</b>，各方向 6 次，记入表 2.15.3、2.15.4（与步骤4对比可减小气膜阻力系统偏差）</div></div>
+      <div class="step" id="st6"><div class="dot">6</div><div><b>数据处理</b>：检验各表百分偏差 E = |p后−p前|/p前，总平均 &lt; 5% 即验证成功</div></div>
+    </section>
+    <section>
+      <h4>注意事项（教材 p.107）</h4>
+      <div class="info">① 实验前用纱布蘸酒精擦净导轨表面；② 导轨不通气时切勿将滑块放在导轨上移动；③ 弹簧与挡光片位置勿随意拨动；④ 碰撞前保证 B 静止（v₂=0），必要时用手轻按、临碰撞时放开；⑤ 光电门应尽量靠近碰撞地点；⑥ 取放滑块要轻拿轻放。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 气源与毫秒计</h4>
+      <button class="b" id="btnPump">气泵电源</button>
+      <button class="b" id="btnTimer">毫秒计电源</button>
+      <div class="info" id="pumpState">气泵：关闭　|　毫秒计：关闭</div>
+    </section>
+    <section>
+      <h4>② 动态调平导轨（调平螺钉：右端升降）</h4>
+      <div class="row"><label>调平螺钉</label><input type="range" id="sLevel" min="-2" max="2" step="0.05" value="0.80"><span class="val" id="vLevel">+0.80 mm</span></div>
+      <button class="b" id="btnLevelTest">动态检验（轻推滑块过两门）</button>
+      <div class="info" id="levelState">尚未检验。目标：|t1 − t2| ≤ 2 ms</div>
+    </section>
+    <section>
+      <h4>③ 测量 d、M、m</h4>
+      <button class="b" id="btnMD">卡尺测 d + 天平称 M、m</button>
+      <div id="mdShow" class="info">尚未测量</div>
+    </section>
+    <section>
+      <h4>④⑤ 碰撞测量（弹性环 · 完全弹性碰撞）</h4>
+      <div class="row"><label>碰撞组合</label>
+        <select id="selMover">
+          <option value="A">A 碰静止 B（表2.15.1/2）</option>
+          <option value="B">B 碰静止 A（表2.15.3/4）</option>
+        </select></div>
+      <div class="row"><label>运动方向</label>
+        <select id="selDir">
+          <option value="rl">右 → 左</option>
+          <option value="lr">左 → 右</option>
+        </select></div>
+      <div class="row"><label>初速度 v₀</label><input type="range" id="sV0" min="0.30" max="0.80" step="0.01" value="0.55"><span class="val" id="vV0">0.55 m/s</span></div>
+      <button class="b" id="btnLaunch">发射</button>
+      <button class="b" id="btnRecord">记录数据</button>
+      <span class="info" id="runState">等待发射</span>
+      <div class="info" id="measNote">碰撞后毫秒计依次显示 t1（碰前）、t2、t1′（碰后挡光时间）。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section><h4>表 2.15.1 滑块A碰撞静止滑块B（右→左）</h4><div id="tb1" class="info">尚未完成测量。</div></section>
+    <section><h4>表 2.15.2 滑块A碰撞静止滑块B（左→右）</h4><div id="tb2" class="info">尚未完成测量。</div></section>
+    <section><h4>表 2.15.3 滑块B碰撞静止滑块A（右→左）</h4><div id="tb3" class="info">尚未完成测量。</div></section>
+    <section><h4>表 2.15.4 滑块B碰撞静止滑块A（左→右）</h4><div id="tb4" class="info">尚未完成测量。</div></section>
+    <section><h4>实验结论</h4><div id="concl" class="info">四张表各完成 6 次测量后自动给出结论。</div></section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>动量守恒定律（式 2.15.1）</h4>
+      <p class="info">系统所受合外力为零（或某方向分量为零）时，该方向总动量守恒。水平气垫导轨上两滑块沿直线碰撞，气膜摩擦可忽略：</p>
+      <div class="formula">Mv₁ + mv₂ = Mv₁′ + mv₂′　(2.15.1)</div>
+      <p class="info">本实验中滑块B碰撞前静止（v₂ = 0）：碰前动量 p前 = Mv₁；碰后动量 p后 = Mv₁′ + mv₂′（带符号）。验证 |p后 − p前|/p前 是否在误差范围内。</p>
+    </section>
+    <section>
+      <h4>挡光片测速原理（式 2.15.2）</h4>
+      <p class="info">毫秒计置于"计时1"挡，滑块上宽 d 的凹形挡光片经过光电门时挡光 Δt：</p>
+      <div class="formula">v = d / Δt　(2.15.2)</div>
+      <p class="info">d 较窄时平均速度即视为滑块经过光电门处的瞬时速度。</p>
+    </section>
+    <section>
+      <h4>弹性碰撞与恢复系数</h4>
+      <p class="info">两滑块相碰端装弹性环，接近完全弹性碰撞（恢复系数 e ≈ 1，机械能近似守恒）；若粘橡皮泥/尼龙搭扣则为完全非弹性碰撞（e = 0，碰后同速）。一维对心碰撞闭式解：</p>
+      <div class="formula">v₁′ = v₁ − (1+e)·m/(M+m)·(v₁−v₂)<br>v₂′ = v₂ + (1+e)·M/(M+m)·(v₁−v₂)</div>
+      <p class="info">对任意 e 该解严格满足动量守恒——本仿真即以此驱动碰撞动画与数据。</p>
+    </section>
+    <section>
+      <h4>摩擦修正与拓展</h4>
+      <p class="info">① 气膜阻力虽小仍使滑块减速，故先做 A碰B 再做 B碰A，双向求平均可减小系统偏差；<br>② 调平以"滑块沿运动方向过两光电门挡光时间相等"为准，而非绝对水平；<br>③ 光电门靠近碰撞地点，滑块A刚过门即碰撞，减少阻力影响。<br>【拓展】康普顿用动量守恒预言中子存在（查德威克 1935 年诺贝尔奖）；气垫导轨还可验证动量定理、动能定理、机械能守恒等。</p>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+const fmt=(v,n=3)=>(+v).toFixed(n);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+
+/* ================= 状态与真值（自洽：数据全部由真值公式推出） ================= */
+const TRUE={ M:0.2235, m:0.1734, d:0.03000 };        // 滑块质量 kg / 挡光片宽 m（真值）
+const P={ L:1.6, g1:0.50, g2:1.10, half:0.065,       // 导轨长/两光电门位置/滑块半长（m）
+  kTilt:0.03, kDrag:0.0015, eEnd:0.55 };             // 调平加速度系数/气膜阻力/端部弹簧恢复系数
+const CFG={
+  pumpOn:false, timerOn:false,
+  level:0.80,                     // 调平偏差 mm（>0 右端偏高，沿 +x 加速）
+  levelTestDone:false, levelPass:false, lastDiff:null,
+  MD:{},                          // 实测 d(mm)/M(g)/m(g)
+  mover:'A', dir:'rl', v0:0.55,
+  running:false, testMode:false, timeScale:1,
+  trial:null,
+  tables:[[],[],[],[]],           // 表2.15.1~2.15.4
+  steps:[false,false,false,false,false,false]
+};
+/* 滑块运动状态（x：沿导轨 0~1.6 m；v：沿 +x 为正）——运动状态与用户设定分离 */
+const gliders={ A:{x:0.15,v:0,px:null}, B:{x:1.45,v:0,px:null} };
+function moverMass(){ return CFG.mover==='A'?TRUE.M:TRUE.m; }
+function targetMass(){ return CFG.mover==='A'?TRUE.m:TRUE.M; }
+/* 数据表索引：表2.15.1(A碰B右→左)=0 … 表2.15.4(B碰A左→右)=3 */
+function tableIndex(){ return (CFG.mover==='A'?0:2)+(CFG.dir==='rl'?0:1); }
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+/* 渐变背景（替代单色，更具科技感） */
+const bgTex=(()=>{ const c=document.createElement('canvas'); c.width=2; c.height=512;
+  const g=c.getContext('2d'); const lg=g.createLinearGradient(0,0,0,512);
+  lg.addColorStop(0,'#16233c'); lg.addColorStop(.45,'#0d1117'); lg.addColorStop(1,'#04060b');
+  g.fillStyle=lg; g.fillRect(0,0,2,512); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
+scene.background=bgTex;
+scene.fog=new THREE.Fog(0x0d1117,420,900);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(30,80,205);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,14,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.4));
+scene.add(new THREE.HemisphereLight(0x9db8dd,0x141a24,.3));   // 天光/地面反差
+const dLight=new THREE.DirectionalLight(0xffffff,1.15); dLight.position.set(150,260,120);
+dLight.castShadow=true; dLight.shadow.mapSize.set(2048,2048); scene.add(dLight);
+const dLight2=new THREE.DirectionalLight(0x6688cc,.4); dLight2.position.set(-120,80,-160); scene.add(dLight2);
+const rimLight=new THREE.PointLight(0x4cc2ff,.55,700);        // 冷色轮廓补光
+rimLight.position.set(-60,90,130); scene.add(rimLight);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+/* 点击部件说明卡：pointerdown→pointerup 位移>4px 视为拖拽不弹卡 */
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function showInfo(title,text){ toast('<b style="color:var(--accent)">'+title+'</b>　'+text); }
+function tag(mesh,title,text){ mesh.userData={title,text}; }
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d')); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
+
+/* ---- 实验台（木纹台面） ---- */
+const woodTex=canvasTex(512,256,g=>{
+  g.fillStyle='#4a3a28'; g.fillRect(0,0,512,256);
+  for(let i=0;i<9;i++){ g.fillStyle=i%2?'#43341f':'#514029'; g.fillRect(0,i*29,512,27); }
+  g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1;
+  for(let i=0;i<40;i++){ g.beginPath(); const y=Math.random()*256; g.moveTo(0,y);
+    g.bezierCurveTo(170,y+8,340,y-8,512,y); g.stroke(); }
+});
+woodTex.wrapS=woodTex.wrapT=THREE.RepeatWrapping; woodTex.repeat.set(2,1);
+const bench=new THREE.Mesh(new THREE.BoxGeometry(280,8,120), M(0xffffff,{map:woodTex,roughness:.85}));
+bench.position.y=-3; bench.receiveShadow=true; scene.add(bench);
+[[-125,-48],[125,-48],[-125,48],[125,48]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,66,9), M(0x3a2e20));
+  leg.position.set(p[0],-40,p[1]); scene.add(leg);
+});
+const floorTex=canvasTex(1024,1024,g=>{
+  const rg=g.createRadialGradient(512,512,60,512,512,512);
+  rg.addColorStop(0,'#1b2536'); rg.addColorStop(.6,'#11161f'); rg.addColorStop(1,'#07090e');
+  g.fillStyle=rg; g.fillRect(0,0,1024,1024);
+  g.strokeStyle='rgba(76,194,255,.06)'; g.lineWidth=1;
+  for(let i=0;i<=32;i++){ const p=i*32;
+    g.beginPath(); g.moveTo(p,0); g.lineTo(p,1024); g.stroke();
+    g.beginPath(); g.moveTo(0,p); g.lineTo(1024,p); g.stroke(); }
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), new THREE.MeshBasicMaterial({map:floorTex}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-73; scene.add(floor);
+
+/* ---- 气垫导轨（比例 1 m = 100 单位）：底座梁 + 45° 三角轨 + 出气孔 + 刻度尺 ---- */
+const WX=x=>(x-P.L/2)*100;                    // 物理坐标 → 场景坐标
+const RAIL_Y=10;                              // 轨顶高度
+const track=new THREE.Group(); scene.add(track);
+const baseBeam=new THREE.Mesh(new THREE.BoxGeometry(172,5.5,7.5), M(0x5a6a80,{metalness:.7,roughness:.35}));
+baseBeam.position.y=2.75; baseBeam.castShadow=true; track.add(baseBeam);
+tag(baseBeam,'气垫导轨','三角形铝合金轨面布满出气小孔，喷出压缩空气在滑块与轨面间形成气膜，摩擦接近零。前立面标尺每 1 cm 一格。');
+/* 三角形铝合金轨：3 棱圆柱 prism，顶棱朝上（真实 QG 型导轨截面） */
+const railGeo=new THREE.CylinderGeometry(5.2,5.2,170,3,1);
+railGeo.rotateX(-Math.PI/2);      // 轴向 → Z，截面顶点朝 +Y
+railGeo.rotateY(Math.PI/2);       // 轴向 → X
+const rail=new THREE.Mesh(railGeo, M(0x9fb4cc,{metalness:.85,roughness:.28,flatShading:true}));
+rail.position.y=4.6; rail.castShadow=true; track.add(rail);   // 顶棱 y≈9.8
+/* 出气小孔（两条斜面上各一排，随斜面法线倾斜） */
+const holeGeo=new THREE.CircleGeometry(.16,6);
+const holes=new THREE.InstancedMesh(holeGeo,M(0x0c1420),160);
+{ const m4R=new THREE.Matrix4().makeRotationX(-Math.PI/6);
+  const m4L=new THREE.Matrix4().makeRotationX( Math.PI/6); let hi=0;
+  for(let i=0;i<80;i++){ const wx=-80+1+(158)*i/79, hy=7.74;
+    m4R.setPosition(wx,hy, 1.2); holes.setMatrixAt(hi++,m4R);
+    m4L.setPosition(wx,hy,-1.2); holes.setMatrixAt(hi++,m4L); } }
+track.add(holes);
+/* 刻度尺（每 1 cm 一刻度，每 10 cm 标数） */
+const rulerTex=canvasTex(2048,96,g=>{
+  g.fillStyle='#d8dee8'; g.fillRect(0,0,2048,96); g.fillStyle='#222a36';
+  for(let cm=0;cm<=160;cm++){ const x=24+cm*12.5;
+    g.fillRect(x,cm%10===0?20:40,cm%10===0?3:2,cm%10===0?40:22);
+    if(cm%10===0){ g.font='bold 26px Consolas,monospace'; g.textAlign='center'; g.fillText(cm,x,88); } }
+});
+const ruler=new THREE.Mesh(new THREE.PlaneGeometry(162,7.5), new THREE.MeshBasicMaterial({map:rulerTex}));
+ruler.position.set(0,2.75,3.85); track.add(ruler);
+/* 支脚：左端固定脚，右端调平螺钉+旋钮 */
+const footL=new THREE.Mesh(new THREE.CylinderGeometry(2.2,3,5,14), M(0x2a3242,{metalness:.5}));
+footL.position.set(-75,-2.5,0); scene.add(footL);
+tag(footL,'固定支脚','导轨左端固定支脚。');
+const screw=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,7,10), M(0xb8c4d4,{metalness:.9,roughness:.25}));
+screw.position.set(75,-3.5,0); scene.add(screw);
+const knob=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.8,1.2,20), M(0xc05050,{metalness:.4,roughness:.4}));
+knob.position.set(75,-8.5,3); scene.add(knob);
+tag(knob,'调平螺钉','右端单脚支座上的调平旋钮。动态调平标准：滑块沿运动方向通过两光电门的挡光时间相等（|t1−t2|≤2 ms）。');
+/* 端部缓冲弹簧（两端各 5 圈） */
+for(const ex of [-1,1]) for(let i=0;i<5;i++){
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.4-i*.12,.22,8,20), M(0xc8d4e4,{metalness:.9,roughness:.3}));
+  ring.rotation.y=Math.PI/2; ring.position.set(ex*81.2,RAIL_Y+1.2,0); scene.add(ring);
+}
+
+/* ---- 光电门 ×2：U 形支架 + 红外管 + 触发指示灯 + 电缆 ---- */
+const gateLamp3D=[];
+[P.g1,P.g2].forEach(gx=>{
+  const wx=WX(gx);
+  for(const sz of [-1,1]){
+    const post=new THREE.Mesh(new THREE.BoxGeometry(1.4,16,1.2), M(0x3d5a8c,{metalness:.6,roughness:.35}));
+    post.position.set(wx,16,sz*7.5); post.castShadow=true; scene.add(post);
+  }
+  const bridge=new THREE.Mesh(new THREE.BoxGeometry(1.8,2,17), M(0x3d5a8c,{metalness:.6,roughness:.35}));
+  bridge.position.set(wx,24,0); scene.add(bridge);
+  tag(bridge,'光电门','U 形支架跨在导轨上，红外管对射。滑块挡光片经过时遮断光路，输出脉冲给毫秒计记录挡光时间 Δt，触发时红色指示灯亮。');
+  for(const sz of [-1,1]){
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(.6,.6,1.4,10), M(0x1a1e28,{roughness:.5}));
+    tube.rotation.x=Math.PI/2; tube.position.set(wx,23,sz*7.5); scene.add(tube);
+  }
+  const lampM=new THREE.MeshBasicMaterial({color:0x331111});
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(.7,12,10), lampM);
+  lamp.position.set(wx,25.6,5); scene.add(lamp); gateLamp3D.push(lampM);
+  /* 电缆（简化示意：连到毫秒计） */
+  const cable=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+    new THREE.Vector3(wx,9,7.5), new THREE.Vector3(wx+12,.5,20),
+    new THREE.Vector3(55,.5,32), new THREE.Vector3(60,6,32)]),40,.25,6,false),
+    M(0x333a46,{roughness:.6}));
+  scene.add(cable);
+});
+
+/* ---- 滑块 A / B：铝块 + T 槽 + 凹形挡光片 + 两端弹性环（A 带配重） ---- */
+function makeGlider(color,withWeight){
+  const grp=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(13,5,6),
+    M(color,{metalness:.8,roughness:.22,emissive:color,emissiveIntensity:.12}));
+  body.castShadow=true; grp.add(body);
+  const slot=new THREE.Mesh(new THREE.BoxGeometry(11.7,1.2,2), M(0x151a24,{roughness:.7}));
+  slot.position.y=2.6; grp.add(slot);
+  const plate=new THREE.Mesh(new THREE.BoxGeometry(3,7,.18), M(0x101418,{roughness:.5}));
+  plate.position.y=6.1; grp.add(plate);                       // 凹形挡光片（宽 d=3 cm）
+  const notch=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.8,.22), M(0x2a3448,{roughness:.5}));
+  notch.position.y=4.5; grp.add(notch);
+  for(const sx of [-1,1]){
+    const sp=new THREE.Mesh(new THREE.TorusGeometry(1.2,.2,6,16), M(0xd0dcea,{metalness:.9,roughness:.25}));
+    sp.rotation.y=Math.PI/2; sp.position.set(sx*6.9,.6,0); grp.add(sp);
+  }
+  tag(plate,'凹形挡光片','宽度 d=30.00 mm 的凹形挡光片，随滑块经过光电门产生挡光时间 Δt，由 v=d/Δt 求得瞬时速度。');
+  if(withWeight){
+    const wt=new THREE.Mesh(new THREE.BoxGeometry(5,1.4,5.5), M(0x44506a,{metalness:.6,roughness:.4}));
+    wt.position.set(-2,3.2,0); wt.castShadow=true; grp.add(wt);
+    tag(body,'滑块A（质量M）','碰撞主体，装凹形挡光片与弹性环，顶部加配重块。碰撞前由发射端轻推获得初速度 v1。');
+  } else tag(body,'滑块B（质量m）','碰撞前静止于两光电门之间（必要时用手轻按、临碰撞时放开），装弹性环与挡光片，被碰后以 v2′ 运动。');
+  scene.add(grp); return grp;
+}
+const meshA=makeGlider(0x6fa8ff,true);
+const meshB=makeGlider(0xffb054,false);
+/* 滑块随动名牌 */
+function gliderTag(grp,txt,accent){
+  const t=canvasTex(320,64,g=>{
+    g.fillStyle='rgba(10,16,30,.92)'; g.beginPath(); g.roundRect(2,2,316,60,14); g.fill();
+    g.strokeStyle=accent; g.lineWidth=4; g.stroke();
+    g.fillStyle='#eaf2fc'; g.font='bold 30px "Microsoft YaHei",sans-serif';
+    g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,160,34);
+  });
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));
+  sp.scale.set(17,3.4,1); sp.position.y=10.5; grp.add(sp);
+}
+gliderTag(meshA,'滑块 A（M）','#4cc2ff');
+gliderTag(meshB,'滑块 B（m）','#ffb454');
+
+/* ---- 气泵 + 软管 ---- */
+const pump=new THREE.Group();
+const pumpBox=new THREE.Mesh(new THREE.BoxGeometry(20,15,14), M(0x4a5568,{metalness:.5,roughness:.5}));
+pumpBox.castShadow=true; pump.add(pumpBox);
+tag(pumpBox,'气泵（气源）','提供压缩空气，经软管送入导轨。必须先开气泵再放滑块，否则滑块与轨面干摩擦，实验无法进行。');
+const vent=new THREE.Mesh(new THREE.BoxGeometry(16,5,.5), M(0x151a24));
+vent.position.set(0,2,7.2); pump.add(vent);
+pump.position.set(-105,7.5,30); scene.add(pump);
+const hose=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-105,2,30), new THREE.Vector3(-100,1,10),
+  new THREE.Vector3(-90,2,0), new THREE.Vector3(-82,5,0)]),40,1.1,8,false),
+  M(0x8a5a3a,{roughness:.8}));
+scene.add(hose);
+
+/* ---- MUJ-5B 计时计数测速仪（主机 + 3D 液晶屏） ---- */
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=258; lcdCanvas.height=110;
+const lcdTexture=new THREE.CanvasTexture(lcdCanvas);
+const cntBox=new THREE.Mesh(new THREE.BoxGeometry(30,11,20), M(0x3b4558,{metalness:.5,roughness:.45}));
+cntBox.position.set(62,5.5,32); cntBox.castShadow=true; scene.add(cntBox);
+tag(cntBox,'MUJ-5B 计时计数测速仪','置于"计时1"挡，依次显示各次挡光时间（ms）。电源指示灯亮表示已开机。右下角浮动窗口同步显示读数。');
+const lcd3D=new THREE.Mesh(new THREE.PlaneGeometry(18,8), new THREE.MeshBasicMaterial({map:lcdTexture}));
+lcd3D.position.set(59,6.5,42.1); lcd3D.rotation.y=-0.35; scene.add(lcd3D);
+const powLampM=new THREE.MeshBasicMaterial({color:0x123a24});
+const powLamp=new THREE.Mesh(new THREE.SphereGeometry(.5,10,8), powLampM);
+powLamp.position.set(70,5.6,42.1); scene.add(powLamp);
+for(let i=0;i<4;i++){
+  const key=new THREE.Mesh(new THREE.BoxGeometry(3,.8,2), M(0x20262f,{roughness:.6}));
+  key.position.set(54+i*4.6,11,36); scene.add(key);
+}
+
+/* ---- 电子天平与游标卡尺（静态摆放） ---- */
+const scale=new THREE.Mesh(new THREE.BoxGeometry(16,3.5,13), M(0xd8dce4,{metalness:.3,roughness:.5}));
+scale.position.set(-45,1.8,32); scale.castShadow=true; scene.add(scale);
+const pan=new THREE.Mesh(new THREE.CylinderGeometry(4.5,4.5,.6,20), M(0xb8c0cc,{metalness:.8,roughness:.3}));
+pan.position.set(-45,3.8,32); scene.add(pan);
+tag(scale,'电子天平','称量滑块质量 M、m（精度 0.1 g）。');
+const caliper=new THREE.Mesh(new THREE.BoxGeometry(20,.6,2), M(0xc8d0dc,{metalness:.85,roughness:.25}));
+caliper.position.set(-10,.4,40); caliper.rotation.y=.25; scene.add(caliper);
+tag(caliper,'游标卡尺','测量挡光片宽度 d（30 mm 量级，精度 0.02 mm）。');
+
+/* ---- 部件标签（Sprite） ---- */
+function makeSprite(txt,x,y,z,w){
+  const t=canvasTex(320,64,g=>{
+    g.shadowColor='rgba(76,194,255,.8)'; g.shadowBlur=12;
+    g.fillStyle='rgba(10,16,30,.92)'; g.beginPath(); g.roundRect(3,3,314,58,14); g.fill();
+    g.strokeStyle='#4cc2ff'; g.lineWidth=3.5; g.stroke();
+    g.shadowBlur=0; g.fillStyle='#eaf2fc';
+    g.font='bold 28px "Microsoft YaHei",sans-serif';
+    g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,160,33);
+  });
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));
+  sp.scale.set(w,w*64/320,1); sp.position.set(x,y,z); scene.add(sp); return sp;
+}
+makeSprite('光电门 1',WX(P.g1),35,0,24);
+makeSprite('光电门 2',WX(P.g2),35,0,24);
+makeSprite('气 泵',-105,21,30,14);
+makeSprite('MUJ-5B 计时计数测速仪',62,17,32,36);
+
+/* ================= 浮动仪表绘制（浮动窗口与 3D 主机共用同一 canvas） ================= */
+let lcdEvents=[];                     // 最近挡光事件 [{gate,gid,dt,dir}]
+function drawLCD(){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,258,110);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,252,104);
+  g.fillStyle='#57e389'; g.font='bold 15px Consolas,monospace'; g.textAlign='left'; g.textBaseline='top';
+  g.fillText('计时1  '+(CFG.timerOn?'READY':'--'),10,8);
+  g.font='bold 16px Consolas,monospace';
+  lcdEvents.slice(0,3).forEach((e,i)=>{
+    g.fillText('P'+e.gate+' '+e.gid+': '+e.dt.toFixed(1)+' ms'+(e.dir>0?' →':' ←'),10,36+i*24);
+  });
+  if(!lcdEvents.length){ g.fillStyle='#2e7a4e'; g.fillText('待测量…',10,36); }
+  lcdTexture.needsUpdate=true;
+  const g2=$('#counterLcd').getContext('2d');
+  g2.drawImage(lcdCanvas,0,0);
+}
+drawLCD();
+function pushLcd(gate,gid,dt,dir){
+  lcdEvents.unshift({gate,gid,dt,dir});
+  if(lcdEvents.length>4) lcdEvents.pop();
+  drawLCD();
+}
+
+/* ================= 物理仿真 ================= */
+const PH_DT=1/240;                    // 固定物理步长 s（单帧最多补 240 步防时间膨胀）
+/* 发射一次碰撞测量（或动态调平检验） */
+function launchTrial(isTest){
+  if(!CFG.pumpOn){ toast('<b style="color:var(--bad)">未开气源！</b>请先打开气泵，否则滑块无法浮起'); return false; }
+  if(!CFG.timerOn){ toast('<b style="color:var(--bad)">毫秒计未开机</b>，无法记录挡光时间'); return false; }
+  if(!isTest){
+    if(!CFG.steps[1]){ toast('导轨未完成<b>动态调平</b>，请先完成步骤②'); return false; }
+    if(!CFG.MD.d){ toast('尚未测量挡光片宽度 d'); return false; }
+    if(!CFG.MD.M||!CFG.MD.m){ toast('尚未称量滑块质量 M、m'); return false; }
+    if(CFG.tables[tableIndex()].length>=6){ toast('该表已记录满 6 次，请更换碰撞组合或方向'); return false; }
+  }
+  const dirPre=CFG.dir==='lr'?1:-1;
+  const mv=gliders[CFG.mover], tv=gliders[CFG.mover==='A'?'B':'A'];
+  if(isTest){
+    gliders.A.x=0.10; gliders.A.v=0.40; gliders.A.px=null;
+    gliders.B.x=1.585; gliders.B.v=0; gliders.B.px=null;   // B 移出轨道末端停放
+    CFG.testMode=true;
+    CFG.trial={test:true,events:[],t0:physTime,done:false,collided:false};
+  }else{
+    mv.x=dirPre>0?0.12:1.48; mv.v=dirPre*CFG.v0; mv.px=null;   // 发射端
+    tv.x=dirPre>0?0.80:0.95; tv.v=0;             tv.px=null;   // 静止滑块（靠近碰撞点）
+    CFG.testMode=false;
+    CFG.trial={events:[],t0:physTime,done:false,collided:false,measDone:false,drift:false};
+  }
+  CFG.running=true;
+  lcdEvents=[]; drawLCD();
+  if(!isTest) $('#runState').textContent='测量进行中…滑块'+CFG.mover+' 运动中';
+  return true;
+}
+/* 碰撞：一维对心，恢复系数 e（弹性环 e≈0.99），闭式解对任意 e 严格动量守恒 */
+function doCollide(a,b){
+  const e=0.985+0.01*Math.random();
+  const Ma=a===gliders.A?TRUE.M:TRUE.m, mb=b===gliders.A?TRUE.M:TRUE.m;
+  const dv=a.v-b.v, va=a.v;
+  a.v=va-(1+e)*mb/(Ma+mb)*dv;
+  b.v=b.v+(1+e)*Ma/(Ma+mb)*dv;
+  CFG.trial.collided=true; CFG.trial.eUsed=e;
+  const ov=P.half*2-Math.abs(a.x-b.x)+0.003;           // 分离防粘连
+  if(a.x<b.x){ a.x-=ov/2; b.x+=ov/2; } else { a.x+=ov/2; b.x-=ov/2; }
+  $('#runState').textContent='已碰撞（e='+e.toFixed(3)+'），等待滑块通过光电门…';
+}
+/* 单步物理推进（固定步长，物理与渲染解耦） */
+let physTime=0;
+function physStep(h){
+  physTime+=h;
+  const aTilt=P.kTilt*CFG.level;                        // 未调平产生的重力分量加速度
+  for(const id of ['A','B']){
+    const g=gliders[id];
+    if(Math.abs(g.v)>1e-4){
+      g.v+=(aTilt-Math.sign(g.v)*P.kDrag)*h;
+      g.px=g.x; g.x+=g.v*h;
+      /* 端部缓冲弹簧反弹（只改运动状态，不改用户设定） */
+      if(g.x<P.half){ g.x=P.half; g.v=Math.abs(g.v)*P.eEnd; if(Math.abs(g.v)<0.02) g.v=0; }
+      if(g.x>P.L-P.half){ g.x=P.L-P.half; g.v=-Math.abs(g.v)*P.eEnd; if(Math.abs(g.v)<0.02) g.v=0; }
+      /* 光电门挡光事件：挡光片中心越过门平面即记录，Δt = d/|v|，含 ±0.4% 噪声 */
+      const gates=[[1,P.g1],[2,P.g2]];
+      for(const gi of gates){
+        if(g.px!==null&&(g.px-gi[1])*(g.x-gi[1])<0){
+          const dt=TRUE.d/Math.abs(g.v)*1000*(1+0.004*(Math.random()+Math.random()-1));
+          if(CFG.trial&&!CFG.trial.done){
+            CFG.trial.events.push({gid:id,gate:gi[0],dt:dt,dir:Math.sign(g.v),pre:!CFG.trial.collided});
+            if(!CFG.testMode) pushLcd(gi[0],id,dt,Math.sign(g.v));
+          }
+        }
+      }
+    } else if(!CFG.testMode&&CFG.trial&&!CFG.trial.done&&!CFG.trial.collided
+              &&Math.abs(aTilt)>0.002&&id!==CFG.mover){
+      /* 违反规程的可感知后果：导轨未调平 → 静止滑块缓慢漂移（v2≠0） */
+      g.v+=aTilt*h; g.x+=g.v*h;
+      if(!CFG.trial.drift&&Math.abs(g.v)>0.002) CFG.trial.drift=true;
+    }
+  }
+  /* 碰撞检测 */
+  if(CFG.trial&&!CFG.trial.done&&!CFG.testMode&&!CFG.trial.collided){
+    const a=gliders.A,b=gliders.B;
+    if(Math.abs(a.x-b.x)<P.half*2&&Math.abs(a.v-b.v)>0.01) doCollide(a,b);
+  }
+  /* 测量完成判定 */
+  if(CFG.trial&&!CFG.trial.done){
+    if(CFG.testMode){
+      const evs=CFG.trial.events;
+      const g1=evs.find(e=>e.gid==='A'&&e.gate===1), g2=evs.find(e=>e.gid==='A'&&e.gate===2);
+      if(g1&&g2){
+        CFG.trial.done=true; CFG.running=false;
+        CFG.levelTestDone=true;
+        const diff=Math.abs(g1.dt-g2.dt);
+        CFG.lastDiff=diff; CFG.levelPass=diff<=2.0;
+        $('#levelState').innerHTML='检验结果：t1=<b>'+g1.dt.toFixed(1)+'</b> ms，t2=<b>'+g2.dt.toFixed(1)+
+          '</b> ms，差值 <b>'+diff.toFixed(2)+'</b> ms　'+
+          (CFG.levelPass?'<b class="good">✔ 已调平</b>':'<b style="color:var(--bad)">✘ 未调平，请继续微调螺钉</b>');
+        checkSteps();
+      } else if(physTime-CFG.trial.t0>8){
+        CFG.trial.done=true; CFG.running=false;
+        $('#levelState').innerHTML='<b style="color:var(--bad)">检验超时：滑块未依次通过两门，请重试</b>';
+      }
+    } else {
+      const t=CFG.trial;
+      if(t.collided&&!t.measDone){
+        const mvId=CFG.mover, tvId=CFG.mover==='A'?'B':'A';
+        const mvPost=t.events.find(e=>e.gid===mvId&&!e.pre);
+        const tvPost=t.events.find(e=>e.gid===tvId&&!e.pre);
+        const mvPre=t.events.find(e=>e.gid===mvId&&e.pre);
+        if(mvPre&&mvPost&&tvPost){
+          t.measDone=true; t.done=true; CFG.running=false;
+          $('#runState').textContent='测量完成！可点击"记录数据"存入数据表';
+        }
+      }
+      if(!t.done&&physTime-t.t0>15){
+        t.done=true; CFG.running=false;
+        $('#runState').textContent='测量超时：挡光数据不全（可能未发生碰撞），请重新发射';
+      }
+    }
+  }
+}
+/* 记录当前测量到数据表（完整性与规程校验，带符号动量） */
+function recordData(){
+  const t=CFG.trial;
+  if(!t||t.test){ toast('当前没有可记录的碰撞测量数据'); return; }
+  if(!t.collided){ toast('<b style="color:var(--bad)">拒绝记录：</b>本次发射未发生碰撞'); return; }
+  if(!t.measDone){ toast('<b style="color:var(--bad)">拒绝记录：</b>挡光数据不全（t1/t1′/t2 缺失），请重新发射'); return; }
+  if(t.drift) toast('<b style="color:var(--warn)">警告：</b>滑块因导轨未调平发生漂移（v₂≠0），本次数据偏差增大');
+  const mvId=CFG.mover, tvId=CFG.mover==='A'?'B':'A';
+  const d=CFG.MD.d/1000;                                // mm → m（显示层与物理层显式换算）
+  const Mv=moverMass(), Tv=targetMass();
+  const mvPre=t.events.find(e=>e.gid===mvId&&e.pre);
+  const mvPost=t.events.find(e=>e.gid===mvId&&!e.pre);
+  const tvPost=t.events.find(e=>e.gid===tvId&&!e.pre);
+  const v1=d/(mvPre.dt/1000), vAp=d/(mvPost.dt/1000), vBp=d/(tvPost.dt/1000);   // v=d/Δt（式2.15.2）
+  const pPre=Mv*v1*mvPre.dir;                           // 带符号动量（沿 +x 为正）
+  const pPost=Mv*vAp*mvPost.dir+Tv*vBp*tvPost.dir;
+  const E=Math.abs(pPost-pPre)/Math.abs(pPre)*100;
+  const ti=tableIndex();
+  CFG.tables[ti].push({t1:mvPre.dt,t1p:mvPost.dt,t2p:tvPost.dt,pPre,pPost,E,n:CFG.tables[ti].length+1});
+  checkSteps(); renderData();
+  toast('已记录第 '+CFG.tables[ti].length+' 次测量：<b>E = '+E.toFixed(2)+' %</b>');
+  $('#runState').textContent='已记录（表'+(ti+1)+' 进度 '+CFG.tables[ti].length+'/6）。可继续发射';
+  /* 滑块归位（只复位运动状态，不改用户设定） */
+  gliders.A.x=0.15; gliders.A.v=0; gliders.A.px=null;
+  gliders.B.x=1.45; gliders.B.v=0; gliders.B.px=null;
+  CFG.trial=null;
+}
+
+/* ================= 交互 ================= */
+$('#btnPump').onclick=()=>{
+  CFG.pumpOn=!CFG.pumpOn;
+  $('#btnPump').textContent=CFG.pumpOn?'气泵电源（开）':'气泵电源';
+  $('#pumpState').textContent='气泵：'+(CFG.pumpOn?'开启':'关闭')+'　|　毫秒计：'+(CFG.timerOn?'开启（计时1）':'关闭');
+  toast(CFG.pumpOn?'气泵已开启：观察出气孔出气是否均匀':'气泵已关闭');
+  checkSteps();
+};
+$('#btnTimer').onclick=()=>{
+  CFG.timerOn=!CFG.timerOn;
+  $('#btnTimer').textContent=CFG.timerOn?'毫秒计电源（开）':'毫秒计电源';
+  $('#pumpState').textContent='气泵：'+(CFG.pumpOn?'开启':'关闭')+'　|　毫秒计：'+(CFG.timerOn?'开启（计时1）':'关闭');
+  powLampM.color.setHex(CFG.timerOn?0x00ff66:0x123a24);
+  drawLCD();
+  toast(CFG.timerOn?'毫秒计已开机，功能选择"计时1"挡':'毫秒计已关机');
+  checkSteps();
+};
+$('#sLevel').oninput=e=>{
+  CFG.level=+e.target.value;
+  $('#vLevel').textContent=(CFG.level>=0?'+':'')+CFG.level.toFixed(2)+' mm';
+  CFG.levelTestDone=false; CFG.levelPass=false;
+  $('#levelState').textContent='调节后需重新做动态检验。目标：|t1 − t2| ≤ 2 ms';
+  checkSteps();
+};
+$('#btnLevelTest').onclick=()=>{
+  if(CFG.running){ toast('当前有测量进行中，请稍候'); return; }
+  if(launchTrial(true)) toast('动态检验中：滑块A依次通过光电门1、2…');
+};
+/* 测量 d、M、m（卡尺 ±0.02mm、天平 ±0.1g 随机误差） */
+$('#btnMD').onclick=()=>{
+  CFG.MD.d=30.00+(Math.random()-.5)*0.04;               // mm
+  CFG.MD.M=TRUE.M*1000+(Math.random()-.5)*0.2;          // g
+  CFG.MD.m=TRUE.m*1000+(Math.random()-.5)*0.2;          // g
+  $('#mdShow').innerHTML='d = <b>'+CFG.MD.d.toFixed(2)+' mm</b>　|　M = <b>'+CFG.MD.M.toFixed(1)+
+    ' g</b>　|　m = <b>'+CFG.MD.m.toFixed(1)+' g</b>';
+  toast('测量完成：d='+CFG.MD.d.toFixed(2)+' mm，M='+CFG.MD.M.toFixed(1)+' g，m='+CFG.MD.m.toFixed(1)+' g');
+  checkSteps();
+};
+$('#selMover').onchange=e=>{
+  if(CFG.running){ toast('测量进行中，请等待完成再切换碰撞组合'); e.target.value=CFG.mover; return; }
+  CFG.mover=e.target.value; updateRunState();
+};
+$('#selDir').onchange=e=>{
+  if(CFG.running){ toast('测量进行中，请等待完成再切换运动方向'); e.target.value=CFG.dir; return; }
+  CFG.dir=e.target.value; updateRunState();
+};
+$('#sV0').oninput=e=>{ CFG.v0=+e.target.value; $('#vV0').textContent=CFG.v0.toFixed(2)+' m/s'; };
+function updateRunState(){
+  const tn=['表2.15.1','表2.15.2','表2.15.3','表2.15.4'][tableIndex()];
+  $('#runState').textContent='当前：'+tn+'（进度 '+CFG.tables[tableIndex()].length+'/6）';
+}
+$('#btnLaunch').onclick=()=>{
+  if(CFG.running){ toast('测量进行中，请等待完成'); return; }
+  updateRunState();
+  launchTrial(false);
+};
+$('#btnRecord').onclick=recordData;
+
+/* ================= 步骤判定 ================= */
+const TIPS=['气源与毫秒计已就绪！','导轨已调平（|t1−t2|≤2 ms）！','d、M、m 已测得！','表2.15.1、2.15.2 已完成！','表2.15.3、2.15.4 已完成！','动量守恒定律验证完成！'];
+function checkSteps(){
+  const s=CFG.steps;
+  s[0]=CFG.pumpOn&&CFG.timerOn;
+  s[1]=CFG.levelTestDone&&CFG.levelPass;
+  s[2]=!!(CFG.MD.d&&CFG.MD.M&&CFG.MD.m);
+  s[3]=CFG.tables[0].length>=6&&CFG.tables[1].length>=6;
+  s[4]=CFG.tables[2].length>=6&&CFG.tables[3].length>=6;
+  s[5]=s[3]&&s[4];
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+TIPS[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+  /* 步骤门控：未完成前置步骤的控件禁用（互不跳步） */
+  $('#btnLevelTest').disabled=!s[0];
+  $('#sLevel').disabled=!s[0];
+  $('#btnMD').disabled=!s[1];
+  $('#btnLaunch').disabled=!s[2];
+  $('#btnRecord').disabled=!s[2];
+  $('#selMover').disabled=$('#selDir').disabled=CFG.running;   // 仅测量进行中锁定，组合可随时调整
+}
+
+/* ================= 数据处理 ================= */
+function meanE(ti){ const r=CFG.tables[ti]; return r.length?r.reduce((a,x)=>a+x.E,0)/r.length:0; }
+function overallE(){ const all=CFG.tables.flat(); return all.reduce((a,x)=>a+x.E,0)/all.length; }
+function tblHTML(ti,title){
+  const rows=CFG.tables[ti];
+  let h='<table><tr><th>次数</th><th>t1/ms</th><th>t1′/ms</th><th>t2/ms</th><th>p前/(kg·m/s)</th><th>p后/(kg·m/s)</th><th>E/%</th></tr>';
+  rows.forEach(r=>{
+    h+='<tr><td class="num">'+r.n+'</td><td class="num">'+r.t1.toFixed(1)+'</td><td class="num">'+r.t1p.toFixed(1)+
+      '</td><td class="num">'+r.t2p.toFixed(1)+'</td><td class="num">'+r.pPre.toFixed(4)+'</td><td class="num">'+
+      r.pPost.toFixed(4)+'</td><td class="num">'+r.E.toFixed(2)+'</td></tr>';
+  });
+  if(rows.length) h+='<tr><th colspan="6">平均百分偏差 k = ΣE/n</th><td class="num good">'+meanE(ti).toFixed(2)+'</td></tr>';
+  return h+'</table>';
+}
+function renderData(){
+  $('#tb1').innerHTML=CFG.tables[0].length?tblHTML(0):'尚未完成测量。';
+  $('#tb2').innerHTML=CFG.tables[1].length?tblHTML(1):'尚未完成测量。';
+  $('#tb3').innerHTML=CFG.tables[2].length?tblHTML(2):'尚未完成测量。';
+  $('#tb4').innerHTML=CFG.tables[3].length?tblHTML(3):'尚未完成测量。';
+  if(CFG.steps[3]&&CFG.steps[4]){
+    const ov=overallE();
+    $('#concl').innerHTML=
+      '<div class="kv"><span>各表平均百分偏差</span><b>k₁='+meanE(0).toFixed(2)+'%  k₂='+meanE(1).toFixed(2)+
+      '%<br>k₃='+meanE(2).toFixed(2)+'%  k₄='+meanE(3).toFixed(2)+'%</b></div>'+
+      '<div class="kv"><span>总平均（含双向对撞摩擦修正）</span><b>'+ov.toFixed(2)+' %</b></div>'+
+      (ov<5?'<div class="good">✔ p后 与 p前 在误差范围内一致，动量守恒定律验证成立（&lt;5%）</div>'
+           :'<div style="color:var(--bad)">✘ 偏差偏大，请检查导轨是否调平、碰撞是否充分</div>');
+  }
+}
+
+/* ================= 示例/重置 ================= */
+/* 自动完成全部测量：与物理内核同一套闭式公式（v1 随机、e≈0.99、±0.4% 噪声） */
+$('#btnSample').onclick=()=>{
+  CFG.pumpOn=CFG.timerOn=true;
+  $('#btnPump').textContent='气泵电源（开）'; $('#btnTimer').textContent='毫秒计电源（开）';
+  $('#pumpState').textContent='气泵：开启　|　毫秒计：开启';
+  powLampM.color.setHex(0x00ff66);
+  CFG.level=0; $('#sLevel').value=0; $('#vLevel').textContent='+0.00 mm';
+  CFG.levelTestDone=true; CFG.levelPass=true; CFG.lastDiff=0.4;
+  $('#levelState').innerHTML='检验结果：t1=<b>75.2</b> ms，t2=<b>75.0</b> ms，差值 <b>0.40</b> ms　<b class="good">✔ 已调平</b>';
+  CFG.MD={d:30.02,M:TRUE.M*1000,m:TRUE.m*1000};
+  $('#mdShow').innerHTML='d = <b>30.02 mm</b>　|　M = <b>'+(TRUE.M*1000).toFixed(1)+' g</b>　|　m = <b>'+(TRUE.m*1000).toFixed(1)+' g</b>';
+  const d=0.03002;
+  for(let ti=0;ti<4;ti++){
+    CFG.tables[ti]=[];
+    const Mv=ti<2?TRUE.M:TRUE.m, Tv=ti<2?TRUE.m:TRUE.M;
+    for(let k=0;k<6;k++){
+      const v1=0.40+0.30*Math.random(), e=0.985+0.01*Math.random();
+      const nz=()=>1+0.004*(Math.random()+Math.random()-1);
+      const t1=d/(v1*nz())*1000;
+      const vAp0=v1*(1-(1+e)*Tv/(Mv+Tv)), vBp0=v1*(1+e)*Mv/(Mv+Tv);
+      const t1p=d/(Math.abs(vAp0)*nz())*1000, t2p=d/(vBp0*nz())*1000;
+      const v1m=d/(t1/1000), vApm=d/(t1p/1000), vBpm=d/(t2p/1000);
+      const dirPre=ti%2===0?-1:1;
+      const pPre=Mv*v1m*dirPre;                          // 碰后方向：A碰B两者同向前进；B碰A时B反弹（m<M）
+      const pPost=Mv*vApm*(ti<2?dirPre:-dirPre)+Tv*vBpm*dirPre;
+      const E=Math.abs(pPost-pPre)/Math.abs(pPre)*100;
+      CFG.tables[ti].push({t1,t1p,t2p,pPre,pPost,E,n:k+1});
+    }
+  }
+  CFG.running=false; CFG.trial=null;
+  gliders.A.x=0.15; gliders.A.v=0; gliders.B.x=1.45; gliders.B.v=0;
+  updateRunState(); checkSteps(); renderData(); drawLCD();
+  toast('<b>已自动完成全部测量</b>（24 次碰撞 + 调平 + 称量）。查看「数据处理」页各表结果与结论。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.pumpOn=false; CFG.timerOn=false; CFG.level=0.80;
+  CFG.levelTestDone=false; CFG.levelPass=false; CFG.lastDiff=null;
+  CFG.MD={}; CFG.running=false; CFG.testMode=false; CFG.trial=null;
+  CFG.tables=[[],[],[],[]];
+  gliders.A.x=0.15; gliders.A.v=0; gliders.B.x=1.45; gliders.B.v=0;
+  $('#sLevel').value=0.80; $('#vLevel').textContent='+0.80 mm';
+  $('#btnPump').textContent='气泵电源'; $('#btnTimer').textContent='毫秒计电源';
+  $('#pumpState').textContent='气泵：关闭　|　毫秒计：关闭';
+  powLampM.color.setHex(0x123a24);
+  $('#levelState').textContent='尚未检验。目标：|t1 − t2| ≤ 2 ms';
+  $('#mdShow').textContent='尚未测量';
+  $('#selMover').value='A'; CFG.mover='A';
+  $('#selDir').value='rl'; CFG.dir='rl';
+  $('#sV0').value=0.55; $('#vV0').textContent='0.55 m/s'; CFG.v0=0.55;
+  $('#runState').textContent='等待发射';
+  lcdEvents=[]; drawLCD(); renderData(); checkSteps(); updateRunState();
+  toast('实验已重置');
+};
+
+/* ================= 3D 点击拾取（部件说明卡） ================= */
+canvas.addEventListener('pointerup',e=>{
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;   // 拖拽不弹卡
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const pick=[[meshA,'滑块A（质量M）','碰撞主体，装凹形挡光片与弹性环，顶部加配重块。碰撞前由发射端轻推获得初速度 v1。'],
+              [meshB,'滑块B（质量m）','碰撞前静止于两光电门之间（必要时用手轻按），装弹性环与挡光片，被碰后以 v2′ 运动。'],
+              [pump,'气泵（气源）','提供压缩空气，经软管送入导轨。必须先开气泵再放滑块。'],
+              [track,'气垫导轨','三角形铝合金轨面布满出气小孔形成气膜，摩擦接近零。前立面标尺每 1 cm 一格。']];
+  for(const [obj,title,text] of pick){
+    if(ray.intersectObject(obj,true).length){ showInfo(title,text); return; }
+  }
+  const hits=ray.intersectObjects(scene.children,true);
+  if(hits.length){
+    const p=hits[0].point;
+    if(Math.abs(p.y-24)<6&&(Math.abs(p.x-WX(P.g1))<4||Math.abs(p.x-WX(P.g2))<4))
+      showInfo('光电门','U 形支架跨在导轨上，红外管对射。滑块挡光片经过时遮断光路，输出脉冲给毫秒计记录挡光时间 Δt。');
+    else if(Math.abs(p.x-62)<18&&Math.abs(p.z-32)<12)
+      showInfo('MUJ-5B 计时计数测速仪','置于"计时1"挡，依次显示各次挡光时间（ms）。右下角浮动窗口同步显示读数。');
+    else if(Math.abs(p.x-75)<5&&p.y<4)
+      showInfo('调平螺钉','右端单脚支座上的调平旋钮。动态调平标准：|t1−t2|≤2 ms。');
+    else if(Math.abs(p.x+45)<10&&Math.abs(p.z-32)<9)
+      showInfo('电子天平','称量滑块质量 M、m（精度 0.1 g）。');
+    else showInfo('缓冲弹簧','导轨两端的缓冲弹簧圈，防止滑块冲出导轨，恢复系数约 0.55。');
+  }
+});
+
+/* ================= 主循环 ================= */
+/* 时间源：performance.now()（禁 Date.now 混算）；固定步长累加器，物理与渲染解耦 */
+let lastT=performance.now(), acc=0;
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){                    // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);                         // 主循环首行，防冻屏
+  resize();
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;                                   // 钳制切后台时间跳变
+  acc+=dt*CFG.timeScale;
+  let n=0;
+  while(acc>=PH_DT&&n<240){ physStep(PH_DT); acc-=PH_DT; n++; }
+  if(n>=240) acc=0;                                    // 防时间膨胀
+  /* 渲染同步（读取物理状态，不改物理） */
+  meshA.position.set(WX(gliders.A.x),RAIL_Y+2.5,0);
+  meshB.position.set(WX(gliders.B.x),RAIL_Y+2.5,0);
+  for(let i=0;i<2;i++){
+    const gx=i===0?P.g1:P.g2;
+    const blocked=(Math.abs(gliders.A.x-gx)<TRUE.d/2&&Math.abs(gliders.A.v)>1e-3)||
+                  (Math.abs(gliders.B.x-gx)<TRUE.d/2&&Math.abs(gliders.B.v)>1e-3);
+    gateLamp3D[i].color.setHex(blocked?0xff4444:0x331111);
+  }
+  $('#lampP1').style.background=Math.abs(gliders.A.x-P.g1)<TRUE.d/2||Math.abs(gliders.B.x-P.g1)<TRUE.d/2?'#ff4444':'#333';
+  $('#lampP2').style.background=Math.abs(gliders.A.x-P.g2)<TRUE.d/2||Math.abs(gliders.B.x-P.g2)<TRUE.d/2?'#ff4444':'#333';
+  knob.rotation.x=CFG.level*2.5;                       // 调平旋钮随滑块值转动
+  pump.position.y=7.5+(CFG.pumpOn?Math.sin(performance.now()*0.05)*0.15:0);
+  controls.update(); renderer.render(scene,camera);
+}
+/* 首帧初始化：先渲染有效首帧，再启动主循环 */
+updateRunState(); checkSteps(); renderData();
+resize(); renderer.render(scene,camera);
+loop();
+
+/* 暴露状态供自查脚本轮询（轮询状态变量而非固定 sleep） */
+window.CFG=CFG; window.P=P; window.gliders=gliders; window.TRUE=TRUE;
+</script>
+</body>
+</html>
+<!-- end of file -->

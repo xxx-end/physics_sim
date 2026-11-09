@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验25 · 用亥姆霍兹线圈测量磁场</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:410px;flex:0 0 410px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 96px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#lcdBox{position:absolute;right:14px;bottom:14px;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#lcdBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#lcdBox .bar b{color:var(--text);font-weight:600;flex:1}
+#lcd2d{width:100%;height:140px;display:block}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 3px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+canvas.plot{width:100%;background:#10161f;border:1px solid var(--line);border-radius:8px}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验25 · 用亥姆霍兹线圈测量磁场</h1>
+  <span class="tag">B=μ₀NIR²/[2(R²+X²)<sup>3/2</sup>] · <b>B_P=0.7155 μ₀NI/R</b> · 换向法 B=(|B⁺|+|B⁻|)/2</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="lcdBox">
+    <div class="bar"><b>ZE-5 磁场分布测定仪</b><span style="color:var(--muted)">量程 1999×10⁻⁵T</span></div>
+    <canvas id="lcd2d" width="278" height="140"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>校准</b>：开机预热，选择开关拨"校准"挡，调"校准"旋钮使右表头显示值与霍尔探头标称值一致</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>调零</b>：拨回"测量"挡，将探头移到导轨端部远离磁场（|u|≥350 mm），调"调零"旋钮使显示为 0</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>单线圈</b>：单线圈模式，测线圈中心 B₀ 及轴线上 X=−20~+20 mm 每隔 5 mm 各点（表 2.25.1，每点换向测 B⁺、B⁻）</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>亥姆霍兹线圈</b>：切换双线圈串联，测轴线上 X=−50~+50 mm 共 9 点，观察均匀磁场区（表 2.25.2）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>数据处理</b>：绘 B-X 曲线，比较中心值与理论值，分析均匀区，验证磁场叠加原理</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 霍尔元件质脆、引线接头细小，轻拿轻放；② 两线圈只宜单个或串联使用，不可并联通电，否则易烧毁电源；③ "调零"旋钮调好后千万不能再动，否则须从头调节；④ 地磁场强度约 5×10⁻⁵ T（本仿真取轴向分量 3×10⁻⁵ T），用换向法 B=(|B⁺|+|B⁻|)/2 消除其影响；⑤ 右表头分辨率为 1×10⁻⁵ T。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 线圈模式（两线圈固定于导轨 u=∓50 mm）</h4>
+      <button class="b on" id="btnModeS">单线圈（左线圈）</button><button class="b" id="btnModeH">亥姆霍兹（双线圈串联）</button>
+      <div class="info" id="modeShow">单线圈：测量坐标 X 从左线圈中心（u=−50）算起</div>
+    </section>
+    <section>
+      <h4>② 励磁电源（0~30 V / 0~500 mA）</h4>
+      <div class="row"><label>电源开关</label><button class="b" id="btnSrc">打开励磁电源</button><span class="info" id="srcState">未开机</span></div>
+      <div class="row"><label>励磁电流</label><input type="range" id="sldI" min="0" max="500" step="1" value="200" style="flex:1"><span class="val" id="vI">200 mA</span></div>
+      <div class="info">改变电流将使已记录数据失效（B ∝ I）</div>
+    </section>
+    <section>
+      <h4>③ 选择开关与换向开关</h4>
+      <button class="b on" id="btnCal">校准挡</button><button class="b" id="btnMeas">测量挡</button>
+      　<button class="b on" id="btnDirP">换向 +</button><button class="b" id="btnDirM">换向 −</button>
+      <div class="info">校准挡：调校准旋钮；测量挡：换向 + 测 B⁺、换向 − 测 B⁻，B=(|B⁺|+|B⁻|)/2 消除地磁场</div>
+    </section>
+    <section>
+      <h4>④ 校准与调零旋钮</h4>
+      <div class="row"><label>校准旋钮</label><input type="range" id="sldCal" min="0" max="20" step="0.1" value="10" style="flex:1"><span class="val" id="vCal">10.0 mV</span></div>
+      <div class="info" id="calShow">探头标称值：— mV（校准目标）｜校准状态：未校准</div>
+      <div class="row"><label>调零旋钮</label><input type="range" id="sldZero" min="-99.9" max="99.9" step="0.1" value="0" style="flex:1"><span class="val" id="vZero">0.0</span></div>
+      <div><button class="b" data-z="-1">−1</button><button class="b" data-z="-0.1">−0.1</button><button class="b" data-z="0.1">+0.1</button><button class="b" data-z="1">+1</button></div>
+      <div class="info" id="zeroShow">调零状态：未调零（须在 |u|≥350 mm 处调零）</div>
+    </section>
+    <section>
+      <h4>⑤ 探头位置（导轨 u，mm）</h4>
+      <div class="row"><label>位置 u</label><input type="range" id="sldU" min="-400" max="400" step="0.5" value="400" style="flex:1"><span class="val" id="vU">400.0</span></div>
+      <div><button class="b" data-u="-5">−5</button><button class="b" data-u="-1">−1</button><button class="b" data-u="-0.5">−0.5</button><button class="b" data-u="0.5">+0.5</button><button class="b" data-u="1">+1</button><button class="b" data-u="5">+5</button><button class="b" id="btnJump" title="跳到最近的未测完测点">⤳ 跳到最近未测点</button></div>
+      <div class="info" id="posShow">测量坐标 X：— mm</div>
+    </section>
+    <section>
+      <h4>⑥ 记录</h4>
+      <button class="b" id="btnRec" style="width:100%">📋 记录当前方向的读数（B⁺ 或 B⁻）</button>
+      <div class="info" id="recShow">测点进度：单线圈 0/8＋B₀ ｜ 亥姆霍兹 0/9</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>线圈中心 B₀ 与理论值比较</h4>
+      <div id="b0Out" class="info">单线圈模式下将探头移到 X=0 处，换向记录 B⁺、B⁻ 后自动显示。</div>
+    </section>
+    <section>
+      <h4>表 2.25.1　圆线圈产生的磁场沿 X 轴的变化（B/(10⁻⁵T)）</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>表 2.25.2　亥姆霍兹线圈轴线上的磁场分布（B/(10⁻⁵T)）</h4>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>B-X 曲线（实验点 vs 理论曲线）</h4>
+      <canvas class="plot" id="plot1" width="378" height="200"></canvas>
+      <canvas class="plot" id="plot2" width="378" height="200"></canvas>
+    </section>
+    <section>
+      <h4>均匀区分析与结论</h4>
+      <div id="conclude" class="info">完成全部测量后自动生成。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>载流圆线圈轴线上的磁场</h4>
+      <div class="formula">B_X = μ₀NIR² / [2(R²+X²)^{3/2}]　（2.25.1）</div>
+      <p class="info">方向垂直于线圈平面，按右手定则沿 X 轴正向。X=0 处最大：</p>
+      <div class="formula">B₀ = μ₀NI / (2R)　（2.25.2）</div>
+    </section>
+    <section>
+      <h4>亥姆霍兹线圈（半径=间距=R）</h4>
+      <p class="info">两线圈各 N 匝、串联同向电流 I。线圈圆心处（2.25.4）与轴线中点 P（2.25.5）、P 两侧 R/4 处 Q₁Q₂（2.25.6）：</p>
+      <div class="formula">B_O₁ = 0.6768·μ₀NI/R　　B_P = 0.7155·μ₀NI/R　　B_Q = 0.7125·μ₀NI/R</div>
+      <p class="info">B_Q₁ 与 B_P 相差不足 0.5%，故 P 点附近轴线上磁场基本均匀；在轴线以外一定范围内也基本均匀——这就是获得匀强磁场的"亥姆霍兹法"。</p>
+    </section>
+    <section>
+      <h4>霍尔效应法与换向法</h4>
+      <p class="info">n 型半导体霍尔元件通工作电流，置于磁场中产生霍尔电压 U_H=K·I·B，"测量"显示值即 B（单位 10⁻⁵ T）。为消除地磁场（~5×10⁻⁵ T）与零漂的影响，将励磁电流换向分别读 B⁺、B⁻：</p>
+      <div class="formula">B = (|B⁺| + |B⁻|) / 2　（2.25.7）</div>
+      <p class="info">仪器参数：N=640 匝（单只）、R̄=10.0×10⁻² m、两线圈中心距 R=10.0×10⁻² m；励磁电源 0~30 V / 0~0.5 A；测磁范围 0~1999×10⁻⁵ T，分辨率 1×10⁻⁵ T。</p>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 圆线圈轴线上的磁场分布有什么特点？<br>(2) 亥姆霍兹线圈能产生强磁场吗？为什么？<br>(3) 磁场是否符合叠加原理？简述用实验证明此结论的方法和步骤。</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3600); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数与状态 ================= */
+const PHYS={ mu0:4*Math.PI*1e-7, N:640, R:0.1, earth:3.0 };   // R=0.1m；地磁轴向分量 3×10⁻⁵T
+const G1=[-20,-15,-10,-5,5,10,15,20];                          // 表2.25.1 测点（单线圈，相对线圈中心）
+const G2=[-50,-37.5,-25,-12.5,0,12.5,25,37.5,50];              // 表2.25.2 测点（亥姆霍兹，相对中点）
+const state={
+  srcOn:false, mode:'single', sel:'cal', dir:1,
+  Ie:200, cal:10.0, zeroOff:0, u:400,
+  nom:+(10+Math.random()*8).toFixed(1),   // 霍尔探头标称值 mV（随机）
+  calOK:false, zeroed:false,
+  rec:{ single:{B0:{},pts:{}}, helm:{pts:{}} }   // pts[X]={p:B⁺,m:B⁻}（10⁻⁵T）
+};
+/* 圆线圈轴线磁场（X 单位 m，距线圈中心；返回 10⁻⁵T） */
+function Bcoil1(xm){
+  return PHYS.mu0*PHYS.N*(state.Ie*1e-3)*PHYS.R*PHYS.R/(2*Math.pow(PHYS.R*PHYS.R+xm*xm,1.5))*1e5;
+}
+/* 亥姆霍兹两线圈叠加（X 相对中点） */
+function Bhelm(xm){
+  const c=PHYS.mu0*PHYS.N*(state.Ie*1e-3)*PHYS.R*PHYS.R/2*1e5;
+  return c*(Math.pow(PHYS.R*PHYS.R+(xm+0.05)*(xm+0.05),-1.5)+Math.pow(PHYS.R*PHYS.R+(xm-0.05)*(xm-0.05),-1.5));
+}
+function Bnow(){  // 当前模式下测量坐标 X（mm）处的线圈磁场
+  if(!state.srcOn||state.Ie<1) return 0;
+  const X=(state.mode==='single')?state.u+50:state.u;
+  return (state.mode==='single')?Bcoil1(X/1000):Bhelm(X/1000);
+}
+/* 右表头显示值（10⁻⁵T）：换向只翻转线圈磁场，地磁场与调零偏置不翻转 */
+function displayB(){
+  if(state.sel!=='meas'||!state.srcOn) return 0;
+  return state.dir*Bnow()+PHYS.earth+state.zeroOff+(Math.random()-0.5)*0.2;   // 仪表噪声≈显示分辨率量级
+}
+const Xmm=()=> (state.mode==='single')?state.u+50:state.u;   // 测量坐标
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,180,420);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,800);
+camera.position.set(14,32,58);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,8,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.8));
+const dl=new THREE.DirectionalLight(0xffffff,1.1); dl.position.set(60,120,90); scene.add(dl);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+function makeLabel(draw,w,h,sx,sy){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  sp.scale.set(sx,sy,1);
+  sp.userData.redraw=(...a)=>{ draw(c.getContext('2d'),w,h,...a); tex.needsUpdate=true; };
+  sp.userData.redraw();
+  return sp;
+}
+/* 实验台与导轨 */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(110,3,44), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-1.5; scene.add(bench);
+const rail=new THREE.Mesh(new THREE.BoxGeometry(84,1.6,3.2), M(0x3a4450,{metalness:.5,roughness:.5}));
+rail.position.y=0.8; scene.add(rail);
+tag(rail,'导轨（mm 刻度）','探头沿导轨滑动，u 为导轨坐标（mm）。单线圈模式 X 从左线圈中心算起，亥姆霍兹模式 X 从轴线中点算起。');
+/* 刻度贴面 */
+(function(){
+  const c=document.createElement('canvas'); c.width=2048; c.height=48;
+  const g=c.getContext('2d'); g.fillStyle='#222b36'; g.fillRect(0,0,2048,48);
+  g.strokeStyle='#9fb4cc'; g.fillStyle='#cfe3ff'; g.font='20px Consolas,monospace'; g.textAlign='center'; g.lineWidth=2;
+  for(let u=-400;u<=400;u+=10){
+    const x=(u+400)/800*2048, big=u%50===0;
+    g.beginPath(); g.moveTo(x,48); g.lineTo(x,big?10:28); g.stroke();
+    if(u%100===0) g.fillText(String(u),x,10);
+  }
+  const tex=new THREE.CanvasTexture(c);
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(84,2), new THREE.MeshBasicMaterial({map:tex}));
+  plane.rotation.x=-Math.PI/2; plane.position.set(0,1.62,1.8); scene.add(plane);
+})();
+/* 亥姆霍兹线圈对（N=640 匝，R=0.1m → 半径 10 单位，中心 u=∓50mm → x=∓5） */
+function buildCoil(x,side){
+  const grp=new THREE.Group();
+  const mat=M(0xb87333,{metalness:.75,roughness:.35,emissive:0x000000});
+  for(let i=0;i<3;i++){
+    const t=new THREE.Mesh(new THREE.TorusGeometry(10-i*.55,.55,10,64),mat);
+    t.rotation.y=Math.PI/2; t.position.x=i*.28; grp.add(t);
+  }
+  grp.position.set(x,12.3,0); scene.add(grp);
+  const stand=new THREE.Mesh(new THREE.BoxGeometry(3,10.5,3), M(0x2c3648));
+  stand.position.set(x,6.05,0); scene.add(stand);
+  tag(stand,'亥姆霍兹线圈 '+(side<0?'Ⅰ(左)':'Ⅱ(右)'),
+    'N=640 匝，平均半径 R̄=10.0×10⁻² m，两线圈中心距恰为 R。串联同向电流，在轴线中点附近产生均匀磁场。');
+  return mat;
+}
+const matL=buildCoil(-5,-1), matR=buildCoil(5,1);
+/* 探头小车 */
+const car=new THREE.Group(); scene.add(car);
+const plate=new THREE.Mesh(new THREE.BoxGeometry(3.4,1,3), M(0x2c3648)); plate.position.y=2.1; car.add(plate);
+const post=new THREE.Mesh(new THREE.BoxGeometry(.7,9.4,.7), M(0x3a4450,{metalness:.5})); post.position.y=7.3; car.add(post);
+const probe=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,1.1), M(0x1b6b4a,{roughness:.4})); probe.position.y=12.3; car.add(probe);
+const tip=new THREE.Mesh(new THREE.ConeGeometry(.45,1.4,10), M(0xcfd8e2,{metalness:.6}));
+tip.rotation.z=-Math.PI/2; tip.position.set(-1.8,12.3,0); car.add(tip);
+tag(probe,'霍尔传感器探头','n 型半导体霍尔元件，探头标称值 '+state.nom+' mV（校准目标）。质脆勿碰！测量显示 B 值单位 10⁻⁵T。');
+/* 轴线磁场箭头可视化 */
+const arrows=[];
+for(let i=-8;i<=8;i++){
+  const a=new THREE.Mesh(new THREE.ConeGeometry(.5,3,8),
+    new THREE.MeshBasicMaterial({color:0x4cc2ff,transparent:true,opacity:.85}));
+  a.rotation.z=-Math.PI/2; a.position.set(i*2.2,12.3,0); scene.add(a); arrows.push(a);
+}
+/* ZE-5 测定仪主机 */
+const inst=new THREE.Mesh(new THREE.BoxGeometry(20,12,9), M(0x2c3648,{roughness:.5}));
+inst.position.set(34,6,6); scene.add(inst);
+tag(inst,'ZE-5 亥姆霍兹线圈磁场分布测定仪','励磁直流稳流电源（0~30V/0.5A）+ 特斯拉计（霍尔法）。面板：电源换向、校准/测量选择、励磁电流、调零、校准旋钮与探头插座。');
+const lcdL=makeLabel((g,w,h,ma)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 46px Consolas,monospace'; g.textAlign='center';
+  g.fillText((+ma).toFixed(0)+' mA',w/2,h/2+16); },256,64,10.5,2.6);
+lcdL.position.set(29.5,8.6,10.6); scene.add(lcdL);
+const lcdR=makeLabel((g,w,h,val,unit)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 44px Consolas,monospace'; g.textAlign='center';
+  g.fillText((+val).toFixed(1)+' '+(unit||''),w/2,h/2+15); },256,64,10.5,2.6);
+lcdR.position.set(38.5,8.6,10.6); scene.add(lcdR);
+const instLb=makeLabel((g,w,h)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 40px Microsoft YaHei';
+  g.textAlign='center'; g.fillText('ZE-5 测定仪',w/2,h/2+14); },256,64,12,3);
+instLb.position.set(34,14.5,6); scene.add(instLb);
+/* 励磁电源与导线 */
+const pwr=new THREE.Mesh(new THREE.BoxGeometry(10,10,8), M(0x31405a,{roughness:.5}));
+pwr.position.set(46,5,10); scene.add(pwr);
+tag(pwr,'直流稳流励磁电源','最大输出 30 V / 0.5 A。两线圈只宜单个或串联使用，切勿并联！');
+function wire(pts){
+  const curve=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve,40,.22,8), M(0xcc4444,{roughness:.5})));
+}
+wire([[44,4,10],[12,2,8],[-5,2.5,6],[-5,2.2,3.5]]);       // 电源→左线圈
+wire([[-4.4,2.5,6],[4.4,2.5,6]]);                          // 左→右线圈串联
+wire([[5,2.5,6],[20,2,10],[38,2,10]]);                     // 右线圈→仪器
+
+/* ================= 浮动液晶窗 ================= */
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=278; lcdCanvas.height=140;
+function drawLCD(){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#04140c'; g.fillRect(0,0,278,140);
+  g.font='14px Consolas,monospace'; g.textAlign='left';
+  const d=state.sel==='cal'?state.cal:displayB();
+  g.fillStyle='#57e389';
+  g.fillText('挡位：'+(state.sel==='cal'?'校准（调校准旋钮）':'测量')+'　换向：'+(state.dir>0?'+':'−'),10,24);
+  g.fillText('探头标称：'+state.nom.toFixed(1)+' mV　校准旋钮：'+state.cal.toFixed(1),10,44);
+  g.fillText('u = '+fmt(state.u,1)+' mm　X = '+fmt(Xmm(),1)+' mm',10,64);
+  g.fillText('励磁 I = '+state.Ie+' mA　模式：'+(state.mode==='single'?'单线圈':'亥姆霍兹'),10,84);
+  const D=displayB();
+  g.fillStyle=Math.abs(D)>1998?'#ff5555':'#57e389';
+  g.fillText('显示值 = '+(state.sel==='cal'?state.cal.toFixed(1)+' mV':fmt(D,1)+' ×10⁻⁵T'),10,104);
+  g.fillStyle='#8fb7a0';
+  g.fillText((state.calOK?'✓已校准':'未校准')+'　'+(state.zeroed?'✓已调零':'未调零')+'　B线圈='+fmt(Bnow(),1),10,124);
+  $('#lcd2d').getContext('2d').drawImage(lcdCanvas,0,0);
+}
+
+/* ================= 交互 ================= */
+function setMode(m){
+  state.mode=m;
+  $('#btnModeS').classList.toggle('on',m==='single');
+  $('#btnModeH').classList.toggle('on',m==='helm');
+  $('#modeShow').textContent=m==='single'
+    ?'单线圈：测量坐标 X 从左线圈中心（u=−50）算起，测点 X=−20~+20 mm'
+    :'亥姆霍兹：测量坐标 X 从轴线中点（u=0）算起，测点 X=−50~+50 mm';
+  updUI();
+}
+$('#btnModeS').onclick=()=>setMode('single');
+$('#btnModeH').onclick=()=>setMode('helm');
+$('#btnSrc').onclick=()=>{
+  state.srcOn=!state.srcOn;
+  $('#btnSrc').textContent=state.srcOn?'关闭励磁电源':'打开励磁电源';
+  $('#btnSrc').classList.toggle('on',state.srcOn);
+  $('#srcState').textContent=state.srcOn?'已开机（预热 10 min）':'未开机';
+  if(!state.srcOn) toast('励磁电源已关闭');
+  updUI();
+};
+$('#btnCal').onclick=()=>{ state.sel='cal'; $('#btnCal').classList.add('on'); $('#btnMeas').classList.remove('on'); updUI(); };
+$('#btnMeas').onclick=()=>{ state.sel='meas'; $('#btnMeas').classList.add('on'); $('#btnCal').classList.remove('on'); updUI(); };
+$('#btnDirP').onclick=()=>{ state.dir=1; $('#btnDirP').classList.add('on'); $('#btnDirM').classList.remove('on'); updUI(); };
+$('#btnDirM').onclick=()=>{ state.dir=-1; $('#btnDirM').classList.add('on'); $('#btnDirP').classList.remove('on'); updUI(); };
+$('#sldI').oninput=e=>{
+  state.Ie=+e.target.value; $('#vI').textContent=state.Ie+' mA';
+  invalidateRecords('励磁电流已改变');
+};
+$('#sldCal').oninput=e=>{
+  state.cal=+e.target.value; $('#vCal').textContent=state.cal.toFixed(1)+' mV';
+  if(state.sel==='cal'&&Math.abs(state.cal-state.nom)<=0.2){
+    if(!state.calOK){ state.calOK=true; toast('<b>✓ 校准完成</b>（显示与探头标称值一致）。请切到"测量"挡进行调零。'); checkSteps(); }
+  }
+  updUI();
+};
+$('#sldZero').oninput=e=>{
+  state.zeroOff=+e.target.value; $('#vZero').textContent=state.zeroOff.toFixed(1);
+  state.zeroed=false;   // 调零旋钮一动，原调零失效（教材：调好后千万不能再动）
+  checkSteps(); updUI();
+};
+document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{
+  state.zeroOff=Math.max(-99.9,Math.min(99.9,state.zeroOff+ +b.dataset.z));
+  $('#sldZero').value=state.zeroOff; $('#vZero').textContent=state.zeroOff.toFixed(1);
+  state.zeroed=false; checkSteps(); updUI();
+});
+$('#sldU').oninput=e=>{ state.u=+e.target.value; $('#vU').textContent=fmt(state.u,1); updUI(); };
+document.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{
+  state.u=Math.max(-400,Math.min(400,state.u+ +b.dataset.u));
+  $('#sldU').value=state.u; $('#vU').textContent=fmt(state.u,1); updUI();
+});
+/* 跳到最近的未测完测点（该模式下 B⁺/B⁻ 尚未记全的最近网格点） */
+$('#btnJump').onclick=()=>{
+  const grid=state.mode==='single'?G1:G2, R=state.rec[state.mode];
+  const cand=grid.filter(g=>!(R.pts[g]&&R.pts[g].p!==undefined&&R.pts[g].m!==undefined));
+  let special=null;
+  if(state.mode==='single'&&!(state.rec.single.B0&&state.rec.single.B0.p!==undefined&&state.rec.single.B0.m!==undefined))
+    special=0;   // 单线圈中心 B₀ 也是一个"测点"
+  if(!cand.length&&special===null){ toast('当前模式所有测点均已记录完毕'+(state.mode==='single'?'，可切换到亥姆霍兹模式':'')); return; }
+  const pool=cand.slice(); if(special!==null) pool.push(special);
+  let best=pool[0], bd=1e9;
+  pool.forEach(g=>{ const d=Math.abs(Xmm()-g); if(d<bd){bd=d;best=g;} });
+  const u=(state.mode==='single')?best-50:best;
+  state.u=u; $('#sldU').value=u; $('#vU').textContent=fmt(u,1);
+  updUI();
+  toast('已跳到测点 X='+best+' mm（导轨 u='+fmt(u,1)+' mm），换向记录 B⁺、B⁻ 即可');
+};
+/* 每帧检查调零条件：测量挡 + 远离磁场 + 显示≈0 */
+function checkZero(){
+  if(state.zeroed) return;
+  if(state.sel==='meas'&&state.srcOn&&(state.u<=-350||state.u>=350)&&Math.abs(displayB())<=1.0){
+    state.zeroed=true;
+    toast('<b>✓ 调零完成</b>（远离磁场、显示为 0）。<b style="color:var(--warn)">调零旋钮不可再动</b>，可开始测量。');
+    checkSteps();
+  }
+}
+function invalidateRecords(why){
+  const r=state.rec;
+  const has=Object.keys(r.single.pts).length||Object.keys(r.helm.pts).length||r.single.B0.p!==undefined||r.single.B0.m!==undefined;
+  if(!has) return;
+  r.single={B0:{},pts:{}}; r.helm={pts:{}};
+  renderData(); checkSteps();
+  toast('⚠ '+why+'，原有记录已全部清空，请重新测量');
+}
+/* 记录当前方向读数 */
+$('#btnRec').onclick=()=>{
+  if(!state.srcOn){ toast('⚠ 请先打开励磁电源'); return; }
+  if(state.sel!=='meas'){ toast('⚠ 请将选择开关拨到"测量"挡'); return; }
+  if(!state.calOK){ toast('⚠ 请先完成校准（校准挡使显示=探头标称值）'); return; }
+  if(!state.zeroed){ toast('⚠ 请先在导轨端部（|u|≥350 mm）调零'); return; }
+  if(state.Ie<50){ toast('⚠ 励磁电流过小（<50 mA），请调至 50 mA 以上'); return; }
+  const D=+(displayB()).toFixed(1), key=state.dir>0?'p':'m';
+  const X=Xmm();
+  const mode=state.mode, R=state.rec[mode];
+  /* 单线圈模式 X≈0 → 记录中心 B₀ */
+  if(mode==='single'&&Math.abs(X)<=1){
+    R.B0[key]=D;
+    toast('✓ 已记录中心 B'+(state.dir>0?'⁺':'⁻')+' = '+fmt(D,1)+'×10⁻⁵T'+(R.B0.p!==undefined&&R.B0.m!==undefined?'（B₀=(|B⁺|+|B⁻|)/2 = '+fmt((Math.abs(R.B0.p)+Math.abs(R.B0.m))/2,1)+'）':'，请换向后补记'));
+    renderData(); checkSteps(); return;
+  }
+  const grid=mode==='single'?G1:G2, tol=mode==='single'?1.5:1.0;
+  let best=null,bd=1e9;
+  grid.forEach(g=>{ const d=Math.abs(X-g); if(d<bd){bd=d;best=g;} });
+  if(bd>tol){ toast('⚠ 请将探头移到测点附近：最近测点 <b>X='+best+' mm</b>（当前 X='+fmt(X,1)+' mm）'); return; }
+  R.pts[best]=R.pts[best]||{};
+  R.pts[best][key]=D;
+  const done2=R.pts[best].p!==undefined&&R.pts[best].m!==undefined;
+  toast('✓ 已记录 '+(mode==='single'?'单线圈':'亥姆霍兹')+' X='+best+' mm 的 B'+(state.dir>0?'⁺':'⁻')+' = '+fmt(D,1)
+    +(done2?'（该点 B=(|B⁺|+|B⁻|)/2 = '+fmt((Math.abs(R.pts[best].p)+Math.abs(R.pts[best].m))/2,1)+'）':'，请换向后补记'));
+  renderData(); checkSteps();
+};
+function updUI(){
+  $('#posShow').textContent='测量坐标 X：'+fmt(Xmm(),1)+' mm'+(state.mode==='single'?'（u−(−50)）':'（u−0）')
+    +'　当前方向读数：'+(state.sel==='meas'&&state.srcOn?fmt(displayB(),1)+' ×10⁻⁵T':'—');
+  const c1=Object.keys(state.rec.single.pts).filter(k=>{const p=state.rec.single.pts[k];return p.p!==undefined&&p.m!==undefined;}).length;
+  const c2=Object.keys(state.rec.helm.pts).filter(k=>{const p=state.rec.helm.pts[k];return p.p!==undefined&&p.m!==undefined;}).length;
+  const b0=(state.rec.single.B0.p!==undefined&&state.rec.single.B0.m!==undefined)?'1':'0';
+  $('#recShow').textContent='测点进度：单线圈 '+c1+'/8 ＋B₀('+b0+') ｜ 亥姆霍兹 '+c2+'/9';
+  $('#calShow').textContent='探头标称值：'+state.nom.toFixed(1)+' mV（校准目标）｜校准状态：'+(state.calOK?'✓ 已校准':'未校准（误差 '+fmt(Math.abs(state.cal-state.nom),1)+' mV）');
+  $('#zeroShow').textContent='调零状态：'+(state.zeroed?'✓ 已调零':'未调零（须在 |u|≥350 mm 处，测量挡，显示调到 0±1）');
+}
+
+/* ================= 数据处理 ================= */
+function bOf(p){ return (p&&p.p!==undefined&&p.m!==undefined)?(Math.abs(p.p)+Math.abs(p.m))/2:null; }
+function renderData(){
+  /* 表2.25.1 */
+  let h='<table><tr><th>X/mm</th>'+G1.map(x=>`<th>${x}</th>`).join('')+'</tr>';
+  ['p','m'].forEach((k,i)=>{
+    h+=`<tr><td><b>B${i?'⁻':'⁺'}</b></td>`+G1.map(x=>{const p=state.rec.single.pts[x];
+      return `<td class="num ${p&&p[k]===undefined?'empty':''}">${p&&p[k]!==undefined?p[k].toFixed(1):'—'}</td>`;}).join('')+'</tr>';
+  });
+  h+='<tr><td><b>B</b></td>'+G1.map(x=>{const b=bOf(state.rec.single.pts[x]);
+    return `<td class="num ${b===null?'empty':''}">${b===null?'—':b.toFixed(1)}</td>`;}).join('')+'</tr></table>';
+  $('#tbl1').innerHTML=h+'<div class="info">B=(|B⁺|+|B⁻|)/2，消除地磁场与零漂的影响。</div>';
+  /* 表2.25.2 */
+  h='<table><tr><th>X/mm</th>'+G2.map(x=>`<th>${x}</th>`).join('')+'</tr>';
+  h+='<tr><td><b>B 实验</b></td>'+G2.map(x=>{const b=bOf(state.rec.helm.pts[x]);
+    return `<td class="num ${b===null?'empty':''}">${b===null?'—':b.toFixed(1)}</td>`;}).join('')+'</tr>';
+  h+='<tr><td><b>B 理论</b></td>'+G2.map(x=>`<td class="num">${Bhelm(x/1000).toFixed(1)}</td>`).join('')+'</tr></table>';
+  $('#tbl2').innerHTML=h+'<div class="info">理论值由两线圈磁场叠加计算：B(X)=μ₀NIR²/2·[1/(R²+(X+R/2)²)^{3/2}+1/(R²+(X−R/2)²)^{3/2}]。</div>';
+  /* B₀ 对比 */
+  const b0=bOf(state.rec.single.B0), b0th=Bcoil1(0);
+  $('#b0Out').innerHTML=b0===null
+    ?'单线圈模式下将探头移到 X=0 处（u=−50 mm），换向记录 B⁺、B⁻ 后自动显示。'
+    :`<table><tr><th>实验 B₀</th><th>理论 μ₀NI/2R</th><th>相对误差</th></tr>
+      <tr><td class="num">${b0.toFixed(1)} ×10⁻⁵T</td><td class="num">${b0th.toFixed(1)} ×10⁻⁵T</td>
+      <td class="num">${fmt(Math.abs(b0-b0th)/b0th*100,2)}%</td></tr></table>`;
+  drawPlots();
+  conclude();
+}
+function drawPlots(){
+  /* 单线圈 */
+  plot($('#plot1'),-25,25,x=>Bcoil1(x/1000),G1,x=>bOf(state.rec.single.pts[x]),'单线圈轴线 B-X（×10⁻⁵T）');
+  /* 亥姆霍兹 */
+  plot($('#plot2'),-60,60,x=>Bhelm(x/1000),G2,x=>bOf(state.rec.helm.pts[x]),'亥姆霍兹线圈轴线 B-X（×10⁻⁵T）');
+}
+function plot(cv,x0,x1,f,grid,getB,title){
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height;
+  g.fillStyle='#10161f'; g.fillRect(0,0,W,H);
+  const pts=[]; for(let x=x0;x<=x1;x+=(x1-x0)/120) pts.push([x,f(x)]);
+  const ymax=Math.max(...pts.map(p=>p[1]))*1.15, ymin=0;
+  const X=x=>30+(x-x0)/(x1-x0)*(W-50), Y=v=>H-24-(v-ymin)/(ymax-ymin)*(H-46);
+  g.strokeStyle='#2a3341'; for(let k=0;k<=4;k++){ const v=ymin+k/4*(ymax-ymin);
+    g.beginPath(); g.moveTo(X(x0),Y(v)); g.lineTo(X(x1),Y(v)); g.stroke(); }
+  g.strokeStyle='#8b98a9'; g.beginPath(); g.moveTo(X(x0),Y(ymin)); g.lineTo(X(x1),Y(ymin)); g.moveTo(X(x0),Y(ymin)); g.lineTo(X(x0),Y(ymax)); g.stroke();
+  g.strokeStyle='#4cc2ff'; g.lineWidth=1.8; g.beginPath();
+  pts.forEach((p,i)=>{ i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])); }); g.stroke();
+  g.fillStyle='#3ad17e';
+  grid.forEach(x=>{ const b=getB(x); if(b!==null){ g.beginPath(); g.arc(X(x),Y(b),3.5,0,7); g.fill(); } });
+  g.fillStyle='#8b98a9'; g.font='11px Consolas,monospace';
+  g.fillText(title+'　最大 '+ymax.toFixed(0),X(x0)+4,14);
+  g.fillText(x0+'',X(x0)-8,H-8); g.fillText(x1+'',X(x1)-14,H-8);
+}
+function conclude(){
+  const b0=bOf(state.rec.single.B0), c1=Object.keys(state.rec.single.pts).filter(k=>bOf(state.rec.single.pts[k])!==null).length;
+  const c2=Object.keys(state.rec.helm.pts).filter(k=>bOf(state.rec.helm.pts[k])!==null).length;
+  if(c1<8||c2<9||b0===null){
+    $('#conclude').innerHTML='完成全部测量后自动生成。（单线圈 '+c1+'/8＋B₀、亥姆霍兹 '+c2+'/9）'; return;
+  }
+  const b0th=Bcoil1(0), e0=Math.abs(b0-b0th)/b0th*100;
+  const bp=bOf(state.rec.helm.pts[0]), bpth=Bhelm(0), ep=Math.abs(bp-bpth)/bpth*100;
+  const zone=G2.filter(x=>Math.abs(x)<=25).map(x=>bOf(state.rec.helm.pts[x]));
+  const uni=(Math.max(...zone)-Math.min(...zone))/(zone.reduce((s,v)=>s+v,0)/zone.length)*100;
+  $('#conclude').innerHTML=`<table>
+    <tr><th>比较项</th><th>实验值</th><th>理论值</th><th>误差</th></tr>
+    <tr><td>单线圈中心 B₀</td><td class="num">${b0.toFixed(1)}</td><td class="num">${b0th.toFixed(1)}</td><td class="num">${fmt(e0,2)}%</td></tr>
+    <tr><td>亥姆霍兹中点 B_P</td><td class="num">${bp.toFixed(1)}</td><td class="num">${bpth.toFixed(1)}（=0.7155μ₀NI/R）</td><td class="num">${fmt(ep,2)}%</td></tr>
+    <tr><td>均匀区（|X|≤25mm）偏差</td><td colspan="2" class="num">${fmt(uni,3)}%</td><td class="num">${uni<0.5?'✓ <0.5%':'>0.5%'}</td></tr></table>
+    <div class="info">结论：① 圆线圈轴线磁场以中心为最大、随 |X| 增大按 (R²+X²)^{-3/2} 衰减；② 亥姆霍兹线圈轴线中点附近磁场基本均匀（实测偏差 ${fmt(uni,2)}%，理论约 0.42%&lt;0.5%），与教材 B_P=0.7155、B_Q=0.7125（相差不足 0.5%）一致；③ 亥姆霍兹磁场由两线圈磁场叠加而成，理论曲线与实验点符合，验证了磁场叠加原理。</div>`;
+}
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  state.srcOn=true; state.Ie=200; state.cal=state.nom; state.calOK=true;
+  state.zeroOff=-3.0; state.zeroed=true; state.sel='meas';
+  $('#sldI').value=200; $('#vI').textContent='200 mA';
+  $('#sldCal').value=state.nom; $('#vCal').textContent=state.nom.toFixed(1)+' mV';
+  $('#sldZero').value=-3; $('#vZero').textContent='-3.0';
+  $('#btnSrc').classList.add('on'); $('#srcState').textContent='已开机（预热 10 min）';
+  const fill=(pts,R,Bfun)=>{ pts.forEach(x=>{
+    const B=Bfun(x/1000), c=PHYS.earth+(Math.random()-0.5)*0.6;
+    R[x]={p:+(B+c+(Math.random()-0.5)*0.8).toFixed(1), m:+(-B+c+(Math.random()-0.5)*0.8).toFixed(1)}; }); };
+  fill(G1,state.rec.single.pts,Bcoil1);
+  const c0=PHYS.earth+(Math.random()-0.5)*0.6, B0=Bcoil1(0);
+  state.rec.single.B0={p:+(B0+c0).toFixed(1), m:+(-B0+c0).toFixed(1)};
+  fill(G2,state.rec.helm.pts,Bhelm);
+  $('#btnMeas').click(); $('#btnModeS').click();
+  renderData(); checkSteps(); updUI();
+  toast('已自动填入示例数据（I=200 mA，换向法含地磁与噪声）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  state.srcOn=false; state.mode='single'; state.sel='cal'; state.dir=1;
+  state.Ie=200; state.cal=10.0; state.zeroOff=0; state.u=400;
+  state.calOK=false; state.zeroed=false;
+  state.rec={ single:{B0:{},pts:{}}, helm:{pts:{}} };
+  $('#sldI').value=200; $('#vI').textContent='200 mA';
+  $('#sldCal').value=10; $('#vCal').textContent='10.0 mV';
+  $('#sldZero').value=0; $('#vZero').textContent='0.0';
+  $('#sldU').value=400; $('#vU').textContent='400.0';
+  $('#btnSrc').textContent='打开励磁电源'; $('#btnSrc').classList.remove('on'); $('#srcState').textContent='未开机';
+  $('#btnCal').classList.add('on'); $('#btnMeas').classList.remove('on');
+  $('#btnDirP').classList.add('on'); $('#btnDirM').classList.remove('on');
+  setMode('single'); renderData(); checkSteps(); updUI();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  const r=state.rec;
+  const b0ok=r.single.B0.p!==undefined&&r.single.B0.m!==undefined;
+  const c1=G1.filter(x=>bOf(r.single.pts[x])!==null).length;
+  const c2=G2.filter(x=>bOf(r.helm.pts[x])!==null).length;
+  const s=[state.calOK, state.zeroed, state.calOK&&state.zeroed&&b0ok&&c1>=8, c1>=8&&c2>=9, c1>=8&&c2>=9&&b0ok];
+  const tips=['校准完成，请切到测量挡调零。','调零完成（旋钮勿再动），开始单线圈测量。','单线圈测量完成！切换到亥姆霍兹模式。','亥姆霍兹测量完成！查看数据处理页。','全部完成：B-X 曲线与结论已生成！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')&&tips[i]&&i>0) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,lcdT=1;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  car.position.x=state.u/10;
+  /* 线圈通电发光 */
+  const glow=state.srcOn?state.Ie/500:0;
+  matL.emissive.setHex(state.srcOn?0x662200:0x000000); matL.emissiveIntensity=glow*2;
+  matR.emissive.setHex(state.srcOn&&state.mode==='helm'?0x662200:0x000000); matR.emissiveIntensity=glow*2;
+  /* 轴线磁场箭头 */
+  const Bmax=Math.max(1,0.72*PHYS.mu0*PHYS.N*(state.Ie*1e-3)/PHYS.R*1e5);
+  arrows.forEach(a=>{
+    const xm=a.position.x*10/1000;
+    const B=(state.mode==='single')?Bcoil1((xm+0.05)):(Bhelm(xm));
+    const f=state.srcOn?Math.min(1,B/Bmax):0;
+    a.scale.set(0.2+f*1.6,0.2+f*1.6,0.2+f*1.6);
+    a.material.opacity=f*0.8;
+    a.visible=f>0.03;
+  });
+  checkZero();
+  lcdT+=1/60;
+  if(lcdT>0.12){ lcdT=0; drawLCD(); updUI(); }
+  lcdL.userData.redraw(state.srcOn?state.Ie:0);
+  lcdR.userData.redraw(state.sel==='cal'?state.cal:(state.srcOn?displayB():0), state.sel==='cal'?'mV':'');
+  controls.update(); renderer.render(scene,camera);
+}
+setMode('single'); renderData(); checkSteps(); updUI(); drawLCD();
+loop();
+</script>
+</body>
+</html>

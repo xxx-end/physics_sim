@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验21 · 用落球法测定液体在不同温度下的黏度系数 · 3D交互仿真</title>
+<style>
+  /* ============ 全局（风格对齐范例 32/33） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas#scene { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs .tab { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; text-align: center; }
+  .tabs .tab.on { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .tabBody { display: none; }
+  .tabBody.on { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+  .muted { color: #6fa8dc; font-size: 12px; }
+  .good { color: #69f0ae; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+  .step.current { border-left: 3px solid #29d2ff; background: rgba(41,210,255,0.05); }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; margin: 3px 6px 3px 0; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+  .chip { display: inline-block; background: #0e1a30; color: #9fc3e8; border: 1px solid #29507a;
+    border-radius: 12px; padding: 3px 10px; font-size: 12px; cursor: pointer; margin: 2px 3px; }
+  .chip:hover { border-color: #29d2ff; }
+  .chip.on { background: #14263f; color: #ffd54f; border-color: #ffd54f; }
+
+  /* 记录表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border: 1px solid #1d3252; padding: 5px 5px; text-align: center;
+    font-variant-numeric: tabular-nums; }
+  th { background: rgba(41, 210, 255, 0.08); color: #7fd7ff; font-weight: 600; }
+  tr.hl td { color: #69f0ae; }
+
+  /* 结论格 */
+  .kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0;
+    color: #a9c6e8; }
+  .kv b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+
+  /* 视口叠加层（均为纯显示，pointer-events:none 不遮挡 3D 拖拽交互） */
+  #meterHud { position: absolute; top: 14px; left: 14px; z-index: 5; pointer-events: none;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #meterHud .big { font-size: 20px; color: #ffd54f; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; font-variant-numeric: tabular-nums; }
+  #pidOv { position: absolute; top: 14px; right: 14px; z-index: 5; pointer-events: none;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #swOv { position: absolute; bottom: 14px; right: 14px; z-index: 5; pointer-events: none;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 5; pointer-events: none; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; pointer-events: none; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; max-width: 78%; }
+  #toast.show { display: block; }
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>实验21 · 用落球法测定液体在不同温度下的黏度系数</h1>
+  <span class="sub">斯托克斯落球法 η=(ρ−ρ₀)gd²/[18v₀(1+2.4d/D)] · 雷诺数 1 级修正 η'=η/(1+3Re/16) · 开放式 PID 温控 · 蓖麻油 ρ₀=0.95×10³kg/m³ · 下落 20cm（5→25cm 刻度）</span>
+  <button id="btnSample">自动完成全部测量</button>
+  <button id="btnReset">重置实验</button>
+</header>
+<div id="main">
+  <!-- 左侧操作面板 -->
+  <div id="panel">
+    <div class="tabs">
+      <div class="tab on" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="meas">测量操作</div>
+      <div class="tab" data-tab="data">数据处理</div>
+      <div class="tab" data-tab="theory">原理</div>
+    </div>
+
+    <div class="tabBody on" id="tab-guide">
+      <div class="card">
+        <div class="step" id="st1"><div class="box"></div><div>检查仪器后面<b>水位管</b>，将水箱中的水加到水位上下限之间；确认<b>半导体制冷装置开关处于关闭状态</b></div></div>
+        <div class="step" id="st2"><div class="box"></div><div>用<b>螺旋测微器</b>测量小钢球直径 d，共测 <b>8 次</b>，记入表 2.21.1</div></div>
+        <div class="step" id="st3"><div class="box"></div><div><b>调节底座螺钉</b>使水准泡居中，样品管<b>铅直</b>（倾斜时钢球会碰壁，测量作废）</div></div>
+        <div class="step" id="st4"><div class="box"></div><div>设定温度（10~55℃），<b>PID 温控</b>达到设定值并稳定后显示「开始实验」；<b>按住托盘上的钢球拖拽</b>（镊子夹持），移到样品管口松手投放，钢球经 5cm 刻度线自动计时、经 25cm 刻度线自动停止 —— <b>每个温度测 2 次</b>，共至少 <b>5 个温度</b></div></div>
+        <div class="step" id="st5"><div class="box"></div><div>计算各温度 <b>v₀、η、Re 与修正值 η'</b>，与标准值（10/20/30/40℃）比较相对误差</div></div>
+        <div class="step" id="st6"><div class="box"></div><div>绘制<b> η-T 曲线</b>；实验完成后<b>用磁铁将钢球吸引至管口</b>回收</div></div>
+      </div>
+      <div class="card">
+        <h3>注意事项（教材 p.134~135）</h3>
+        <p>① 目标温度设置值应高于初始温度 5℃ 以上（低于室温的温度靠缓慢降温平衡）；② 温度达到设定值并保持波动&lt;0.2℃ 才显示「开始实验」；③ 放球时<b>沿样品管中心</b>轻轻放入，观察是否一直沿中心下落，倾斜则调螺钉；④ 测量过程中尽量避免对液体的扰动；⑤ 实验过程中<b>禁止打开制冷开关</b>。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-meas">
+      <div class="card">
+        <h3>① 检查水位与制冷开关</h3>
+        <button class="btn" id="btnCheck">检查水位管并加至上/下限之间，确认制冷关闭</button>
+        <p class="muted" id="chkState">未检查</p>
+      </div>
+      <div class="card">
+        <h3>② 螺旋测微器测钢球直径（表2.21.1，8 次）</h3>
+        <button class="btn" id="btnD">夹球测量一次</button><span class="muted" id="cntD">　第 0/8 次</span>
+        <p class="muted" id="dState">未测量。真实流程：钢球夹于测砧间，读主尺+微分筒（分度 0.01 mm），每次稍换方位估读 1/10 分度。</p>
+      </div>
+      <div class="card">
+        <h3>③ 调节样品管铅直（底座三螺钉）</h3>
+        <div class="slider-row"><div class="lab"><span>前侧螺钉</span><b id="vS1">65</b></div>
+          <input type="range" id="sS1" min="0" max="100" step="1" value="65" disabled></div>
+        <div class="slider-row"><div class="lab"><span>左侧螺钉</span><b id="vS2">35</b></div>
+          <input type="range" id="sS2" min="0" max="100" step="1" value="35" disabled></div>
+        <div class="slider-row"><div class="lab"><span>右侧螺钉</span><b id="vS3">65</b></div>
+          <input type="range" id="sS3" min="0" max="100" step="1" value="65" disabled></div>
+        <p class="muted" id="lvlState">水准泡偏离中心 —— 观察气泡朝哪侧偏，松哪侧/紧哪侧螺钉</p>
+      </div>
+      <div class="card">
+        <h3>④ PID 温控与落球计时（表2.21.2）</h3>
+        <p class="muted">设定目标温度：</p>
+        <div id="tempChips"></div>
+        <button class="btn" id="btnPID">启动温控仪（水泵+加热）</button>
+        <button class="btn" id="btnDrop">自动放球（或用镊子拖拽钢球到管口）</button>
+        <p class="muted" id="runState">等待温控平衡</p>
+      </div>
+      <div class="card">
+        <h3>⑤⑥ 曲线与回收</h3>
+        <button class="btn" id="btnCurve">绘制 η-T 曲线</button>
+        <button class="btn" id="btnMagnet">磁铁回收钢球</button>
+        <p class="muted" id="endState">完成 ≥5 个温度后绘制曲线并回收钢球。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-data">
+      <div class="card"><h3>表 2.21.1 测量小钢球的直径（螺旋测微器）</h3><div id="tb1" class="muted">尚未测量。</div></div>
+      <div class="card"><h3>表 2.21.2 测定黏度系数（下落 20cm：5cm→25cm 刻度，ρ=7.8×10³，ρ₀=0.95×10³，D=2.0cm）</h3><div id="tb2" class="muted">尚未测量。</div></div>
+      <div class="card"><h3>蓖麻油黏度系数 η 随温度变化曲线</h3><canvas id="etaCurve" width="392" height="240" style="width:100%;background:#05070a;border:1px solid #1d3252;border-radius:8px"></canvas><p class="muted" id="curveNote">完成 ≥5 个温度后点击「绘制 η-T 曲线」。纵轴为对数坐标。</p></div>
+      <div class="card"><h3>实验结论</h3><div id="concl" class="muted">完成测量后自动给出结论。</div></div>
+    </div>
+
+    <div class="tabBody" id="tab-theory">
+      <div class="card">
+        <h3>落球法测黏度（式 2.21.1~2.21.4）</h3>
+        <p>小球速度很小时，黏性阻力服从<b>斯托克斯公式</b> F=3πηv₀d。下落很短一段距离后重力、浮力、黏性阻力平衡，小球匀速下落：</p>
+        <span class="formula">πd³(ρ−ρ₀)g/6 = 3πηv₀d　→　η = (ρ−ρ₀)gd²/(18v₀)　(2.21.3)</span>
+        <p>液体装在直径 D 的管中，"无限扩展"条件不满足，需作管壁修正：</p>
+        <span class="formula">η = (ρ−ρ₀)gd² / [18v₀(1+2.4d/D)]　(2.21.4)</span>
+      </div>
+      <div class="card">
+        <h3>雷诺数与 1 级修正（式 2.21.5~2.21.8）</h3>
+        <p>考虑液体运动状态，F=3πηv₀d(1+3Re/16)，雷诺数 Re=v₀dρ₀/η。Re&lt;0.1 时式(2.21.4)成立；0.1&lt;Re&lt;1 需 1 级修正：</p>
+        <span class="formula">η' = η / (1+3Re/16) ≈ η(1−3Re/16)　(2.21.7/2.21.8)</span>
+        <p>雷诺数物理意义：惯性力与黏性力之比。Re&lt;2000 层流、2000~4000 过渡流、&gt;4000 湍流。</p>
+      </div>
+      <div class="card">
+        <h3>PID 调节原理（式 2.21.9）</h3>
+        <span class="formula">u(t) = K_P·e(t) + (1/T_I)∫e(t)dt + T_D·de(t)/dt</span>
+        <p>比例项迅速响应偏差但不能消除静态偏差；积分项积累偏差消除静差但加大超调；微分项阻碍温度变化、减小超调克服振荡。温控仪每 15s 采集一次温度与功率，达到设定值且 2min 内波动&lt;0.2℃ 判定平衡，显示「开始实验」。超调源于系统<b>热惯性</b>与<b>传感器滞后</b>。</p>
+      </div>
+      <div class="card">
+        <h3>思考与拓展</h3>
+        <p>【思考】①如何判断钢球已进入匀速阶段？②油温-黏度关系能否推广到所有液体？③落球法能否测低黏度液体（v₀ 大 → Re 大 → 斯托克斯公式失效）？④钢球表面粗糙的影响？<br>【拓展】雷诺数反映流体运动状态：层流/过渡流/湍流，工程管道设计需按 Re 选用计算公式。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧 3D 视口 -->
+  <div id="view">
+    <canvas id="scene"></canvas>
+    <div id="meterHud">
+      <div class="big" id="hudT">20.00 ℃</div>
+      <div class="row2" id="hudSet">设定：--</div>
+      <div class="row2" id="hudBall">钢球：待命（管口）</div>
+    </div>
+    <canvas id="pidOv" width="300" height="238"></canvas>
+    <canvas id="swOv" width="228" height="104"></canvas>
+    <div id="hint"><b>按住钢球拖到管口松手投放</b> · 左键旋转 · 滚轮缩放 · 点击部件查看说明</div>
+    <div id="toast"></div>
+  </div>
+</div>
+</div>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+const fmt=(v,n=3)=>(+v).toFixed(n);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.style.display='block';
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display='none',3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+
+/* ================= 状态与真值（蓖麻油 η-T 标准锚点，教材表2.21.2） ================= */
+const TRUE={ rho:7800, rho0:950, D:0.020, L:0.20, d0:0.00200, g0:9.80 };
+TRUE.etaTab={10:2.420,20:0.986,30:0.451,40:0.231,50:0.122};   // 标准值（教材给出 10/20/30/40，50 为文献值）
+TRUE.stdDisp=[10,20,30,40];                                    // 表 2.21.2 中给出标准值的温度
+/* η(T)：锚点间对数插值（黏度随温度近似指数下降） */
+function etaTrue(T){
+  const Tp=[10,20,30,40,50], ep=[2.420,0.986,0.451,0.231,0.122];
+  if(T<=10) return 2.420*Math.exp(-(10-T)*0.088);              // 低温端缓外推
+  if(T>=50) return 0.122*Math.exp(-(T-50)*0.064);              // 高温端外推
+  for(let i=0;i<4;i++) if(T<=Tp[i+1]){
+    const u=(T-Tp[i])/10;
+    return Math.exp(Math.log(ep[i])*(1-u)+Math.log(ep[i+1])*u);
+  }
+}
+const CFG={ checked:false, d3:[], dmean:null, leveled:false, screw:[65,35,65],
+  setT:null, pidOn:false, T:20.0, TH:20.0, Toil:20.0, equilibrated:false, eqTimer:0,
+  transT:null, ball:{state:'idle'}, dropSpeed:4, rowsT:{}, rows:[],
+  curveDrawn:false, recovered:false, steps:[false,false,false,false,false,false] };
+const gl={ bubble:0, ballTrail:[] };
+
+/* ================================================================
+ *  三维场景（真实米制尺度 1单位=1m；暖冷双色调 + 阴影 + 清漆玻璃）
+ * ================================================================ */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,4.5,14);
+const camera=new THREE.PerspectiveCamera(48,1,0.01,100);
+camera.position.set(0.12,1.10,0.98);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0.10,0.99,0);
+controls.enableDamping=true; controls.dampingFactor=.08;
+controls.minDistance=0.25; controls.maxDistance=6;
+/* 灯光：半球环境 + 暖主光（带阴影）+ 冷辅光 + 水套内微光 */
+scene.add(new THREE.HemisphereLight(0xbfd9ff,0x201810,0.5));
+const keyLight=new THREE.PointLight(0xfff2dd,0.95,15); keyLight.position.set(0.6,1.7,0.9);
+keyLight.castShadow=true; keyLight.shadow.mapSize.set(1024,1024);
+keyLight.shadow.camera.near=0.2; keyLight.shadow.camera.far=4;
+keyLight.shadow.bias=-0.0005;
+scene.add(keyLight);
+const fillLight=new THREE.DirectionalLight(0x7fb8ff,0.28); fillLight.position.set(-1,1.3,0.4); scene.add(fillLight);
+const glowLight=new THREE.PointLight(0xffaa44,0.0,0.5); glowLight.position.set(-0.12,0.88,0); scene.add(glowLight);
+const grid=new THREE.GridHelper(16,32,0x1d3252,0x122240);
+grid.position.y=-0.032; scene.add(grid);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+function G(c,o={}){ return new THREE.MeshPhysicalMaterial(Object.assign({color:c,transparent:true,
+  roughness:0.06,metalness:0,clearcoat:1,clearcoatRoughness:0.12},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function showInfo(title,text){ toast('<b style="color:#7fd7ff">'+title+'</b>　'+text); }
+function tag(mesh,title,text){ Object.assign(mesh.userData,{title,text}); }
+
+function makeTextSprite(text,color,w=0.3){
+  const fontSize=52,pad=16;
+  const measure=document.createElement('canvas').getContext('2d');
+  measure.font='bold '+fontSize+'px sans-serif';
+  const tw=Math.ceil(measure.measureText(text).width);
+  const cw=Math.min(1024,Math.max(128,tw+pad*2));
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=128;
+  const c=cv.getContext('2d');
+  c.font='bold '+fontSize+'px sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillStyle=color; c.shadowColor=color; c.shadowBlur=14;
+  c.fillText(text,cw/2,66);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
+  sp.scale.set((w/2)*cw/128,w/2,1);
+  return sp;
+}
+
+/* ---- 实验桌 ---- */
+const tableTop=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.05,0.8),
+  M(0x2b2620,{metalness:.25,roughness:.75}));
+tableTop.position.set(0,0.755,0); tableTop.receiveShadow=true; scene.add(tableTop);
+tag(tableTop,'实验桌','变温黏度系数测量仪 + 开放式 PID 温控仪 + 半导体制冷装置。');
+for(const p of [[-0.95,-0.32],[0.95,-0.32],[-0.95,0.32],[0.95,0.32]]){
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.026,0.73,12),
+    M(0x1a2434,{metalness:.5,roughness:.5}));
+  leg.position.set(p[0],0.365,p[1]); scene.add(leg);
+}
+
+/* ---- 变温黏度测量仪（底座+支架+加热水套+样品管） ---- */
+const AX=-0.12;                                  // 样品管轴 x
+const base=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.10,0.018,24),
+  M(0x37414e,{metalness:.75,roughness:.35}));
+base.position.set(AX,0.764,0); base.castShadow=true; base.receiveShadow=true; scene.add(base);
+tag(base,'底座（调节螺钉）','底座下有调节螺钉，用于调节样品管铅直 —— 倾斜时钢球会碰壁，测量作废。');
+const foot1=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.008,0.014,10),
+  M(0x8a939e,{metalness:.9,roughness:.25}));
+foot1.position.set(AX-0.055,0.752,0.05); scene.add(foot1);
+const foot2=foot1.clone(); foot2.position.set(AX+0.055,0.752,0.05); scene.add(foot2);
+const foot3=foot1.clone(); foot3.position.set(AX,0.752,-0.07); scene.add(foot3);
+/* 水准泡 */
+const lvlDisc=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.005,18),
+  G(0xcfe8d8,{opacity:0.5}));
+lvlDisc.position.set(AX+0.045,0.779,0.045); scene.add(lvlDisc);
+const lvlDot=new THREE.Mesh(new THREE.SphereGeometry(0.0032,12,8),
+  M(0x9cff5e,{emissive:0x9cff5e,emissiveIntensity:.7}));
+lvlDot.position.set(AX+0.045+0.005,0.782,0.045); scene.add(lvlDot);
+tag(lvlDisc,'水准泡','调节底座螺钉使气泡居中，样品管铅直。');
+/* 支架立柱 + 抱箍 */
+const post=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.010,0.56,14),
+  M(0x414c5a,{metalness:.8,roughness:.3}));
+post.position.set(AX-0.075,1.035,0); post.castShadow=true; scene.add(post);
+const clampRing=new THREE.Mesh(new THREE.TorusGeometry(0.035,0.004,10,28),
+  M(0x414c5a,{metalness:.8,roughness:.3}));
+clampRing.position.set(AX,1.18,0); clampRing.rotation.y=Math.PI/2; clampRing.rotation.x=0.18; scene.add(clampRing);
+const clampArm=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.010,0.010),
+  M(0x414c5a,{metalness:.8,roughness:.3}));
+clampArm.position.set(AX-0.0375,1.18,0); scene.add(clampArm);
+tag(clampRing,'支架','夹持加热水套与样品管，保持铅直。');
+/* 加热水套（外层玻璃管，内充循环水） */
+const jacketTop=1.22, jacketBot=0.80;
+const jacket=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.033,jacketTop-jacketBot,28,1,true),
+  G(0xbfe9f5,{opacity:0.22,side:THREE.DoubleSide}));
+jacket.position.set(AX,(jacketTop+jacketBot)/2,0); scene.add(jacket);
+const jacketCapT=new THREE.Mesh(new THREE.CylinderGeometry(0.033,0.033,0.006,28),
+  M(0x414c5a,{metalness:.8,roughness:.3}));
+jacketCapT.position.set(AX,jacketTop,0); scene.add(jacketCapT);
+const jacketCapB=jacketCapT.clone(); jacketCapB.position.set(AX,jacketBot,0); scene.add(jacketCapB);
+const water=new THREE.Mesh(new THREE.CylinderGeometry(0.030,0.030,jacketTop-jacketBot-0.012,24),
+  new THREE.MeshPhysicalMaterial({color:0x6fcbe8,transparent:true,opacity:0.34,
+    roughness:0.15,metalness:0,emissive:0x0a2a38,emissiveIntensity:0.7}));
+water.position.set(AX,(jacketTop+jacketBot)/2,0); scene.add(water);
+tag(jacket,'加热水套','连接 PID 温控仪，通过热循环水加热样品，使液体温度较快与加热水温达到平衡。');
+/* 进出水口 */
+const portIn=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.018,10),
+  M(0x8a939e,{metalness:.85,roughness:.25}));
+portIn.rotation.z=Math.PI/2; portIn.position.set(AX,jacketBot+0.03,0.033); scene.add(portIn);
+const portOut=portIn.clone(); portOut.rotation.z=-Math.PI/2; portOut.position.set(AX,jacketTop-0.03,0.033); scene.add(portOut);
+tag(portIn,'进水孔 / 出水孔','温控仪水泵：热水由下进水孔进入水套，上部出水孔回流至水箱循环加热。');
+/* 样品管（内装蓖麻油，带刻度） */
+const tubeTop=1.285, tubeBot=0.815;
+const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.0115,0.0115,tubeTop-tubeBot,24,1,true),
+  G(0xf2e8d0,{opacity:0.26,side:THREE.DoubleSide}));
+tube.position.set(AX,(tubeTop+tubeBot)/2,0); scene.add(tube);
+tag(tube,'样品管','待测液体（蓖麻油）装在细长样品管中，管壁有刻度线，用于测量钢球下落距离。');
+const tubeCap=new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.013,0.008,20),
+  M(0x414c5a,{metalness:.8,roughness:.3}));
+tubeCap.position.set(AX,tubeTop,0); scene.add(tubeCap);
+const oil=new THREE.Mesh(new THREE.CylinderGeometry(0.0098,0.0098,0.425,24),
+  new THREE.MeshPhysicalMaterial({color:0xe89a2a,transparent:true,opacity:0.78,
+    roughness:0.25,metalness:0,clearcoat:0.6,emissive:0x7a4a08,emissiveIntensity:0.8}));
+oil.position.set(AX,1.035,0); scene.add(oil);
+tag(oil,'蓖麻油（待测液体 ρ₀=0.95×10³kg/m³）','黏度随温度升高近似指数下降：20℃ 约 0.986 Pa·s，40℃ 约 0.231 Pa·s。');
+/* 刻度线（0~30cm，每 5cm 一道）+ 读数 */
+const MARK0=0.845;                               // 0 刻度高度
+const markMat=new THREE.MeshBasicMaterial({color:0xfff3c4});
+for(let h=0;h<=30;h+=5){
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.0117,0.00035,6,28),markMat);
+  ring.rotation.x=Math.PI/2; ring.position.set(AX,MARK0+h/100,0); scene.add(ring);
+  const lb=makeTextSprite(h+'','#ffe082',0.022);
+  lb.position.set(AX+0.021,MARK0+h/100,0); scene.add(lb);
+}
+tag(markMat,'刻度线','钢球经 5cm 刻度线自动开始计时，经 25cm 刻度线自动停止 —— 下落距离 L=20cm。');
+/* 小钢球（视觉放大 r=3.5mm）—— 平时放在托盘上，用镊子拖到管口投放 */
+const BALL_REST=new THREE.Vector3(0.05,0.7835,0.14);
+const ball=new THREE.Mesh(new THREE.SphereGeometry(0.0045,20,16),
+  M(0xe8ecf0,{metalness:.95,roughness:.12,emissive:0x8a949e,emissiveIntensity:.5}));
+ball.position.copy(BALL_REST); ball.castShadow=true; scene.add(ball);
+tag(ball,'小钢球（ρ=7.8×10³kg/m³，d≈2.000mm）','用镊子沿样品管中心轻轻放入；匀速下落时 η=(ρ−ρ₀)gd²/[18v₀(1+2.4d/D)]。');
+/* 镊子（组原点=钢球中心，夹持时跟随钢球） */
+const twGrp=new THREE.Group(); twGrp.visible=false; scene.add(twGrp);
+const tw1=new THREE.Mesh(new THREE.BoxGeometry(0.0018,0.075,0.004),
+  M(0xb8c4cc,{metalness:.9,roughness:.25}));
+tw1.position.set(-0.004,0.03,0); tw1.rotation.z=0.06; twGrp.add(tw1);
+const tw2=tw1.clone(); tw2.position.x=0.004; tw2.rotation.z=-0.06; twGrp.add(tw2);
+twGrp.position.set(AX,tubeTop,0);
+tag(twGrp,'镊子','夹住小钢球沿样品管中心轻轻放入液体中，避免扰动液体。');
+/* 磁铁（回收钢球） */
+const magnet=new THREE.Group(); magnet.visible=false; scene.add(magnet);
+const magBody=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.018,16),
+  M(0xc62828,{metalness:.6,roughness:.35}));
+magnet.add(magBody);
+const magTip=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.006,14),
+  M(0x9ea7b0,{metalness:.9,roughness:.2}));
+magTip.position.y=-0.012; magnet.add(magTip);
+magnet.position.set(AX,tubeTop+0.03,0);
+tag(magnet,'磁铁','实验完成后用磁铁将小钢球吸引至样品管口，用镊子夹入蓖麻油中保存，以备下次实验使用。');
+/* 钢球托盘 + 管口投放高亮环（镊子拖拽交互） */
+const dish=new THREE.Mesh(new THREE.CylinderGeometry(0.017,0.013,0.006,16),
+  M(0x5a6a7c,{metalness:.6,roughness:.35}));
+dish.position.set(0.05,0.7775,0.14); dish.castShadow=true; dish.receiveShadow=true; scene.add(dish);
+tag(dish,'钢球托盘','小钢球放置于此。温度平衡后，<b>按住钢球拖拽</b>，镊子会夹住它；移到样品管口（绿环亮起）松手即投放。');
+const mouthRing=new THREE.Mesh(new THREE.TorusGeometry(0.0135,0.0013,8,28),
+  new THREE.MeshBasicMaterial({color:0x69f0ae,transparent:true,opacity:0.9}));
+mouthRing.rotation.x=Math.PI/2; mouthRing.position.set(AX,tubeTop+0.005,0);
+mouthRing.visible=false; scene.add(mouthRing);
+
+/* ---- PID 温控仪（水箱+水泵+加热器+液晶曲线屏） ---- */
+const pidBox=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.15,0.15),
+  M(0x1f2937,{metalness:.55,roughness:.4}));
+pidBox.position.set(0.30,0.845,0); pidBox.castShadow=true; pidBox.receiveShadow=true; scene.add(pidBox);
+const pidLcdCanvas=document.createElement('canvas'); pidLcdCanvas.width=192; pidLcdCanvas.height=112;
+const pidLcdTexture=new THREE.CanvasTexture(pidLcdCanvas);
+const pidLcd=new THREE.Mesh(new THREE.PlaneGeometry(0.155,0.09),
+  new THREE.MeshBasicMaterial({map:pidLcdTexture}));
+pidLcd.position.set(0.285,0.868,0.0765); pidLcd.rotation.x=-0.25; scene.add(pidLcd);
+const pidLedHeatM=new THREE.MeshBasicMaterial({color:0x3a1512});
+const pidLedHeat=new THREE.Mesh(new THREE.SphereGeometry(0.004,10,8),pidLedHeatM);
+pidLedHeat.position.set(0.245,0.792,0.0765); scene.add(pidLedHeat);
+const pidLedExpM=new THREE.MeshBasicMaterial({color:0x12331d});
+const pidLedExp=new THREE.Mesh(new THREE.SphereGeometry(0.004,10,8),pidLedExpM);
+pidLedExp.position.set(0.285,0.792,0.0765); scene.add(pidLedExp);
+tag(pidBox,'开放式 PID 温控仪','内置水箱、水泵、加热器与微处理器；液晶屏实时显示温度/功率曲线。达到设定值且波动<0.2℃ 判定平衡，显示「开始实验」。');
+
+/* ---- 半导体制冷装置 ---- */
+const coolBox=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.09,0.10),
+  M(0x26313e,{metalness:.6,roughness:.4}));
+coolBox.position.set(0.52,0.805,0.10); coolBox.castShadow=true; scene.add(coolBox);
+const coolLedM=new THREE.MeshBasicMaterial({color:0x552222});
+const coolLed=new THREE.Mesh(new THREE.SphereGeometry(0.0035,10,8),coolLedM);
+coolLed.position.set(0.52,0.845,0.152); scene.add(coolLed);
+tag(coolBox,'半导体制冷装置（帕尔帖效应）','利用 pn 结热电偶对直流制冷。本实验中用于对油快速降温 —— 实验过程中禁止打开制冷开关。');
+
+/* ---- 循环软管：温控仪 ↔ 水套（热水循环） ---- */
+const hoseMat=new THREE.MeshStandardMaterial({color:0x274a5e,roughness:.6,metalness:.15});
+const hoseCurveA=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0.24,0.80,0.075),new THREE.Vector3(0.12,0.79,0.13),
+  new THREE.Vector3(-0.02,0.80,0.10),new THREE.Vector3(AX,jacketBot+0.03,0.040)]);
+const hoseA=new THREE.Mesh(new THREE.TubeGeometry(hoseCurveA,26,0.0042,8),hoseMat); scene.add(hoseA);
+const hoseCurveB=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(AX,jacketTop-0.03,0.040),new THREE.Vector3(0.02,1.16,0.10),
+  new THREE.Vector3(0.14,1.05,0.13),new THREE.Vector3(0.26,0.925,0.078)]);
+const hoseB=new THREE.Mesh(new THREE.TubeGeometry(hoseCurveB,26,0.0042,8),hoseMat); scene.add(hoseB);
+tag(hoseA,'循环水管','PID 温控仪水泵驱动热水循环：出水→水套下部进水孔，水套上部出水孔回流→水箱加热。');
+const flowDots=[];
+for(let i=0;i<7;i++){
+  const d=new THREE.Mesh(new THREE.SphereGeometry(0.0015,8,6),
+    new THREE.MeshBasicMaterial({color:0x9ff0ff,transparent:true,opacity:.95}));
+  scene.add(d); flowDots.push(d);
+}
+
+/* ---- 标注 ---- */
+const lbl1=makeTextSprite('样品管（蓖麻油）','#ffd54f',0.085);
+lbl1.position.set(AX-0.085,1.255,0); scene.add(lbl1);
+const lbl2=makeTextSprite('加热水套','#81d4fa',0.075);
+lbl2.position.set(AX-0.10,0.845,0.05); scene.add(lbl2);
+const lbl3=makeTextSprite('PID 温控仪','#69f0ae',0.085);
+lbl3.position.set(0.30,0.945,0); scene.add(lbl3);
+const lbl4=makeTextSprite('半导体制冷装置','#ffab91',0.075);
+lbl4.position.set(0.52,0.875,0.10); scene.add(lbl4);
+
+/* ================= 温度预设 chips ================= */
+const TEMPS=[10,15,20,25,30,35,40,45,50,55];
+$('#tempChips').innerHTML=TEMPS.map(t=>`<span class="chip" data-t="${t}">${t}℃</span>`).join('');
+document.querySelectorAll('.chip').forEach(ch=>ch.onclick=()=>{
+  if(gl.grab||gl.ret){ toast('钢球正在被移动，请稍候'); return; }   // 下落中允许预设下一温度
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+  ch.classList.add('on');
+  CFG.setT=+ch.dataset.t; CFG.equilibrated=false; CFG.eqTimer=0; CFG.transT=null;
+  $('#hudSet').textContent='设定：'+CFG.setT.toFixed(0)+' ℃';
+  $('#runState').textContent=CFG.pidOn?'重新调温中…':'已设定 '+CFG.setT+'℃，请启动温控仪';
+});
+
+/* ================= 面板绘制 ================= */
+function v0Of(d,eta){ return (TRUE.rho-TRUE.rho0)*TRUE.g0*d*d/(18*eta*(1+2.4*d/TRUE.D)); }
+function drawPID(){
+  const g=$('#pidOv').getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,300,238);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,294,232);
+  g.font='12px "Microsoft YaHei",sans-serif'; g.fillStyle='#6fa8dc'; g.textAlign='left'; g.textBaseline='alphabetic';
+  g.fillText('开放式 PID 温控仪',14,20);
+  /* 数值区 */
+  g.fillStyle='#0a1626'; g.fillRect(14,28,130,44); g.strokeStyle='#29d2ff'; g.strokeRect(14,28,130,44);
+  g.fillStyle='#57e389'; g.font='bold 22px Consolas,monospace'; g.textAlign='center';
+  g.fillText(CFG.T.toFixed(2)+' ℃',79,58);
+  g.fillStyle='#0a1626'; g.fillRect(152,28,134,44); g.strokeRect(152,28,134,44);
+  g.fillStyle='#ffd54f'; g.font='bold 15px Consolas,monospace';
+  g.fillText('设定 '+(CFG.setT!=null?CFG.setT.toFixed(0):'--')+' ℃',219,44);
+  g.fillStyle='#81d4fa'; g.font='12px Consolas,monospace';
+  g.fillText('油温 '+CFG.Toil.toFixed(2)+' ℃',219,64);
+  /* 功率条 */
+  const P=heaterPower();
+  g.fillStyle='#0a1626'; g.fillRect(14,80,272,12); g.strokeStyle='#1d3252'; g.strokeRect(14,80,272,12);
+  g.fillStyle='#ff7043'; g.fillRect(15,81,270*P/100,10);
+  g.fillStyle='#ffab91'; g.font='10px Consolas,monospace'; g.textAlign='left';
+  g.fillText('加热功率 '+P.toFixed(0)+' %',18,102);
+  /* 温度曲线区 */
+  const L=14,T0=110,W=272,H=100;
+  g.strokeStyle='#1d3252'; g.strokeRect(L,T0,W,H);
+  g.fillStyle='#0a1626'; g.fillRect(L,T0,W,H);
+  const ymin=Math.min(18,...CFG.hist.map(p=>p.T),CFG.setT??20)-2;
+  const ymax=Math.max(24,...CFG.hist.map(p=>p.T),CFG.setT??25)+2;
+  const Y=v=>T0+H-(v-ymin)/(ymax-ymin)*H;
+  g.strokeStyle='rgba(80,220,160,.2)'; g.beginPath();
+  for(let i=1;i<5;i++){ g.moveTo(L,T0+H*i/5); g.lineTo(L+W,T0+H*i/5); } g.stroke();
+  if(CFG.setT!=null){ g.setLineDash([4,4]); g.strokeStyle='#ffd54f'; g.beginPath();
+    g.moveTo(L,Y(CFG.setT)); g.lineTo(L+W,Y(CFG.setT)); g.stroke(); g.setLineDash([]); }
+  if(CFG.hist.length>1){
+    g.strokeStyle='#57e389'; g.lineWidth=1.6; g.beginPath();
+    CFG.hist.forEach((p,i)=>{ const x=L+W*i/(CFG.histN-1||1); i?g.lineTo(x,Y(p.T)):g.moveTo(x,Y(p.T)); });
+    g.stroke(); g.lineWidth=1;
+  }
+  /* 状态行 */
+  g.font='12px "Microsoft YaHei",sans-serif'; g.textAlign='left';
+  const st=!CFG.pidOn?'待机（水泵未启动）':(CFG.equilibrated?'✔ 平衡 — 开始实验':
+    (CFG.setT==null?'请先设定目标温度':(CFG.setT>CFG.T+0.05?'加热中…（PID 调节）':'降温平衡中…')));
+  g.fillStyle=CFG.equilibrated?'#69f0ae':'#9fc3e8';
+  g.fillText('状态：'+st,14,226);
+  if(CFG.transT!=null){ g.fillStyle='#6fa8dc'; g.textAlign='right';
+    g.fillText('过渡时间 '+CFG.transT.toFixed(0)+' s',286,226); }
+  /* HUD 同步 */
+  $('#hudT').textContent=CFG.T.toFixed(2)+' ℃';
+  $('#hudBall').textContent='钢球：'+(gl.ballDrop?(CFG.leveled?'匀速下落中':'倾斜碰壁！'):
+    (gl.grab?'镊子夹持中（拖到管口松手）':(gl.ret?'放回托盘中…':
+    (gl.magnetAnim?'磁铁吸取中…':(gl.ballAtBot?'管底（待磁铁吸回）':
+    (CFG.recovered?'已回收':'待命（托盘上，可拖拽）'))))));
+}
+function heaterPower(){
+  if(!CFG.pidOn||CFG.setT==null) return 0;
+  /* PI 调节：比例项响应快但有静差（教材 p.133），积分项累积偏差消除静差 */
+  if(CFG.setT>CFG.T+0.05) return Math.min(100,Math.max(0,(CFG.setT-CFG.T)*25+(CFG.integ||0)));
+  return 0;
+}
+function drawSW(){
+  const g=$('#swOv').getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,228,104);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,222,98);
+  g.font='11px "Microsoft YaHei",sans-serif'; g.fillStyle='#6fa8dc'; g.textAlign='left';
+  g.fillText('停表（5cm→25cm 自动计时，L=20cm）',12,18);
+  g.fillStyle='#0a1626'; g.fillRect(12,26,204,40); g.strokeStyle='#29d2ff'; g.strokeRect(12,26,204,40);
+  g.fillStyle=gl.ballDrop?'#57e389':'#8bd8a8'; g.font='bold 26px Consolas,monospace'; g.textAlign='center';
+  const tv=gl.ballDrop?(gl.swT!=null?gl.swT:0):(gl.lastT!=null?gl.lastT:0);
+  g.fillText((gl.ballDrop&&gl.swT==null?'— 待过 5cm 线 —':tv.toFixed(2)+' s'),114,54);
+  g.font='11px "Microsoft YaHei",sans-serif'; g.fillStyle='#9fc3e8';
+  g.fillText(gl.ballDrop?'计时中…钢球匀速下落':'点击「镊子放球」开始测量',114,84);
+}
+function drawPidLcd(){
+  const g=pidLcdCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,192,112);
+  g.strokeStyle='#1d5a38'; g.strokeRect(2,2,188,108);
+  g.fillStyle='#57e389'; g.font='bold 15px Consolas,monospace'; g.textAlign='center';
+  g.fillText(CFG.T.toFixed(1)+'℃',48,22);
+  g.fillStyle='#ffd54f'; g.font='11px Consolas,monospace';
+  g.fillText('set '+(CFG.setT!=null?CFG.setT.toFixed(0):'--'),132,20);
+  const L=10,T0=30,W=172,H=58;
+  g.strokeStyle='#1d3252'; g.strokeRect(L,T0,W,H);
+  const ymin=Math.min(18,...CFG.hist.map(p=>p.T),CFG.setT??20)-2;
+  const ymax=Math.max(24,...CFG.hist.map(p=>p.T),CFG.setT??25)+2;
+  const Y=v=>T0+H-(v-ymin)/(ymax-ymin)*H;
+  if(CFG.setT!=null){ g.setLineDash([3,3]); g.strokeStyle='#ffd54f'; g.beginPath();
+    g.moveTo(L,Y(CFG.setT)); g.lineTo(L+W,Y(CFG.setT)); g.stroke(); g.setLineDash([]); }
+  if(CFG.hist.length>1){ g.strokeStyle='#57e389'; g.beginPath();
+    CFG.hist.forEach((p,i)=>{ const x=L+W*i/(CFG.histN-1||1); i?g.lineTo(x,Y(p.T)):g.moveTo(x,Y(p.T)); });
+    g.stroke(); }
+  g.fillStyle=CFG.equilibrated?'#69f0ae':'#6fa8dc'; g.font='10px "Microsoft YaHei",sans-serif';
+  g.fillText(CFG.equilibrated?'平衡 · 开始实验':(CFG.pidOn?'PID 调节中':'待机'),96,104);
+  pidLcdTexture.needsUpdate=true;
+}
+
+/* ================= 交互 ================= */
+$('#btnCheck').onclick=()=>{
+  if(CFG.checked){ toast('水位与制冷开关已检查'); return; }
+  CFG.checked=true;
+  $('#chkState').innerHTML='<span class="good">✔ 水位在上下限之间，水泵可循环；半导体制冷开关处于关闭状态</span>';
+  toast('<b>检查完成</b>：水箱水位正常（上下限之间），半导体制冷装置开关关闭。');
+  checkSteps();
+};
+/* ② 螺旋测微器逐次测量（每次点击 = 夹球+读数一次，共 8 次） */
+$('#btnD').onclick=()=>{
+  if(CFG.d3.length>=8){ toast('直径已测满 8 次（表2.21.1）'); return; }
+  const v=TRUE.d0*1000+(Math.random()+Math.random()-1)*0.004;
+  CFG.d3.push(v); CFG.dmean=CFG.d3.reduce((a,b)=>a+b)/CFG.d3.length;
+  $('#cntD').textContent='　第 '+CFG.d3.length+'/8 次　上次读数 '+v.toFixed(3)+' mm';
+  if(CFG.d3.length<8)
+    $('#dState').innerHTML='已测 '+CFG.d3.length+' 次：'+CFG.d3.map(x=>x.toFixed(3)).join(' / ')+' mm<br>当前平均 d̄='+CFG.dmean.toFixed(4)+' mm（再测 '+(8-CFG.d3.length)+' 次）';
+  else{
+    $('#dState').innerHTML='8 次读数：'+CFG.d3.map(v=>v.toFixed(3)).join(' / ')+' mm<br>平均 d=<b>'+CFG.dmean.toFixed(4)+' mm</b>（表2.21.1）';
+    toast('<b>直径测量完成</b>（8 次）：平均 d='+CFG.dmean.toFixed(4)+' mm（表2.21.1）');
+  }
+  checkSteps(); renderData();
+};
+/* ③ 底座三螺钉调平：气泡偏移由螺钉差决定，居中判定 ±0.2 mm 气泡坐标 */
+function updLvl(){
+  const [s1,s2,s3]=CFG.screw;
+  const dx=(s3-s2)/100*0.004, dz=(s1-50)/100*0.004;
+  lvlDot.position.x=AX+0.045+dx; lvlDot.position.z=0.045+dz;
+  const off=Math.hypot(dx,dz);
+  const was=CFG.leveled;
+  CFG.leveled=off<0.0002;
+  if(CFG.leveled&&!was){
+    toast('<b style="color:#69f0ae">水准泡已居中</b>：样品管铅直，钢球可沿中心下落');
+    $('#lvlState').innerHTML='<span class="good">✔ 水准泡居中（气泡偏移 '+(off*1000).toFixed(2)+' mm &lt; 0.2 mm）</span>';
+    checkSteps();
+  } else if(!CFG.leveled){
+    const dir=(dx>0?'右':dx<0?'左':'')+((Math.abs(dx)>0.0001&&dz!==0)?'后':'')+(dz>0?'前':dz<0?'后':'');
+    $('#lvlState').innerHTML='气泡偏向 '+dir+'（偏移 '+(off*1000).toFixed(2)+' mm）：气泡朝哪侧偏，说明哪侧高 —— 旋紧该侧或旋松对侧螺钉';
+  }
+}
+[['#sS1',0],['#sS2',1],['#sS3',2]].forEach(([sel,i])=>{
+  $(sel).oninput=e=>{
+    CFG.screw[i]=+e.target.value;
+    $('#vS'+(i+1)).textContent=CFG.screw[i];
+    updLvl();
+  };
+});
+$('#btnPID').onclick=()=>{
+  if(CFG.pidOn){ toast('温控仪运行中：设定 '+CFG.setT+'℃，当前 '+CFG.T.toFixed(2)+'℃'); return; }
+  if(CFG.setT==null){ toast('请先点击上方温度标签设定目标温度'); return; }
+  CFG.pidOn=true; pidLedHeatM.color.setHex(0xff5252); pidLedExpM.color.setHex(0x69f0ae);
+  toast('<b>PID 温控仪启动</b>：水泵循环+加热器工作。达到设定值且波动&lt;0.2℃ 将显示「开始实验」（仪器每 15s 采集一次温度与功率）');
+  $('#runState').textContent='温控运行中：当前 '+CFG.T.toFixed(1)+'℃ → 设定 '+CFG.setT+'℃';
+  checkSteps();
+};
+/* 投放前置检查：返回提示文案（null=可以放球） */
+function canGrabMsg(){
+  if(gl.ballDrop) return '钢球正在下落，请稍候';
+  if(gl.magnetAnim) return '磁铁正在取回钢球，请稍候';
+  if(gl.ballAtBot) return '钢球在管底 —— 请先点「磁铁吸球」将其取回';
+  if(gl.grab||gl.ret) return '钢球正在被移动';
+  if(!CFG.dmean) return '请先用螺旋测微器测量钢球直径（步骤②）';
+  if(!CFG.pidOn) return '请先启动 PID 温控仪（步骤④）';
+  if(!CFG.equilibrated) return '请等待温度达到设定值并平衡（显示屏出现「开始实验」）';
+  const n=(CFG.rowsT[CFG.setT]||[]).length;
+  if(n>=2) return CFG.setT+'℃ 已测满 2 次，请在上方设定下一温度';
+  return null;
+}
+function startDrop(auto){
+  const n=(CFG.rowsT[CFG.setT]||[]).length;
+  gl.magnetAnim=null; magnet.visible=false; gl.ballAtBot=false; gl.ret=null;   // 清理取回/回收动画残留
+  gl.ballDrop=true; gl.ballT=0; gl.ballV=0; gl.swT=null; gl.swStart=null; gl.swDone=false; gl.v0fix=null; gl.tScale=1; gl.invalid=!CFG.leveled;
+  ball.position.set(AX+(CFG.invalid?0.001:0),1.252,0);
+  ball.material.transparent=true; ball.material.opacity=1;
+  twGrp.position.set(AX,tubeTop,0); twGrp.visible=true;
+  setTimeout(()=>{ if(!gl.grab) twGrp.visible=false; },1200);
+  toast(CFG.invalid?'<b style="color:#ff8a80">样品管倾斜！</b>钢球未沿中心下落…（先「调节底座螺钉」）'
+    :'<b>'+(auto?'镊子放球':'松手投放')+'</b>（'+CFG.setT+'℃ 第 '+(n+1)+'/2 次）：钢球经 25cm 刻度线开始计时、5cm 线停止（画面加速播放，秒表为真实时间：低温下落慢，需耐心等待或观察振幅变化）');
+  checkSteps();
+}
+$('#btnDrop').onclick=()=>{
+  const msg=canGrabMsg();
+  if(msg){ toast(msg); return; }
+  startDrop(true);
+};
+/* ===== 镊子拖拽放球：按住钢球 → 跟手移动 → 管口松手投放 ===== */
+const TUBE_DRAG_Y=tubeTop+0.055;
+const dragPlane=new THREE.Plane(), dragPt=new THREE.Vector3(), camDir=new THREE.Vector3();
+function overMouth(){ return Math.hypot(ball.position.x-AX,ball.position.z)<0.014; }
+canvas.addEventListener('pointerdown',e=>{
+  if(gl.grab||gl.ballDrop||gl.ret) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  if(ray.intersectObject(ball,false).length){
+    const msg=canGrabMsg();
+    if(msg){ toast(msg); return; }
+    gl.grab=true; gl.justGrabbed=true; controls.enabled=false;   // 夹持时锁定相机
+    ball.material.transparent=true; ball.material.opacity=1;
+    twGrp.visible=true;
+    toast('<b>镊子已夹住钢球</b>：拖到样品管口（绿环亮起）松手投放；拖到别处松手则放回托盘');
+  }
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!gl.grab) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  camDir.copy(camera.getWorldDirection(camDir));
+  dragPlane.setFromNormalAndCoplanarPoint(camDir,new THREE.Vector3(AX,TUBE_DRAG_Y,0));
+  if(ray.ray.intersectPlane(dragPlane,dragPt)){
+    ball.position.x=THREE.MathUtils.clamp(dragPt.x,AX-0.32,AX+0.32);
+    ball.position.z=THREE.MathUtils.clamp(dragPt.z,-0.32,0.32);
+    ball.position.y=TUBE_DRAG_Y;
+    twGrp.position.copy(ball.position);
+    mouthRing.visible=overMouth();
+  }
+});
+canvas.addEventListener('pointerup',()=>{
+  if(!gl.grab) return;
+  gl.grab=false; controls.enabled=true; twGrp.visible=false; mouthRing.visible=false;
+  if(overMouth()){ startDrop(false); }
+  else { gl.ret={from:ball.position.clone(),to:BALL_REST.clone(),t:0}; toast('钢球已放回托盘（未对准管口）'); }
+});
+$('#btnCurve').onclick=()=>{
+  if(CFG.rows.length<5){ toast('测量温度不足 5 个，请继续'); return; }
+  if(CFG.curveDrawn){ toast('曲线已绘制'); return; }
+  drawEtaCurve(); CFG.curveDrawn=true;
+  toast('<b>η-T 曲线已绘制</b>：蓖麻油黏度随温度升高近似指数下降（纵轴对数坐标）');
+  checkSteps();
+};
+$('#btnMagnet').onclick=()=>{
+  if(gl.magnetAnim){ toast('磁铁取回钢球中…'); return; }
+  if(gl.ballAtBot){
+    gl.magMode=(CFG.curveDrawn&&CFG.rows.length>=5)?'final':'retrieve';
+    gl.magnetAnim='descend'; magnet.visible=true;
+    toast('<b>磁铁伸入管内</b>：将管底钢球吸至管口'+(gl.magMode==='final'?'，随后夹入蓖麻油中保存':'，取回后放回托盘待命')+'…');
+  } else if(CFG.curveDrawn&&CFG.rows.length>=5&&!CFG.recovered){
+    CFG.recovered=true; checkSteps();
+    toast('<b style="color:#69f0ae">钢球已用镊子夹入蓖麻油中保存</b> —— 实验全部完成！');
+    $('#endState').innerHTML='<span class="good">✔ η-T 曲线已绘制，钢球已回收 —— 实验完成</span>';
+  } else if(CFG.recovered){ toast('钢球已回收'); }
+  else { toast('钢球不在管内（在托盘上待命），无需磁铁吸取'); }
+};
+/* 单温度两计时 → 计算 η、Re、η' */
+function computeRow(T,t1,t2){
+  const tAvg=(t1+t2)/2, v=TRUE.L/tAvg, d=CFG.dmean/1000;
+  const eta=(TRUE.rho-TRUE.rho0)*TRUE.g0*d*d/(18*v*(1+2.4*d/TRUE.D));
+  const Re=v*d*TRUE.rho0/eta, etaP=eta/(1+3*Re/16);
+  const hasStd=TRUE.stdDisp.includes(T), std=hasStd?TRUE.etaTab[T]:null;
+  const rel=hasStd?Math.abs(eta-std)/std*100:null;
+  const row={T,t1,t2,tAvg,v,eta,etaP,Re,std,rel};
+  CFG.rows.push(row);
+  toast('<b>'+T+'℃ 测量完成</b>（2 次平均）：t='+tAvg.toFixed(2)+' s，v='+v.toFixed(4)+' m/s<br>η='+eta.toFixed(4)+' Pa·s，Re='+Re.toFixed(3)+'，η\''+('=')+etaP.toFixed(4)+' Pa·s'+(hasStd?'，相对误差 '+rel.toFixed(2)+' %':'（教材未给标准值）'));
+  return row;
+}
+
+/* ================= 步骤判定 ================= */
+const TIPS=['水位与制冷检查完成！','钢球直径已测 8 次！','样品管已调铅直！','5 个温度落球测量完成！','各温度 η、η\' 计算完成！','曲线绘制与钢球回收完成，实验结束！'];
+function checkSteps(){
+  const s=CFG.steps;
+  s[0]=CFG.checked;
+  s[1]=CFG.d3.length>=8;
+  s[2]=CFG.leveled;
+  s[3]=CFG.rows.length>=5;
+  s[4]=s[3];
+  s[5]=CFG.curveDrawn&&CFG.recovered;
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+TIPS[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+  $('#btnCheck').disabled=CFG.checked;
+  $('#btnD').disabled=!CFG.checked||CFG.d3.length>=8;
+  ['#sS1','#sS2','#sS3'].forEach(sel=>$(sel).disabled=!CFG.checked||CFG.leveled);
+  document.querySelectorAll('.chip').forEach(ch=>ch.style.opacity=gl.ballDrop?0.4:1);
+  $('#btnPID').disabled=!CFG.checked||CFG.pidOn;
+  const n=(CFG.rowsT[CFG.setT]||[]).length;
+  $('#btnDrop').disabled=!!gl.ballDrop;   // 不再禁用：未就绪时点击给出引导提示
+  $('#btnDrop').textContent='自动放球（或用镊子拖拽钢球）· 本温度第 '+(n+1)+'/2 次';
+  $('#btnCurve').disabled=CFG.rows.length<5||CFG.curveDrawn;
+  $('#btnMagnet').disabled=!((gl.ballAtBot&&!gl.magnetAnim)||(CFG.curveDrawn&&CFG.rows.length>=5&&!CFG.recovered));
+  $('#btnMagnet').textContent=gl.ballAtBot?'磁铁吸球（从管底取回钢球）':'磁铁回收钢球（夹入蓖麻油保存）';
+  if(!CFG.leveled&&CFG.checked) updLvl();   // 未居中时保持气泡方向提示
+  if(CFG.pidOn&&CFG.setT!=null) $('#runState').innerHTML=CFG.equilibrated?
+    '<span class="good">✔ '+CFG.setT+'℃ 已平衡 —— 「开始实验」：<b>按住钢球拖到管口松手</b>投放（本温度 '+n+'/2 次）</span>':
+    '调温中：'+CFG.T.toFixed(2)+'℃ → '+CFG.setT+'℃（波动需&lt;0.2℃）';
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  $('#tb1').innerHTML=CFG.d3.length?`<table><tr><th>次数</th>${CFG.d3.map((_,i)=>`<th>${i+1}</th>`).join('')}</tr><tr><td>d /mm</td>${
+    CFG.d3.map(v=>`<td>${v.toFixed(3)}</td>`).join('')}</tr><tr class="hl"><td colspan="${CFG.d3.length+1}">当前平均 d = ${CFG.dmean.toFixed(4)} mm${CFG.d3.length<8?'（已测 '+CFG.d3.length+'/8 次）':''}</td></tr></table>`:'尚未测量。';
+  $('#tb2').innerHTML=CFG.rows.length?`<table><tr><th>温度/℃</th><th>t₁/s</th><th>t₂/s</th><th>t̄/s</th><th>v₀/(m/s)</th><th>η/(Pa·s)</th><th>η'/(Pa·s)</th><th>Re</th><th>标准值</th><th>相对误差</th></tr>${
+    CFG.rows.map(r=>`<tr><td>${r.T}</td><td>${r.t1.toFixed(2)}</td><td>${r.t2.toFixed(2)}</td><td>${r.tAvg.toFixed(2)}</td><td>${r.v.toFixed(4)}</td><td>${r.eta.toFixed(4)}</td><td>${r.etaP.toFixed(4)}</td><td>${r.Re.toFixed(3)}</td><td>${r.std!=null?r.std.toFixed(3):'—'}</td><td>${r.rel!=null?r.rel.toFixed(2)+' %':'—'}</td></tr>`).join('')
+    }</table>`:'尚未测量。';
+  if(CFG.rows.length){
+    const cmp=CFG.rows.filter(r=>r.rel!=null);
+    const mx=cmp.length?Math.max(...cmp.map(r=>r.rel)):0;
+    const ok=CFG.rows.length>=5&&mx<5;
+    $('#concl').innerHTML=
+      `<div class="kv"><span>测量温度数 / 每温度次数</span><b>${CFG.rows.length} 个 × 2 次</b></div>`+
+      `<div class="kv"><span>有标准值温度（10/20/30/40℃）最大相对误差</span><b class="${ok?'good':''}">${mx.toFixed(2)} %</b></div>`+
+      `<div class="kv"><span>黏度范围</span><b>${Math.min(...CFG.rows.map(r=>r.eta)).toFixed(3)} ~ ${Math.max(...CFG.rows.map(r=>r.eta)).toFixed(3)} Pa·s</b></div>`+
+      (ok?'<div class="good">✔ 各温度 η 与标准值一致（&lt;5%），η 随温度升高近似指数下降，实验成功</div>'
+         :'<div style="color:#ff8a80">✘ 偏差偏大：检查直径读数、计时与温度平衡</div>');
+  } else $('#concl').innerHTML='完成测量后自动给出结论。';
+}
+function drawEtaCurve(){
+  const cv=$('#etaCurve'), g=cv.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,392,240);
+  const L=44,T0=16,W=330,H=190;
+  g.strokeStyle='#1d3252'; g.strokeRect(L,T0,W,H);
+  const ylo=Math.log10(0.03),yhi=Math.log10(4);
+  const Y=v=>T0+H-(Math.log10(v)-ylo)/(yhi-ylo)*H;
+  g.font='10px Consolas,monospace'; g.fillStyle='#6fa8dc'; g.textAlign='right';
+  [0.05,0.1,0.2,0.5,1,2].forEach(v=>{ g.fillText(v.toString(),L-4,Y(v)+3);
+    g.strokeStyle='rgba(80,220,160,.15)'; g.beginPath(); g.moveTo(L,Y(v)); g.lineTo(L+W,Y(v)); g.stroke(); });
+  const ts=CFG.rows.map(r=>r.T).sort((a,b)=>a-b);
+  g.textAlign='center';
+  ts.forEach(T=>{ if(T%10===0||T===15||T===55) g.fillText(T+'℃',L+W*(T-8)/(57-8),T0+H+14); });
+  g.fillStyle='#9fc3e8'; g.save(); g.translate(12,T0+H/2); g.rotate(-Math.PI/2);
+  g.fillText('η / (Pa·s)（对数）',0,0); g.restore();
+  const pts=[...CFG.rows].sort((a,b)=>a.T-b.T);
+  g.strokeStyle='#57e389'; g.lineWidth=1.8; g.beginPath();
+  pts.forEach((r,i)=>{ const x=L+W*(r.T-8)/(57-8); i?g.lineTo(x,Y(r.eta)):g.moveTo(x,Y(r.eta)); });
+  g.stroke(); g.lineWidth=1;
+  pts.forEach(r=>{
+    const x=L+W*(r.T-8)/(57-8);
+    g.fillStyle=r.std!=null?'#ffd54f':'#57e389';
+    g.beginPath(); g.arc(x,Y(r.eta),3.4,0,7); g.fill();
+    if(r.std!=null){ g.strokeStyle='#ff8a80'; g.beginPath();
+      g.moveTo(x-4,Y(r.std)); g.lineTo(x+4,Y(r.std)); g.stroke(); }
+  });
+  g.fillStyle='#ffd54f'; g.textAlign='left'; g.font='11px "Microsoft YaHei",sans-serif';
+  g.fillText('● 测量值　— 标准值（10/20/30/40℃）',L+8,T0+14);
+  $('#curveNote').textContent='蓖麻油 η 随温度升高近似指数下降：20℃≈0.99 → 40℃≈0.23 → 55℃≈0.09 Pa·s。';
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  CFG.checked=true; $('#chkState').innerHTML='<span class="good">✔ 已检查（示例）</span>';
+  CFG.d3=Array.from({length:8},(_,i)=>2.000+(i%3-1)*0.003);
+  CFG.dmean=2.000;
+  $('#cntD').textContent='　第 8/8 次';
+  $('#dState').innerHTML='8 次读数（示例）：2.003 / 1.997 / 2.000 / 2.001 / 1.999 / 2.002 / 1.998 / 2.000 mm<br>平均 d=<b>2.0000 mm</b>';
+  CFG.screw=[50,50,50]; CFG.leveled=true;
+  ['#sS1','#sS2','#sS3'].forEach((sel,i)=>{ $(sel).value=50; $(sel).disabled=true; $('#vS'+(i+1)).textContent='50'; });
+  lvlDot.position.x=AX+0.045; lvlDot.position.z=0.045;
+  CFG.pidOn=true; CFG.setT=30; CFG.T=30.0; CFG.TH=30.0; CFG.Toil=30.0; CFG.equilibrated=true; CFG.transT=96;
+  gl.ret=null; gl.grab=false; ball.visible=true; ball.material.opacity=1;
+  ball.position.set(AX,tubeTop-0.012,0);   // 示例：球置于管口供磁铁回收动画
+  pidLedHeatM.color.setHex(0xff5252); pidLedExpM.color.setHex(0x69f0ae);
+  document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',+x.dataset.t===30));
+  CFG.rowsT={}; CFG.rows=[]; CFG.hist=[]; CFG.histN=60;
+  for(let i=0;i<60;i++) CFG.hist.push({T:30+(i<30?(30-i)/30*4*Math.exp(-i/6):0)});
+  for(const T of [10,20,30,40,50]){
+    const eta=etaTrue(T), v0=v0Of(0.002,eta), t=TRUE.L/v0;
+    const t1=t*(1+0.003*(Math.random()+Math.random()-1));
+    const t2=t*(1+0.003*(Math.random()+Math.random()-1));
+    CFG.rowsT[T]=[t1,t2];
+    computeRow(T,t1,t2);
+  }
+  drawEtaCurve(); CFG.curveDrawn=true;
+  gl.magMode='final'; gl.ballAtBot=false; gl.magnetAnim='descend'; magnet.visible=true;   // 回收动画自动播放
+  $('#endState').textContent='示例：曲线已绘制，钢球回收中…';
+  $('#runState').innerHTML='<span class="good">✔ 示例数据已载入（30℃ 平衡）</span>';
+  checkSteps(); renderData();
+  toast('<b>已自动完成全部测量</b>（5 个温度 × 2 次计时 + η 计算 + 曲线 + 回收）。查看「数据处理」页。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(CFG,{checked:false,d3:[],dmean:null,leveled:false,setT:null,pidOn:false,
+    T:20.0,TH:20.0,Toil:20.0,equilibrated:false,eqTimer:0,transT:null,integ:0,
+    rowsT:{},rows:[],curveDrawn:false,recovered:false});
+  CFG.screw=[65,35,65];
+  gl.ballDrop=false; gl.bubble=0.005; gl.magnetAnim=null;
+  gl.grab=false; gl.ret=null; gl.justGrabbed=false; gl.ballAtBot=false; controls.enabled=true;
+  ball.visible=true; ball.material.opacity=1; ball.position.copy(BALL_REST);
+  magnet.visible=false; twGrp.visible=false; mouthRing.visible=false;
+  lvlDot.position.x=AX+0.045+0.00012; lvlDot.position.z=0.045+0.0006;
+  ['#sS1','#sS2','#sS3'].forEach((sel,i)=>{ $(sel).value=CFG.screw[i]; $(sel).disabled=true; $('#vS'+(i+1)).textContent=CFG.screw[i]; });
+  $('#cntD').textContent='　第 0/8 次';
+  pidLedHeatM.color.setHex(0x3a1512); pidLedExpM.color.setHex(0x12331d);
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+  $('#chkState').textContent='未检查';
+  $('#dState').textContent='未测量。真实流程：钢球夹于测砧间，读主尺+微分筒（分度 0.01 mm），每次稍换方位估读 1/10 分度。';
+  $('#lvlState').textContent='水准泡偏离中心 —— 观察气泡朝哪侧偏，松哪侧/紧哪侧螺钉';
+  $('#runState').textContent='等待温控平衡'; $('#endState').textContent='完成 ≥5 个温度后绘制曲线并回收钢球。';
+  $('#curveNote').textContent='完成 ≥5 个温度后点击「绘制 η-T 曲线」。纵轴为对数坐标。';
+  CFG.hist=[]; CFG.histN=60;
+  checkSteps(); renderData();
+  const g=$('#etaCurve').getContext('2d'); g.clearRect(0,0,392,240);
+  toast('实验已重置');
+};
+
+/* ================= 3D 点击拾取（部件说明卡） ================= */
+canvas.addEventListener('pointerup',e=>{
+  if(gl.justGrabbed){ gl.justGrabbed=false; return; }   // 刚用镊子夹过钢球，不弹说明卡
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const pick=[[tube,'样品管','待测液体（蓖麻油）装在细长样品管中，管壁刻度 5~25cm 用于计时（L=20cm）。'],
+              [jacket,'加热水套','连接 PID 温控仪，热循环水使液体温度较快与水温平衡。'],
+              [oil,'蓖麻油（待测液体）','ρ₀=0.95×10³kg/m³。η 随温度升高近似指数下降：20℃≈0.986，40℃≈0.231 Pa·s。'],
+              [ball,'小钢球','ρ=7.8×10³kg/m³，d≈2.000mm（螺旋测微器测 8 次）。匀速下落时用斯托克斯公式求 η。'],
+              [pidBox,'开放式 PID 温控仪','水箱+水泵+加热器+液晶屏（温度/功率曲线，每 15s 采集）。平衡判据：波动<0.2℃ 持续 2min → 「开始实验」。'],
+              [coolBox,'半导体制冷装置','帕尔帖效应直流制冷，用于实验结束后快速降温 —— 实验过程中禁止打开。'],
+              [hoseA,'循环水管','水泵驱动热水循环：出水→水套进水孔，出水孔回流→水箱。'],
+              [base,'底座（调节螺钉）','调节螺钉使样品管铅直（水准泡居中）。倾斜时钢球碰壁，测量作废。'],
+              [magnet,'磁铁','实验完成后将钢球吸至管口回收。'],
+              [twGrp,'镊子','沿样品管中心轻轻放入钢球，避免扰动液体。']];
+  for(const [obj,title,text] of pick){
+    if(obj.visible&&ray.intersectObject(obj,true).length){ showInfo(title,text); return; }
+  }
+  if(ray.intersectObjects(scene.children,true).length)
+    showInfo('变温黏度系数测量仪','样品管+加热水套+PID 温控仪+半导体制冷装置。落球法：η=(ρ−ρ₀)gd²/[18v₀(1+2.4d/D)]。');
+});
+
+/* ================= 主循环 ================= */
+/* 伪刚体/一阶动力学仿真：帧率无关的状态渐近积分（等价固定小步长） */
+let lastT=performance.now();          // 时间源：performance.now()（禁 Date.now 混算）
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){   // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+const SPD_T=10;                       // 温控时间 10× 加速（每 15s 采集 = 墙钟 1.5s）
+let simClock=0, histClock=0; CFG.hist=[]; CFG.histN=60;
+function loop(){
+  requestAnimationFrame(loop);        // 主循环首行，防冻屏
+  resize();
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;                  // 钳制切后台时间跳变
+  const dts=dt*SPD_T;
+  /* —— PID 温控动力学（加热器热惯性 TH → 水温 T，产生教材所述超调） —— */
+  if(CFG.pidOn&&CFG.setT!=null){
+    if(CFG.setT>CFG.T+0.05){
+      CFG.integ=Math.max(-40,Math.min(40,(CFG.integ||0)+(CFG.setT-CFG.T)*dts));  // 积分项
+      const P=heaterPower();
+      CFG.TH+=(P*0.055-(CFG.TH-CFG.T)*0.8-(CFG.TH-22)*0.02)*dts;
+      CFG.T+=(CFG.TH-CFG.T)*0.15*dts;
+    } else {
+      CFG.integ=(CFG.integ||0)*Math.max(0,1-0.15*dts);                           // 偏差反向/消失时退饱和
+      if(CFG.setT<CFG.T-0.05){         // 降温：制冷补偿环境漏热（自然冷却会被室温项卡在静差）
+        CFG.TH+=((CFG.T-CFG.TH)*0.8)*dts;
+        CFG.T+=(-(CFG.T-CFG.setT)*0.08)*dts;
+      } else {                         // 保持区间：微调趋向设定值
+        CFG.TH+=((CFG.T-CFG.TH)*0.8)*dts;
+        CFG.T+=((CFG.setT-CFG.T)*0.1)*dts;
+      }
+    }
+    CFG.Toil+=(CFG.T-CFG.Toil)*1.2*dts;
+    simClock+=dts; histClock+=dts;
+    if(histClock>=2&&CFG.hist.length<CFG.histN){ CFG.hist.push({T:CFG.T}); histClock=0; }
+    const eq=Math.abs(CFG.T-CFG.setT)<0.2&&Math.abs(CFG.TH-CFG.T)<0.6&&Math.abs(CFG.Toil-CFG.setT)<0.3;
+    CFG.eqTimer=eq?CFG.eqTimer+dts:0;
+    if(eq&&!CFG.equilibrated&&CFG.eqTimer>10){
+      CFG.equilibrated=true; CFG.transT=simClock;
+      pidLedExpM.color.setHex(0x69f0ae);
+      toast('<b style="color:#69f0ae">'+CFG.setT+'℃ 已平衡</b>（波动&lt;0.2℃，过渡时间 '+simClock.toFixed(0)+' s）—— 「开始实验」：<b>按住托盘上的钢球拖到管口松手</b>投放');
+      checkSteps();
+    }
+    if(!eq) CFG.equilibrated=false;
+    glowLight.intensity=0.15+heaterPower()/100*0.5;
+    /* 水流粒子沿循环管 */
+    flowDots.forEach((d,i)=>{
+      const u=((now*0.00006+i/7)%1), cu=u<0.5?hoseCurveA:hoseCurveB;
+      d.position.copy(cu.getPointAt((u%0.5)*2));
+      d.visible=true; d.material.opacity=0.5+0.4*Math.sin(now*0.01+i);
+    });
+  } else flowDots.forEach(d=>d.visible=false);
+  /* —— 水准泡：由三螺钉滑块直接控制（updLvl），此处仅轻微呼吸 —— */
+  if(!CFG.leveled&&CFG.checked) lvlDot.material.emissiveIntensity=.7+.2*Math.sin(now*.006);
+  /* —— 落球（画面用视觉速度 ~10~30 s 落完；秒表/记录按真实终端时间换算） —— */
+  if(gl.ballDrop){
+    const dtsB=dt*CFG.dropSpeed;
+    if(gl.v0fix==null){                       // 投放瞬间冻结（此后改温度不影响本次）
+      const eta=etaTrue(CFG.Toil);
+      gl.v0fix=0.02*Math.pow(0.451/eta,0.4)*(CFG.invalid?0.55:1);   // 视觉速度：η 越大越慢
+      const v0=v0Of(CFG.dmean/1000,eta);                            // 真实终端速度
+      gl.tScale=gl.v0fix/v0;                                        // 秒表换算：真实t=L/v0=动画时长×(vVis/v0)
+    }
+    const v0=gl.v0fix;
+    gl.ballV+=(v0-gl.ballV)*Math.min(1,dtsB/0.25);
+    gl.ballT+=dtsB;
+    const dx=CFG.invalid?Math.min(0.006,gl.ballT*0.004):0;
+    ball.position.x=AX+dx;
+    ball.position.y-=gl.ballV*dtsB;
+    const h=ball.position.y-MARK0;                       // 距 0 刻度高度
+    if(gl.swStart==null&&h<=0.25){ gl.swStart=gl.ballT; gl.swT=0; }
+    else if(gl.swStart!=null&&gl.swT!=null&&!gl.swDone) gl.swT=(gl.ballT-gl.swStart)*gl.tScale;
+    if(h<=0.05&&gl.swT!=null&&!gl.swDone){
+      gl.swDone=true;
+      const tMeas=gl.swT*(1+0.003*(Math.random()+Math.random()-1));
+      gl.lastT=tMeas;
+      if(CFG.invalid){
+        toast('<b style="color:#ff8a80">本次作废</b>：样品管倾斜，钢球碰壁下落异常。请先「调节底座螺钉」使水准泡居中');
+      } else {
+        (CFG.rowsT[CFG.setT]=CFG.rowsT[CFG.setT]||[]).push(tMeas);
+        const arr=CFG.rowsT[CFG.setT];
+        if(arr.length>=2) computeRow(CFG.setT,arr[0],arr[1]);
+        else toast(CFG.setT+'℃ 第 1 次计时：t=<b>'+tMeas.toFixed(2)+' s</b>，请再测 1 次');
+        renderData();
+      }
+      checkSteps();
+    }
+    if(ball.position.y<=MARK0+0.004||h<=0.052&&gl.swDone&&ball.position.y<MARK0+0.02){
+      /* 到底：钢球留在管底，等磁铁吸回 */
+      gl.ballDrop=false; gl.swDone=false; gl.ballAtBot=true;
+      ball.position.x=AX; ball.position.y=MARK0+0.004;
+      const nDone=(CFG.rowsT[CFG.setT]||[]).length;
+      $('#runState').innerHTML='钢球落至管底 —— 点「<b>磁铁吸球</b>」取回（本温度 '+nDone+'/2 次已完成）';
+      toast('<b>钢球已落至样品管底</b>：点击「磁铁吸球」将其吸至管口取回，再进行下次投放');
+      checkSteps();
+    }
+  }
+  /* —— 钢球回托盘动画（未对准管口松手 / 落球结束） —— */
+  if(gl.ret){
+    gl.ret.t+=dt*2.2;
+    const u=Math.min(1,gl.ret.t);
+    ball.position.lerpVectors(gl.ret.from,gl.ret.to,u);
+    if(u>=1) gl.ret=null;
+  }
+  /* —— 管口投放环：夹持悬停时呼吸脉冲 —— */
+  if(mouthRing.visible) mouthRing.material.opacity=0.55+0.4*Math.sin(now*0.008);
+  /* —— 磁铁回收动画 —— */
+  if(gl.magnetAnim==='descend'){
+    magnet.position.y-=(magnet.position.y-(ball.position.y+0.014))*Math.min(1,dt*3);
+    if(Math.abs(magnet.position.y-(ball.position.y+0.014))<0.001) gl.magnetAnim='rise';
+  } else if(gl.magnetAnim==='rise'){
+    ball.position.y+=(magnet.position.y-0.014-ball.position.y)*Math.min(1,dt*2.5);
+    magnet.position.y+=dt*0.06;
+    if(ball.position.y>tubeTop-0.016){
+      gl.magnetAnim=null; gl.ballAtBot=false;
+      gl.ret={from:ball.position.clone(),to:BALL_REST.clone(),t:0};   // 由管口送回托盘
+      setTimeout(()=>{ magnet.visible=false; },600);
+      if(gl.magMode==='final'){
+        CFG.recovered=true;
+        toast('<b style="color:#69f0ae">钢球已回收</b>（磁铁吸至管口，夹入蓖麻油保存）—— 实验全部完成！');
+        $('#endState').innerHTML='<span class="good">✔ η-T 曲线已绘制，钢球已回收 —— 实验完成</span>';
+      } else {
+        toast('<b>钢球已吸至管口</b>，放回托盘待命 —— 可进行下次投放');
+      }
+      checkSteps();
+    }
+  }
+  drawPidLcd(); drawPID(); drawSW();
+  controls.update(); renderer.render(scene,camera);
+}
+/* 首帧初始化：先渲染有效首帧，再启动主循环 */
+gl.bubble=0.005;
+checkSteps(); renderData(); drawPidLcd(); drawPID(); drawSW();
+resize(); renderer.render(scene,camera);
+loop();
+
+/* 暴露状态供自查脚本轮询（轮询状态变量而非固定 sleep） */
+window.CFG=CFG; window.TRUE=TRUE; window.gl=gl;
+window.etaTrue=etaTrue; window.v0Of=v0Of; window.computeRow=computeRow; window.heaterPower=heaterPower;
+</script>
+</body>
+</html>

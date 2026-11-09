@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验3 · 电压补偿在伏安法测电阻中的应用</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+#meterBox{position:absolute;left:14px;bottom:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:10px}
+#meterBox canvas{width:150px;background:#f5f2ea;border:1px solid var(--line);border-radius:6px}
+#benchRead{position:absolute;left:14px;top:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;font-variant-numeric:tabular-nums}
+#benchRead b{color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+aside{width:440px;flex:0 0 440px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 100px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums} td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.mv{font-size:12px;color:var(--muted)} .mv b{color:#57e389;font-family:Consolas,monospace}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验3 · 电压补偿在伏安法测电阻中的应用</h1>
+  <span class="tag">R=U/I · 内接 <b>R测=R_X+R_A</b> · 外接 <b>R测=(R_X∥R_V)+R_A</b> · 补偿法 G 指零消除系统误差</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动调好并填示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="benchRead"></div>
+  <div id="meterBox">
+    <canvas id="cvV" width="300" height="180"></canvas>
+    <canvas id="cvA" width="300" height="180"></canvas>
+    <canvas id="cvG" width="300" height="180"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>连接伏安法电路并开机</b>：按图 2.3.1 依次连接工作回路与电压表支路（5 步接线），接通电源开关</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>电流表内接法测量</b>：开关 K 置 1（V 并联在 A+R_X 两端），调 E 使电流表指针达 2/3 满偏以上，记录 U₁、I₁（表 2.3.1）</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>电流表外接法测量</b>：K 置 2（V 并联在 R_X 两端）——注意 V 分流会使电流增大，可能超量程需重调 E，记录 U₂、I₂</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>两种接法对比分析</b>：计算 R_X1=U₁/I₁ 与 R_X2=U₂/I₂，与标准值比较，说明内接偏大（含 R_A）、外接偏小（R_V 分流）</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>补偿法精确测量</b>：改接补偿电路（图 2.3.3，Ec+V 为补偿电源经 G 接 R_X 两端），调 E_c 使灵敏电流计 G 指零，此时 V 读数=R_X 两端真实电压、A 读数=真实电流，计算 R 并作三种方法对比</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 单次测量要求其中一个电表的指针达到满量程的 2/3 以上；② 换接 K 前应调小 E，防止电流表过载打表；③ 灵敏电流计指零判读：指针稳定指在 0 刻度（|I_G|&lt;2 μA）方可读数；④ 补偿法中 V 与 E_c 构成整体（图 2.3.3 虚线框），V 读数即补偿电压。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 接线（按序点击，跳序拦截）</h4>
+      <div id="wireList"></div>
+    </section>
+    <section>
+      <h4>电源与工作电压 E</h4>
+      <button class="b" id="btnPwr">接通电源开关</button>
+      <div class="row"><label>工作电压 E</label><input type="range" id="sldE" min="0" max="6" step="0.02" value="0"><span id="vE" style="flex:0 0 70px;text-align:right">0.00 V</span></div>
+      <div class="row">
+        <button class="b" data-de="-0.1">E−0.1</button><button class="b" data-de="-0.01">E−0.01</button>
+        <button class="b" data-de="0.01">E+0.01</button><button class="b" data-de="0.1">E+0.1</button>
+      </div>
+    </section>
+    <section>
+      <h4>②③ 单刀双掷开关 K 与记录</h4>
+      <button class="b" id="btnK">K 置 1（内接）/ 2（外接）</button>
+      <span class="mv" id="kShow">K 断开</span>
+      <div class="row"><button class="b" id="btnRec1" disabled>📋 记录内接数据（U₁、I₁）</button>
+      <button class="b" id="btnRec2" disabled>📋 记录外接数据（U₂、I₂）</button></div>
+      <div class="info">要求：电流表读数 ≥ 满量程 2/3（333 μA）方可记录；超量程（&gt;500 μA）时先调小 E。</div>
+    </section>
+    <section>
+      <h4>④ 对比分析</h4>
+      <button class="b" id="btnCalc1" disabled>📊 计算两种接法结果并比较</button>
+    </section>
+    <section>
+      <h4>⑤ 补偿法测量</h4>
+      <button class="b" id="btnComp">改接补偿电路（图 2.3.3）</button>
+      <div class="row"><label>补偿电压 E_c</label><input type="range" id="sldEc" min="0" max="6" step="0.001" value="0" disabled><span id="vEc" style="flex:0 0 80px;text-align:right">0.000 V</span></div>
+      <div class="row">
+        <button class="b" data-dc="-0.01" disabled>Ec−0.01</button><button class="b" data-dc="-0.001" disabled>Ec−0.001</button>
+        <button class="b" data-dc="0.001" disabled>Ec+0.001</button><button class="b" data-dc="0.01" disabled>Ec+0.01</button>
+      </div>
+      <div class="row"><button class="b" id="btnRec3" disabled>📋 记录补偿法数据（G 指零后）</button></div>
+      <div class="mv" id="compShow">补偿电路未接入</div>
+      <button class="b" id="btnCalc2" disabled>📊 三种方法最终对比</button>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.3.1　伏安法测电阻（内接/外接对比）</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>表 2.3.2　补偿法测量数据</h4>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>三种方法对比与结论</h4>
+      <div id="conclude" class="info">完成内/外接记录后点「计算比较」；补偿法记录后点「三种方法最终对比」。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>伏安法与系统误差</h4>
+      <div class="formula">R = U / I　（2.3.1）</div>
+      <div class="info">电流表内接法（K 置 1）：V 并联在 A+R_X 两端，R_X1=U₁/I₁=R_X+R_A，结果<b>偏大</b>，绝对误差 R_A；修正 R_X=R_X1−R_A。电流表外接法（K 置 2）：V 并联在 R_X 两端，R_X2=U₂/I₂≈R_X∥R_V，结果<b>偏小</b>；修正 R_X=R_X2R_V/(R_V−R_X2)。当 R_X≫R_A 选内接、R_V≫R_X 选外接可减小系统误差。</div>
+    </section>
+    <section>
+      <h4>补偿法测电压原理</h4>
+      <div class="info">用可调且可精确读数的补偿电源 E_c 与待测电压反向串联，经灵敏电流计 G 构成回路。调 E_c 使 G 读数为零，两电压大小相等——此时测量支路<b>无电流</b>，电压表不再从被测支路分流，彻底消除电压表内阻引起的系统误差。</div>
+    </section>
+    <section>
+      <h4>补偿法应用电路（图 2.3.3）</h4>
+      <div class="formula">G 指零 ⟹ U_V = E_c = U_(R_X)，I_A = U/E? I_A = 真实电流 ⟹ R_X = E_c / I_A</div>
+      <div class="info">可调电源 E_c 与电压表 V 视为整体（补偿电源），经 G 接到 R_X 两端。平衡时 A 的读数就是通过 R_X 的真实电流，故 R=E_c/I_A 最精确。</div>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <div class="info">双路直流稳压电源（工作路 E 0~6 V、补偿路 E_c 0~6 V 可精读 1 mV）、直流电压表 V（0~5 V，内阻 200 kΩ）、直流电流表 A（0~500 μA，内阻 50 Ω）、灵敏电流计 G（±100 μA，零位居中）、单刀双掷开关 K、待测电阻 R_X（标称 10 kΩ）。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 内接法与外接法的系统误差各由什么引起？如何修正？<br>(2) 为什么补偿法能消除电压表分流带来的误差？<br>(3) 若 G 始终无法指零，可能有哪些原因？<br>(4) 补偿法与半偏法测表内阻有何异同？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),4200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数与状态 ================= */
+const RX=10000;            // 待测电阻真值 Ω（面板只标"待测"）
+const RA=50;               // 电流表内阻
+const RV=200000;           // 电压表内阻
+const IMAX=500, VMAX=5;    // 表量程：A 500μA、V 5V
+const RG=1000, GMAX=100;   // G 内阻 1kΩ、量程 ±100μA
+const RXP=RA+RX;                   // 内接总阻 10050
+const RPAR=RX*RV/(RX+RV);          // 外接并联 9523.8
+const RXP2=RA+RPAR;                // 外接总阻 9573.8
+const state={
+  pwr:false, E:0, Ec:0, K:0,                 // K: 0断 1内接 2外接
+  conn:[false,false,false,false,false],      // 5 步接线
+  compMode:false, compConn:[false,false,false],
+  rec1:null, rec2:null, rec3:null, calc1:false, calc2:false,
+  done1:false,done2:false,done3:false,done4:false,done5:false
+};
+/* 电路求解：返回 {I(μA), Uv(V), Ig(μA), Urx(V)} */
+function circuit(){
+  if(!state.pwr||state.E<=0||!state.conn.every(Boolean)) return {I:0,Uv:0,Ig:0,Urx:0};
+  if(state.compMode){
+    if(!state.compConn.every(Boolean)) return {I:0,Uv:0,Ig:0,Urx:0};
+    const I=state.E/RXP;                       // A 真实电流（G 支路电流极小忽略）
+    const Urx=I*RX;
+    const ig=(Urx-state.Ec)/RG*1e6;            // G 电流 μA（Urx 与 Ec 反串）
+    return {I:I*1e6, Uv:state.Ec, Ig:ig, Urx};
+  }
+  if(state.K===1){
+    const I=state.E/RXP;
+    return {I:I*1e6, Uv:I*RXP, Ig:0, Urx:I*RX};
+  }
+  if(state.K===2){
+    const I=state.E/RXP2;
+    return {I:I*1e6, Uv:I*RPAR, Ig:0, Urx:I*RPAR};
+  }
+  return {I:0,Uv:0,Ig:0,Urx:0};
+}
+const ovA=c=>c.I>IMAX*1.02;
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,180,520);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(14,31,76); camera.lookAt(0,9,0);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,9,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8fa0bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.0); dl.position.set(50,110,80); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+/* 桌面 */
+const desk=new THREE.Mesh(new THREE.BoxGeometry(120,3,46), M(0x3d4a5c,{roughness:.75}));
+desk.position.y=1.5; scene.add(desk);
+/* 香蕉端子 */
+function jack(x,y,z,c){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.42,.5,.5,12), M(0x14161a)); base.position.y=.25; g.add(base);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.26,.26,.8,10), M(c,{metalness:.3})); head.position.y=.8; g.add(head);
+  g.position.set(x,y,z); return g;
+}
+/* 双路直流稳压电源（双数码屏+粗细调旋钮+端子排+电源开关） */
+const srcG=new THREE.Group();
+const sbody=new THREE.Mesh(new THREE.BoxGeometry(30,16,10), M(0xd9dce1,{roughness:.45})); sbody.position.y=8; srcG.add(sbody);
+const srcCv=document.createElement('canvas'); srcCv.width=600; srcCv.height=320; window.__srcCv=srcCv;
+const sg2=srcCv.getContext('2d'); const srcTex=new THREE.CanvasTexture(srcCv);
+/* 面板丝印：标题/分区/数码屏黑框/旋钮座/端子标 */
+(function drawSrcPanel(){
+  const g=sg2;
+  g.fillStyle='#e4e6ea'; g.fillRect(0,0,600,320);
+  g.fillStyle='#3a3f46'; g.font='bold 24px Arial'; g.textAlign='center';
+  g.fillText('双 路 直 流 稳 压 电 源',300,32);
+  g.font='15px Arial'; g.fillStyle='#6a7280';
+  g.fillText('WORK E（工作回路）',150,62); g.fillText('COMP E_c（补偿电源 · 1 mV）',450,62);
+  /* 两块数码屏黑框 */
+  [[70,84],[370,84]].forEach(p=>{
+    g.fillStyle='#101418'; g.fillRect(p[0],p[1],160,74);
+    g.strokeStyle='#2a3341'; g.strokeRect(p[0],p[1],160,74);
+  });
+  /* 旋钮座 */
+  g.strokeStyle='#9aa0a8'; g.lineWidth=2;
+  g.beginPath(); g.arc(150,238,34,0,7); g.stroke();
+  g.beginPath(); g.arc(450,238,34,0,7); g.stroke();
+  g.fillStyle='#3a3f46'; g.font='14px Arial';
+  g.fillText('VOLTAGE 调节',150,292); g.fillText('VOLTAGE 调节',450,292);
+  g.fillText('E  0~6 V',150,258); g.fillText('E_c 0~6 V',450,258);
+  /* 端子标 */
+  g.font='bold 14px Arial';
+  g.fillText('E+',165,308); g.fillText('E−',220,308); g.fillText('E_c+',375,308); g.fillText('E_c−',430,308);
+  g.fillStyle='#2f965e'; g.fillText('POWER',300,308);
+})();
+const sscr=new THREE.Mesh(new THREE.PlaneGeometry(28.5,15.2), new THREE.MeshBasicMaterial({map:srcTex}));
+sscr.position.set(0,8,5.06); srcG.add(sscr);
+/* 数码屏数值（每次先重绘黑框再画数字） */
+function drawSrcNums(){
+  sg2.fillStyle='#101418'; sg2.fillRect(70,84,160,74); sg2.fillRect(370,84,160,74);
+  sg2.font='bold 40px Consolas'; sg2.textAlign='center';
+  sg2.fillStyle='#ff5a3c';
+  sg2.fillText(fmt(state.E,2),150,138);
+  sg2.fillText(fmt(state.Ec,3),450,138);
+  srcTex.needsUpdate=true;
+}
+function knob(x,y){
+  const g=new THREE.Group();
+  const k=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.25,1.1,20), M(0x494f58,{metalness:.35,roughness:.5})); k.rotation.x=Math.PI/2; g.add(k);
+  const mk=new THREE.Mesh(new THREE.BoxGeometry(.2,.85,.14), M(0xf2f4f6)); mk.position.set(0,.4,.6); g.add(mk);
+  g.position.set(x,y,5.2); srcG.add(g); g.userData.mark=mk; return g;
+}
+const knE=knob(-10,11.5), knEc=knob(10,11.5);
+knE.userData.mark.rotation.y=0;      /* 旋钮指示随滑条更新 */
+/* 端子排（面板下沿）+ 电源开关 */
+srcG.add(jack(-10.5,1.2,5,0xc23b3b)); srcG.add(jack(-8,1.2,5,0x2a2d33));
+srcG.add(jack(8,1.2,5,0xc23b3b));    srcG.add(jack(10.5,1.2,5,0x2a2d33));
+const psw3=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.4,.6), M(state.pwr?0x2f965e:0x9c3d33,{roughness:.5}));
+psw3.position.set(0,1.6,5.1); srcG.add(psw3);
+srcG.position.set(0,3,-14); scene.add(srcG);
+tag(srcG,'双路直流稳压电源','左路 E：工作回路电源（0~6 V）；右路 E_c：补偿电源，可精读至 1 mV。端子排：左 E+/E−、右 E_c+/E_c−。开机前调零。');
+/* 表头通用外壳 */
+function meterCase(w,h,d,faceW,faceH){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), M(0xe8e2d4,{roughness:.55})); body.position.y=h/2; g.add(body);
+  return g;
+}
+/* 表盘 canvas：白底黑刻度弧+红色指针绘制在纹理中（指针角度动态） */
+function makeMeter(sel,label,unit,lo,hi,zeroMid){
+  const cv=document.querySelector(sel); cv.width=300; cv.height=180;
+  const g=cv.getContext('2d');
+  const tex=new THREE.CanvasTexture(cv);
+  const key=sel.slice(1);                       // 'cvV' → window.mV
+  window[key]={cv,g,tex,face:null,lo,hi,zeroMid,val:0,label,unit};
+  return window[key];
+}
+const mV=makeMeter('#cvV','直流电压表','V',0,5,false);
+const mA=makeMeter('#cvA','直流电流表','μA',0,500,false);
+const mG=makeMeter('#cvG','灵敏电流计','μA',-100,100,true);
+function placeMeter(m,x,z,w,h,d){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), M(0xe8e2d4,{roughness:.55})); body.position.y=h/2; g.add(body);
+  m.face=new THREE.Mesh(new THREE.PlaneGeometry(w-1.2,(w-1.2)*0.6), new THREE.MeshBasicMaterial({map:m.tex}));
+  m.face.position.set(0,h/2+0.4,d/2+0.06); g.add(m.face);
+  g.add(jack(-w/4,0,d/2+0.01,0xc23b3b)); g.add(jack(w/4,0,d/2+0.01,0x2a2d33));
+  g.position.set(x,3,z); scene.add(g); return g;
+}
+const Vg=placeMeter(mV,-24,8,12,10,7);
+const Ag=placeMeter(mA,-8,12,12,10,7);
+const Gg=placeMeter(mG,8,12,12,10,7);
+tag(Vg,'直流电压表 V（0~5 V）','内阻 200 kΩ。内接法测 A+R_X 全压、外接法测 R_X 分压；补偿法中与 E_c 构成补偿电源整体，读数即 R_X 两端真实电压。');
+tag(Ag,'直流电流表 A（0~500 μA）','内阻 50 Ω。指针超过满量程会打表过载——换接 K 后务必先检查。要求记录时读数≥2/3 满偏。');
+tag(Gg,'灵敏电流计 G（±100 μA，零位居中）','补偿回路平衡指示：指针指 0 说明补偿电压与被测电压相等，此时测量支路无电流、无系统误差。');
+/* 待测电阻（瓷体功率电阻+色环，装 PCB 支架） */
+const rxG=new THREE.Group();
+const pcb3=new THREE.Mesh(new THREE.BoxGeometry(9,.5,6), M(0x0e3d24,{roughness:.55})); pcb3.position.y=.25; rxG.add(pcb3);
+const rBody=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,5,20), M(0xd8c9a8,{roughness:.5}));
+rBody.rotation.z=Math.PI/2; rBody.position.y=3.2; rxG.add(rBody);
+[[0x8a5a2a,-1.5],[0x14161a,-0.9],[0xc23b2e,-0.3],[0xc9a53a,0.4]].forEach(b=>{
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(.94,.94,.34,20), M(b[0]));
+  ring.rotation.z=Math.PI/2; ring.position.set(b[1],3.2,0); rxG.add(ring);
+});
+[[-3,0],[3,0]].forEach(p=>{
+  const lead=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.6,8), M(0xc9ccd2,{metalness:.7}));
+  lead.rotation.z=Math.PI/2; lead.position.set(p[0],3.2,0); rxG.add(lead);
+});
+rxG.add(jack(-3.4,0,3,0xc23b3b)); rxG.add(jack(3.4,0,3,0x2a2d33));
+rxG.position.set(16,3,4); scene.add(rxG);
+tag(rxG,'待测电阻 R_X','标称 10 kΩ（色环：棕黑橙金），装于测试支架。真值由实验室约定标准值给出，用于误差评估。');
+/* 单刀双掷开关 K */
+const kG=new THREE.Group();
+const kbase=new THREE.Mesh(new THREE.BoxGeometry(10,1,6), M(0x2c313a,{roughness:.6})); kbase.position.y=.5; kG.add(kbase);
+const kCv=document.createElement('canvas'); kCv.width=200; kCv.height=96;
+const kg2=kCv.getContext('2d');
+kg2.fillStyle='#2c313a'; kg2.fillRect(0,0,200,96);
+kg2.fillStyle='#c8cdd4'; kg2.font='bold 30px Arial'; kg2.textAlign='center';
+kg2.fillText('K · 内接 1',60,34); kg2.fillText('外接 2',146,34);
+kg2.font='16px Arial'; kg2.fillStyle='#8b98a9';
+kg2.fillText('V 公共',60,62); kg2.fillText('1 / 2',146,62);
+const kTex=new THREE.CanvasTexture(kCv);
+const kTop=new THREE.Mesh(new THREE.PlaneGeometry(9.4,4.4), new THREE.MeshStandardMaterial({map:kTex,roughness:.6}));
+kTop.rotation.x=-Math.PI/2; kTop.position.y=1.01; kG.add(kTop);
+const kLeverG=new THREE.Group();
+const klRod=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,3.4,12), M(0xc9ccd2,{metalness:.6})); klRod.position.y=1.4; kLeverG.add(klRod);
+const klTip=new THREE.Mesh(new THREE.SphereGeometry(.45,14,10), M(0xc23b3b)); klTip.position.y=3.1; kLeverG.add(klTip);
+kLeverG.position.set(-2,1,0); kG.add(kLeverG);
+kG.add(jack(-4.6,1,3,0xc23b3b)); kG.add(jack(-0.8,1,3,0x3b7ac2)); kG.add(jack(3.2,1,3,0x3b7ac2));
+kG.position.set(2,3,-4); scene.add(kG);
+tag(kG,'单刀双掷开关 K','V 表公共端选择：掷 1（内接）V 并联 A+R_X 两端；掷 2（外接）V 并联 R_X 两端。竖直为断开。');
+/* 导线（带香蕉插头+金属插尖） */
+function wire(a,b,color){
+  const mid=a.clone().add(b).multiplyScalar(.5); mid.y=Math.max(a.y,b.y)+4.5;
+  const cur=new THREE.CatmullRomCurve3([a,mid,b]);
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(cur,26,.15,8), M(color)));
+  [a,b].forEach((p,i)=>{
+    const dir=cur.getTangent(i===0?0:1).normalize();
+    const plug=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,1.5,12), M(color));
+    plug.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    plug.position.copy(p).addScaledVector(dir,0.75); g.add(plug);
+    const tip=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.7,10), M(0xc9ccd2,{metalness:.75}));
+    tip.quaternion.copy(plug.quaternion);
+    tip.position.copy(p).addScaledVector(dir,1.85); g.add(tip);
+  });
+  return g;
+}
+/* 端子世界坐标 */
+const T_E1=new THREE.Vector3(-10.5,4.9,-9), T_E2=new THREE.Vector3(-8,4.9,-9);
+const T_C1=new THREE.Vector3(8,4.9,-9),    T_C2=new THREE.Vector3(10.5,4.9,-9);
+const T_V1=new THREE.Vector3(-27,3.6,11.5), T_V2=new THREE.Vector3(-21,3.6,11.5);
+const T_A1=new THREE.Vector3(-11,3.6,15.5), T_A2=new THREE.Vector3(-5,3.6,15.5);
+const T_G1=new THREE.Vector3(5,3.6,15.5),   T_G2=new THREE.Vector3(11,3.6,15.5);
+const T_X1=new THREE.Vector3(12.6,3.6,7),   T_X2=new THREE.Vector3(19.4,3.6,7);
+const T_K0=new THREE.Vector3(-2.6,4.6,-1),  T_K1=new THREE.Vector3(1.2,4.6,-1), T_K2=new THREE.Vector3(5.2,4.6,-1);
+const wires=[
+  wire(T_E1.clone(),T_A1.clone(),0xcc4444),   // 0 E+ → A+
+  wire(T_A2.clone(),T_X1.clone(),0xcca23a),   // 1 A− → R_X 左
+  wire(T_X2.clone(),T_E2.clone(),0xcca23a),   // 2 R_X 右 → E−
+  wire(T_V1.clone(),T_K0.clone(),0x3b7ac2),   // 3 V+ → K 公共
+  wire(T_V2.clone(),T_X2.clone(),0x3b7ac2),   // 4 V− → R_X 右
+  wire(T_C1.clone(),T_G1.clone(),0x49c46a),   // 5 Ec+ → G+
+  wire(T_G2.clone(),T_X1.clone(),0x49c46a),   // 6 G− → R_X 左
+  wire(T_C2.clone(),T_X2.clone(),0x8a5fb0)    // 7 Ec− → R_X 右
+];
+wires.forEach((w,i)=>{ w.visible=false; scene.add(w); });
+const WIRE_NAMES=['E+ → A「+」','A「−」→ R_X 左端','R_X 右端 → E−','V「+」→ K 公共','V「−」→ R_X 右端（V 参考端）'];
+const COMP_NAMES=['E_c+ → G「+」','G「−」→ R_X 左端','E_c− → R_X 右端'];
+
+/* ================= 表盘绘制 ================= */
+function drawMeter(m,overload){
+  const cv=m.cv,g=m.g,W=300,H=180;
+  g.fillStyle='#f5f2ea'; g.fillRect(0,0,W,H);
+  const cx=W/2, cy=H*1.55, R=H*1.28;
+  const a0=Math.PI*1.18, a1=Math.PI*1.82;
+  /* 弧刻度 */
+  g.strokeStyle='#222'; g.lineWidth=2;
+  g.beginPath(); g.arc(cx,cy,R,a0,a1); g.stroke();
+  const N=50;
+  for(let i=0;i<=N;i++){
+    const a=a0+(a1-a0)*i/N;
+    const r1=R-(i%5===0?14:7);
+    g.lineWidth=i%5===0?2.4:1;
+    g.beginPath();
+    g.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);
+    g.lineTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
+    g.stroke();
+    if(i%10===0){
+      const v=m.lo+(m.hi-m.lo)*i/N;
+      g.fillStyle='#222'; g.font='15px Consolas'; g.textAlign='center';
+      g.fillText(m.zeroMid?(v===0?'0':Math.abs(v)):fmt(v,m.hi>10?0:1),cx+Math.cos(a)*(R-28),cy+Math.sin(a)*(R-28)+5);
+    }
+  }
+  /* 指针 */
+  let frac=m.zeroMid?(m.val/(m.hi)):m.val/m.hi;
+  frac=Math.max(m.zeroMid?-1:0,Math.min(1,frac));
+  const over=!m.zeroMid&&overload;
+  const ang=m.zeroMid? a0+(a1-a0)*((frac+1)/2) : a0+(a1-a0)*Math.min(1.02,Math.max(0,frac));
+  if(!over){
+    g.strokeStyle='#c22'; g.lineWidth=3;
+    g.beginPath(); g.moveTo(cx,cy);
+    g.lineTo(cx+Math.cos(ang)*(R-16),cy+Math.sin(ang)*(R-16)); g.stroke();
+  } else {
+    g.strokeStyle='#c22'; g.lineWidth=3;
+    g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+Math.cos(a1)*(R-16),cy+Math.sin(a1)*(R-16)); g.stroke();
+    g.fillStyle='#c22'; g.font='bold 22px Microsoft YaHei'; g.textAlign='center';
+    g.fillText('过载！',cx,64);
+  }
+  g.fillStyle='#222'; g.font='bold 17px Arial'; g.textAlign='center';
+  g.fillText(m.label+'　0~'+m.hi+' '+m.unit,cx,H-32);
+  g.font='16px Consolas';
+  g.fillStyle=over?'#c22':'#1a6a3c';
+  g.fillText(over?'—':fmt(m.val,Math.abs(m.val)<1?3:(m.hi>100?0:2))+' '+m.unit,cx,H-10);
+  m.tex.needsUpdate=true;
+}
+function drawAllMeters(){
+  const c=circuit();
+  mV.val=c.Uv; mA.val=c.I; mG.val=c.Ig;
+  drawMeter(mV,false);
+  drawMeter(mA,ovA(c));
+  drawMeter(mG,false);
+  drawSrcNums();
+  $('#benchRead').innerHTML='E=<b>'+fmt(state.E,2)+' V</b>　E_c=<b>'+fmt(state.Ec,3)+' V</b>　K=<b>'+(state.K===1?'1 内接':state.K===2?'2 外接':'断开')+'</b>'
+    +'<br>U=<b>'+fmt(c.Uv,3)+' V</b>　I=<b>'+fmt(c.I,1)+' μA</b>　I_G=<b>'+(Math.abs(c.Ig)<2?0:fmt(c.Ig,1))+' μA</b>'
+    +(state.compMode?('　U_Rx=<b>'+fmt(c.Urx,3)+' V</b>'):'');
+}
+
+/* ================= UI ================= */
+/* 接线列表 */
+const wireList=$('#wireList');
+function renderWires(){
+  let h='';
+  WIRE_NAMES.forEach((n,i)=>{ h+='<button class="b '+(state.conn[i]?'on':'')+'" data-w="'+i+'" '+(state.compMode?'disabled':'')+'>'+(state.conn[i]?'✓ ':'')+n+'</button>'; });
+  if(state.compMode) COMP_NAMES.forEach((n,i)=>{ h+='<button class="b '+(state.compConn[i]?'on':'')+'" data-cw="'+i+'" '+(state.compConn[i]?'disabled':'')+'>'+(state.compConn[i]?'✓ ':'')+n+'</button>'; });
+  wireList.innerHTML=h;
+  wireList.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>doWire(+b.dataset.w));
+  wireList.querySelectorAll('[data-cw]').forEach(b=>b.onclick=()=>doCompWire(+b.dataset.cw));
+}
+function doWire(i){
+  if(state.compMode){ toast('⚠ 已进入补偿模式'); return; }
+  if(state.conn[i]){ toast('该导线已接'); return; }
+  if(i>0&&!state.conn[i-1]){ toast('⚠ 请按序接线：先完成「'+WIRE_NAMES[i-1]+'」'); return; }
+  state.conn[i]=true; wires[i].visible=true;
+  renderWires(); updPanel(); checkSteps();
+  toast('✓ 已连接 '+WIRE_NAMES[i]+(state.conn.every(Boolean)?'　5 步接线完成，可接通电源':''));
+}
+function doCompWire(i){
+  if(state.compConn[i]){ toast('该导线已接'); return; }
+  if(state.compConn.filter(Boolean).length!==i){ toast('⚠ 请按序接线：先完成「'+COMP_NAMES[state.compConn.filter(Boolean).length]+'」'); return; }
+  state.compConn[i]=true; wires[5+i].visible=true;
+  renderWires(); updPanel(); drawAllMeters();
+  toast('✓ 已连接 '+COMP_NAMES[i]+(state.compConn.every(Boolean)?'　补偿回路接通：调 E_c 使 G 指零':''));
+}
+/* 电源 */
+$('#btnPwr').onclick=()=>{
+  if(!state.conn.every(Boolean)){ toast('⚠ 请先完成 5 步接线'); return; }
+  state.pwr=!state.pwr;
+  $('#btnPwr').textContent=state.pwr?'断开电源开关':'接通电源开关';
+  $('#btnPwr').classList.toggle('on',state.pwr);
+  psw3.material=M(state.pwr?0x2f965e:0x9c3d33,{roughness:.5});
+  updPanel(); checkSteps(); drawAllMeters();
+};
+/* E 调节 */
+function updE(){
+  $('#vE').textContent=fmt(state.E,2)+' V';
+  $('#sldE').value=state.E;
+  knE.userData.mark.rotation.y=-(state.E/6)*Math.PI*1.6+Math.PI*0.8;
+  drawAllMeters();
+}
+$('#sldE').addEventListener('input',e=>{ state.E=+e.target.value; updE(); });
+document.querySelectorAll('[data-de]').forEach(b=>b.onclick=()=>{
+  state.E=Math.max(0,Math.min(6,+(state.E+ +b.dataset.de).toFixed(3))); updE();
+});
+/* E_c 调节 */
+function updEc(){
+  $('#vEc').textContent=fmt(state.Ec,3)+' V';
+  $('#sldEc').value=state.Ec;
+  knEc.userData.mark.rotation.y=-(state.Ec/6)*Math.PI*1.6+Math.PI*0.8;
+  drawAllMeters();
+}
+$('#sldEc').addEventListener('input',e=>{ state.Ec=+e.target.value; updEc(); });
+document.querySelectorAll('[data-dc]').forEach(b=>b.onclick=()=>{
+  state.Ec=Math.max(0,Math.min(6,+(state.Ec+ +b.dataset.dc).toFixed(4))); updEc();
+});
+/* K 切换 */
+$('#btnK').onclick=()=>{
+  if(state.compMode){ toast('⚠ 补偿模式下 K 不再起作用（V 已并入补偿电源）'); return; }
+  if(!state.pwr&&state.K!==0){ state.K=0; }
+  state.K=state.K===1?2:1;
+  $('#btnK').classList.toggle('on',state.K===2);
+  $('#kShow').textContent=state.K===1?'K 置 1：电流表内接（V 并联 A+R_X）':'K 置 2：电流表外接（V 并联 R_X）';
+  /* 拨杆动画：1 → 左倾，2 → 右倾 */
+  kLeverG.rotation.z=state.K===1?0.5:-0.5;
+  kLeverG.position.x=state.K===1?-2:2;
+  const c=circuit();
+  if(ovA(c)) toast('⚠ 电流表过载（'+fmt(c.I,0)+' μA > 500 μA）！V 分流使电流增大，请先调小 E 再记录');
+  else if(state.pwr&&state.K===2) toast('K 已置 2（外接）。注意：V 并联分流使回路电流比内接时大');
+  updPanel(); drawAllMeters();
+};
+function updPanel(){
+  $('#btnRec1').disabled=!(state.pwr&&state.conn.every(Boolean)&&state.K===1&&!state.compMode);
+  $('#btnRec2').disabled=!(state.pwr&&state.conn.every(Boolean)&&state.K===2&&!state.compMode);
+  $('#btnCalc1').disabled=!(state.rec1&&state.rec2);
+  $('#btnRec3').disabled=!(state.compMode&&state.compConn.every(Boolean)&&state.pwr);
+  $('#btnCalc2').disabled=!state.rec3;
+  $('#btnComp').disabled=state.compMode;
+}
+/* 记录内接 */
+$('#btnRec1').onclick=()=>{
+  const c=circuit();
+  if(ovA(c)){ toast('⚠ 电流表过载（'+fmt(c.I,0)+' μA），请调小 E'); return; }
+  if(c.I<IMAX*2/3){ toast('⚠ 电流表读数 '+fmt(c.I,1)+' μA 未达 2/3 满偏（333 μA），请增大 E'); return; }
+  state.rec1={u:+c.Uv.toFixed(3), i:+c.I.toFixed(2), r:+(c.Uv/(c.I*1e-6)).toFixed(0)};
+  renderTable(); checkSteps();
+  toast('✓ 内接记录：U₁='+fmt(state.rec1.u,3)+' V、I₁='+fmt(state.rec1.i,1)+' μA → R_X1='+fmt(state.rec1.r,0)+' Ω');
+};
+/* 记录外接 */
+$('#btnRec2').onclick=()=>{
+  const c=circuit();
+  if(ovA(c)){ toast('⚠ 电流表过载（'+fmt(c.I,0)+' μA）！外接时 V 分流使电流增大，请调小 E'); return; }
+  if(c.I<IMAX*2/3){ toast('⚠ 电流表读数 '+fmt(c.I,1)+' μA 未达 2/3 满偏（333 μA），请增大 E'); return; }
+  state.rec2={u:+c.Uv.toFixed(3), i:+c.I.toFixed(2), r:+(c.Uv/(c.I*1e-6)).toFixed(0)};
+  renderTable(); checkSteps(); updPanel();
+  toast('✓ 外接记录：U₂='+fmt(state.rec2.u,3)+' V、I₂='+fmt(state.rec2.i,1)+' μA → R_X2='+fmt(state.rec2.r,0)+' Ω');
+};
+/* 对比分析 */
+$('#btnCalc1').onclick=()=>{
+  state.calc1=true; renderTable(); renderConclude1(); checkSteps();
+};
+function renderConclude1(){
+  const r1=state.rec1.r, r2=state.rec2.r;
+  const e1=(r1-RX)/RX*100, e2=(r2-RX)/RX*100;
+  $('#conclude').innerHTML='<table>'
+    +'<tr><th>方法</th><th>测量值</th><th>与标准值偏差</th><th>原因</th></tr>'
+    +'<tr><td>内接法（K 置 1）</td><td class="num">'+fmt(r1,0)+' Ω</td><td class="num">'+fmt(e1,2)+'%（偏大）</td><td>串联了电流表内阻 R_A='+RA+' Ω</td></tr>'
+    +'<tr><td>外接法（K 置 2）</td><td class="num">'+fmt(r2,0)+' Ω</td><td class="num">'+fmt(e2,2)+'%（偏小）</td><td>电压表内阻 R_V 分流</td></tr></table>'
+    +'<div class="info">结论：内接法结果偏大，绝对误差 ≈ R_A；外接法结果偏小（R_X 越小、R_V 越小偏得越多）。两法都有系统误差 → 引入补偿法（步骤⑤）。</div>';
+}
+/* 补偿模式 */
+$('#btnComp').onclick=()=>{
+  state.compMode=true; renderWires(); updPanel();
+  $('#sldEc').disabled=false;
+  document.querySelectorAll('[data-dc]').forEach(b=>b.disabled=false);
+  $('#btnK').disabled=true;
+  $('#compShow').innerHTML='补偿电路改接中：请依次接 3 根补偿导线（Ec+V 为补偿电源，经 G 接 R_X 两端）';
+  toast('已改接为补偿电路（图 2.3.3）：电压表 V 与补偿电源 E_c 视为整体，经灵敏电流计 G 接 R_X 两端。先接完 3 根补偿导线');
+};
+/* 记录补偿数据 */
+$('#btnRec3').onclick=()=>{
+  const c=circuit();
+  if(Math.abs(c.Ig)>=2){ toast('⚠ G 未指零（I_G='+fmt(c.Ig,1)+' μA），请继续微调 E_c（每次 ±0.001 V）'); return; }
+  if(c.I<=0){ toast('⚠ 工作回路无电流，请先调大 E'); return; }
+  state.rec3={u:+state.Ec.toFixed(3), i:+c.I.toFixed(2), r:+(state.Ec/(c.I*1e-6)).toFixed(1)};
+  renderTable(); checkSteps(); updPanel();
+  toast('✓ 补偿法记录：G 指零，V 读数=E_c='+fmt(state.rec3.u,3)+' V、I='+fmt(state.rec3.i,1)+' μA → R='+fmt(state.rec3.r,1)+' Ω');
+};
+/* 最终对比 */
+$('#btnCalc2').onclick=()=>{
+  state.calc2=true; renderTable(); renderConclude2(); checkSteps();
+};
+function renderConclude2(){
+  const r1=state.rec1.r, r2=state.rec2.r, r3=state.rec3.r;
+  const e1=(r1-RX)/RX*100, e2=(r2-RX)/RX*100, e3=(r3-RX)/RX*100;
+  $('#conclude').innerHTML='<table>'
+    +'<tr><th>方法</th><th>测量值 /Ω</th><th>相对误差</th><th>系统误差来源</th></tr>'
+    +'<tr><td>内接法</td><td class="num">'+fmt(r1,0)+'</td><td class="num">'+fmt(e1,2)+'%</td><td>+R_A（偏大）</td></tr>'
+    +'<tr><td>外接法</td><td class="num">'+fmt(r2,0)+'</td><td class="num">'+fmt(e2,2)+'%</td><td>−R_V 分流（偏小）</td></tr>'
+    +'<tr><td><b>补偿法</b></td><td class="num"><b>'+fmt(r3,1)+'</b></td><td class="num">'+fmt(e3,3)+'%</td><td>无（G 指零时分流为零）</td></tr></table>'
+    +'<div class="info">结论：① 伏安法内接结果偏大（含 R_A）、外接结果偏小（R_V 分流），均为系统误差；② 补偿法通过 G 指零使测量支路电流为零，V 读数即 R_X 真实电压，A 读数即真实电流，测得 R_X='+fmt(r3,1)+' Ω，与标准值 10.00 kΩ 相对误差 '+fmt(e3,3)+'%，精度最高；③ 补偿法的实质：用可精确读数的补偿电源 E_c 代替电压表直接读数，且平衡时不从被测电路取电流，不影响被测电路状态。</div>';
+}
+/* 数据表 */
+function renderTable(){
+  const c1=state.rec1, c2=state.rec2, c3=state.rec3;
+  $('#tbl1').innerHTML='<table>'
+    +'<tr><th>接法</th><th>U /V</th><th>I /μA</th><th>R=U/I /Ω</th></tr>'
+    +'<tr><td>内接（K 置 1）</td><td class="num '+(c1?'':'empty')+'">'+(c1?fmt(c1.u,3):'—')+'</td><td class="num '+(c1?'':'empty')+'">'+(c1?fmt(c1.i,1):'—')+'</td><td class="num '+(c1?'':'empty')+'">'+(c1?fmt(c1.r,0):'—')+'</td></tr>'
+    +'<tr><td>外接（K 置 2）</td><td class="num '+(c2?'':'empty')+'">'+(c2?fmt(c2.u,3):'—')+'</td><td class="num '+(c2?'':'empty')+'">'+(c2?fmt(c2.i,1):'—')+'</td><td class="num '+(c2?'':'empty')+'">'+(c2?fmt(c2.r,0):'—')+'</td></tr></table>';
+  $('#tbl2').innerHTML='<table>'
+    +'<tr><th>补偿法（G 指零）</th><th>V 读数（=E_c）/V</th><th>I /μA</th><th>R=E_c/I /Ω</th></tr>'
+    +'<tr><td>记录</td><td class="num '+(c3?'':'empty')+'">'+(c3?fmt(c3.u,3):'—')+'</td><td class="num '+(c3?'':'empty')+'">'+(c3?fmt(c3.i,1):'—')+'</td><td class="num '+(c3?'':'empty')+'">'+(c3?fmt(c3.r,1):'—')+'</td></tr></table>';
+}
+/* 步骤判定 */
+function checkSteps(){
+  const s=[
+    state.pwr&&state.conn.every(Boolean),
+    !!state.rec1,
+    !!state.rec2,
+    state.calc1,
+    state.calc2
+  ];
+  const tips=['接线完成！打开电源，K 置 1 调 E 后记录内接数据。','内接已记录。K 置 2（小心过载），记录外接数据。','外接已记录，请进行对比分析。','对比完成！改接补偿电路，调 E_c 使 G 指零后记录。','全部完成：补偿法消除了系统误差，测量最精确！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+/* 示例 / 重置 */
+$('#btnSample').onclick=()=>{
+  Object.assign(state,{pwr:true,E:4.5,K:1,conn:[true,true,true,true,true],compMode:false,compConn:[false,false,false],
+    rec1:null,rec2:null,rec3:null,calc1:false,calc2:false});
+  wires.forEach((w,i)=>w.visible=i<5);
+  $('#btnPwr').textContent='断开电源开关'; $('#btnPwr').classList.add('on');
+  psw3.material=M(0x2f965e,{roughness:.5});
+  state.E=4.5; updE();
+  state.rec1={u:4.5,i:+(4.5/RXP*1e6).toFixed(2),r:RXP};
+  state.K=2; $('#btnK').classList.add('on'); $('#kShow').textContent='K 置 2：电流表外接（V 并联 R_X）';
+  kLeverG.rotation.z=-0.5; kLeverG.position.x=2;
+  const c=circuit();
+  state.rec2={u:+c.Uv.toFixed(3),i:+c.I.toFixed(2),r:+(c.Uv/(c.I*1e-6)).toFixed(0)};
+  state.calc1=true;
+  /* 补偿法：Ec 指零于 Urx */
+  state.compMode=true; state.compConn=[true,true,true];
+  wires[5].visible=wires[6].visible=wires[7].visible=true;
+  state.Ec=+(state.E/RXP*RX).toFixed(3);
+  const c2=circuit();
+  state.rec3={u:+state.Ec.toFixed(3),i:+c2.I.toFixed(2),r:+(state.Ec/(c2.I*1e-6)).toFixed(1)};
+  state.calc2=true;
+  $('#btnComp').disabled=true; $('#btnK').disabled=true; $('#sldEc').disabled=false;
+  document.querySelectorAll('[data-dc]').forEach(b=>b.disabled=false);
+  updEc(); renderWires(); renderTable(); renderConclude1(); renderConclude2(); updPanel(); checkSteps(); drawAllMeters();
+  toast('已自动调好并填入示例数据：内接 4.5 V/447.8 μA、外接、补偿法 G 指零。请到「数据处理」页查看三种方法对比。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(state,{pwr:false,E:0,Ec:0,K:0,conn:[false,false,false,false,false],compMode:false,compConn:[false,false,false],
+    rec1:null,rec2:null,rec3:null,calc1:false,calc2:false,
+    done1:false,done2:false,done3:false,done4:false,done5:false});
+  wires.forEach(w=>w.visible=false);
+  $('#btnPwr').textContent='接通电源开关'; $('#btnPwr').classList.remove('on');
+  psw3.material=M(0x9c3d33,{roughness:.5});
+  $('#sldE').value=0; $('#sldEc').value=0; $('#sldEc').disabled=true;
+  document.querySelectorAll('[data-dc]').forEach(b=>b.disabled=true);
+  $('#btnK').disabled=false; $('#btnK').classList.remove('on'); $('#kShow').textContent='K 断开';
+  kLeverG.rotation.z=0; kLeverG.position.x=-2;
+  $('#compShow').textContent='补偿电路未接入';
+  $('#conclude').innerHTML='完成内/外接记录后点「计算比较」；补偿法记录后点「三种方法最终对比」。';
+  updE(); updEc(); renderWires(); renderTable(); updPanel(); checkSteps(); drawAllMeters();
+  toast('实验已重置');
+};
+/* 主循环 */
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+let mT=0;
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  mT+=1/60;
+  if(mT>0.15){ mT=0; drawAllMeters(); }
+  controls.update(); renderer.render(scene,camera);
+}
+updE(); updEc(); renderWires(); renderTable(); updPanel(); checkSteps(); drawAllMeters();
+loop();
+</script>
+</body>
+</html>

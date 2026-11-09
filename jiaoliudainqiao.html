@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验27 · 用交流电桥法测相对位移及角度</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:430px;flex:0 0 430px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 96px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 3px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+td.empty{color:#556}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+canvas.plot{width:100%;background:#10161f;border:1px solid var(--line);border-radius:8px}
+input[type=range]{flex:1;accent-color:var(--accent)}
+input[type=text],input[type=number]{background:#10161f;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:90px}
+.rbox{display:flex;align-items:center;gap:6px;margin:5px 0;font-size:13px}
+.rbox b{flex:0 0 46px;color:var(--accent);font-weight:600}
+.rbox .val{flex:0 0 88px;text-align:center;background:#10161f;border:1px solid var(--line);border-radius:6px;padding:4px 0;font-variant-numeric:tabular-nums}
+.rbox .b{padding:3px 8px;margin:0}
+.mv{font-size:12px;color:var(--muted)}
+.mv b{color:#57e389;font-size:14px;font-family:Consolas,monospace}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验27 · 用交流电桥法测相对位移及角度</h1>
+  <span class="tag">平衡条件 <b>Z₁Z₄=Z₂Z₃</b> · 非平衡法 Δl=KK′ΔV · f=1592 Hz（ω=10⁴ rad/s）</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>计算并赋值桥臂电阻</b>：选择实验模式（位移/角度），由给定的 L_x、C₁（或 C_x、C₁）及 f=1592 Hz 按平衡条件计算各桥臂阻值，按计算值给电阻箱赋值</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>接通电源并调平衡</b>：磁棒抽出螺线管（动片完全旋入），微调 R₃、R₄ 使交流毫伏表读数≤2 mV，记录平衡点</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>逐点记录 10 组数据</b>：缓慢插入磁棒（每隔 1 mm）/ 缓慢旋出动片（每隔 10°），记录位移（角度）与毫伏表读数，填入表 2.27.1（2.27.2）</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>绘制定标曲线并生成未知工况</b>：在数据处理页查看位移（角度）-电压定标曲线，点「生成未知工况」准备反测</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>反查未知量</b>：根据毫伏表读数由定标曲线反查磁棒位移（旋出角度）并提交，误差≤0.5 mm（≤2°）为成功</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 交流电桥平衡需模值与辐角同时满足（实部、虚部两个方程），通常需反复微调两只电阻箱；② 更换模式、C₁ 挡或改动任一电阻箱后，原有记录全部失效，须重新赋值、调平衡；③ 毫伏表为四位半自动量程；④ 位移传感器游标精度 1 mm，角度盘最小刻度 2°。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 实验模式</h4>
+      <button class="b on" id="btnMDisp">测相对位移（电感式传感器）</button>
+      <button class="b" id="btnMAng">测转动角度（电容式传感器）</button>
+      <div class="info" id="smpShow"></div>
+    </section>
+    <section>
+      <h4>② 桥臂电阻计算与赋值</h4>
+      <button class="b" id="btnCalc">计算桥臂理论值</button>
+      <button class="b" id="btnAssign">按计算值赋值</button>
+      <div class="info" id="calcShow">尚未计算。位移模式按 R₄=ω²C₁R₁L_x、R₂R₃=R₁R₄+L_x/C₁；角度模式按 C_x=C₁R₃/R₄、R₁R₄=R₂R₃。</div>
+    </section>
+    <section>
+      <h4>③ 电阻箱 R₁~R₄（0~11110 Ω）</h4>
+      <div id="rboxes"></div>
+      <div class="info">调平衡时主要微调 R₃、R₄（±1 Ω 精调）</div>
+    </section>
+    <section>
+      <h4>④ 电源与调平衡</h4>
+      <button class="b" id="btnPwr">接通电源</button>
+      <button class="b" id="btnRecBal">记录平衡点（l=0 / θ=0）</button>
+      <div class="mv">交流毫伏表读数：<b id="mvShow">0.00 mV</b>　（判据 ≤2 mV）</div>
+      <div class="info" id="balShow">平衡点：未记录</div>
+    </section>
+    <section>
+      <h4>⑤ 传感器操作与记录</h4>
+      <div class="row" id="posRow"><label id="posLab">磁棒插入深度 l</label><input type="range" id="sldPos" min="0" max="50" step="1" value="0"><span id="posShow" style="flex:0 0 70px;text-align:right">0 mm</span></div>
+      <button class="b" id="btnRecPt">📋 记录当前点</button>
+      <button class="b" id="btnMystery">🎲 生成未知工况</button>
+      <div class="row" id="ansRow" style="display:none"><label>反查结果</label><input type="number" id="inpAns" step="0.1"><span class="info" id="ansUnit">mm</span><button class="b" id="btnAns">提交判定</button></div>
+      <div class="info" id="recShow">已记录 0/10 组</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4 id="tblTitle">表 2.27.1　位移-电压关系</h4>
+      <div id="tbl"></div>
+    </section>
+    <section>
+      <h4 id="cvTitle">定标曲线（位移-电压）</h4>
+      <canvas class="plot" id="cv1" width="398" height="240"></canvas>
+      <div class="info">由曲线可反查：给定毫伏表读数 → 对应位移（角度）。</div>
+    </section>
+    <section>
+      <h4>结论</h4>
+      <div id="conclude" class="info">完成全部测量后自动生成。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>交流电桥的基本原理</h4>
+      <div class="info">交流电桥 4 个桥臂由交流元件（电阻、电感、电容）组成，用正弦交流电源供电，平衡指示器采用高灵敏度交流毫伏表。调节桥臂参数使毫伏表中无电流通过（I₀=0）时，C、D 两点电位相等，电桥达到平衡。</div>
+      <div class="formula">Z₁Z₄ = Z₂Z₃　（2.27.1）　　Z_x = (Z₂/Z₁)·Z₃　（2.27.2）</div>
+      <div class="info">相对臂阻抗的乘积相等。由于阻抗为复数，平衡需实部、虚部两个方程同时满足——这是交流电桥与直流电桥的本质区别。</div>
+    </section>
+    <section>
+      <h4>磁通改变法测相对位移</h4>
+      <div class="info">螺线管（单位长度匝数 n）中插入磁棒并移动时，引起线圈电感量变化：</div>
+      <div class="formula">ΔL = μ₀n²(μ_r−1)SΔl　（2.27.3）　⟹　Δl = K·ΔL，K=1/[μ₀n²(μ_r−1)S]　（2.27.4）</div>
+      <div class="info">非平衡电桥法：在 Δl→0 时电桥不平衡输出与 ΔL 成正比：</div>
+      <div class="formula">ΔL = K′ΔV　⟹　Δl = K·K′·ΔV　（2.27.5）</div>
+      <div class="info">桥路（图 2.27.2）平衡条件：L_x=R₁R₃C₁，R₄=R₂R₃/R₁（通常取 R₁=R₃、R₂=R₄），Q_x=1/(ωC₁R₁)。</div>
+    </section>
+    <section>
+      <h4>交流电桥法测转动角度</h4>
+      <div class="info">直线电容式空气可变电容器动片为半圆形，旋出角 θ 时电容量：</div>
+      <div class="formula">C_θ = C₀·θ/180°　（2.27.7）　⟹　Δθ = K·ΔC_θ，K=180°/C₀　（2.27.9）</div>
+      <div class="info">非平衡法：ΔC_θ=K′ΔV，Δθ=K·K′·ΔV（2.27.10）。桥路（图 2.27.4）平衡条件：C_x=(R₃/R₄)C₁、R₁R₄=R₂R₃（通常取 R₁=R₃、R₂=R₄）。</div>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <div class="info">JD-I 型交流电桥实验仪：1 个开关、1 个信号源（正弦 5 V、1592 Hz）、1 个交流毫伏表（四位半、自动量程）、4 个多值电阻器（0~11110 Ω、最小 1 Ω）、交流元件选择器（0.001~0.1 μF）。<br>电感式位移传感器：螺线管、磁棒、X/Y 位移调节器、游标（精度 1 mm）、刻度尺；铭牌标出 L、Q。<br>电容式角度传感器：角度盘（最小 2°）、角度指针、可变电容器；铭牌标出 C₀。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 交流电桥与直流电桥的主要区别在哪些方面？<br>(2) 欲提高交流电桥的测量精度，应从哪几个方面入手？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3600); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+  if(tb.dataset.tab==='data') drawPlot();
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+
+/* ================= 物理参数与状态 ================= */
+const W=1e4, U0=5;                     // ω=10⁴ rad/s（1592 Hz），信号源 5 V
+const Lx0=0.010, QR=1;                 // 位移传感器铭牌：Lx=10 mH、Q=1
+const C0=5.0e-10;                      // 角度传感器铭牌：C₀=500 pF（全旋入）
+const C1_OPTS=[0.1e-6,0.01e-6,0.001e-6];
+const state={
+  mode:'disp',                         // disp 位移 / ang 角度
+  C1:0.1e-6,                           // 交流元件选择器（位移默认 0.1μF，角度默认 0.001μF）
+  R:[1000,447,447,100],                // 电阻箱 R1~R4
+  power:false,
+  pos:0,                               // 位移 mm / 角度 °
+  calc:null,                           // 理论值 {R:[...]}
+  assigned:false,
+  balRec:false,                        // 平衡点已记录（锁存）
+  done1:false,                         // 步骤①锁存
+  done4:false,                         // 步骤④锁存
+  recs:{},                             // {点值: mV}
+  mystery:null,                        // {val} 未知工况
+  solved:false
+};
+const Lx=()=>Lx0*(1+0.01*state.pos);                   // 磁棒插入后电感（每 mm +1%）
+const Cx=()=>C0*(1-state.pos/180);                     // 动片旋出后电容
+/* 复数运算 */
+const cx=(re,im)=>({re,im});
+const cdiv=(a,b)=>{const d=b.re*b.re+b.im*b.im;return cx((a.re*b.re+a.im*b.im)/d,(a.im*b.re-a.re*b.im)/d);};
+const cadd=(a,b)=>cx(a.re+b.re,a.im+b.im);
+const csub=(a,b)=>cx(a.re-b.re,a.im-b.im);
+const cmul=(a,b)=>cx(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+/* 桥臂阻抗（教材图 2.27.2 / 2.27.4 拓扑） */
+function arms(){
+  if(state.mode==='disp') return [cx(state.R[0],-1/(W*state.C1)), cx(state.R[1],0), cx(state.R[2],0), cx(state.R[3],W*Lx())];
+  return [cx(state.R[0],-1/(W*state.C1)), cx(state.R[1],-1/(W*Cx())), cx(state.R[2],0), cx(state.R[3],0)];
+}
+/* 不平衡电压有效值（V）→ mV，含仪表噪声 */
+function bridgeMV(){
+  if(!state.power) return 0;
+  const [Z1,Z2,Z3,Z4]=arms();
+  const VC=cdiv(cmul(cx(U0,0),Z3),cadd(Z1,Z3));   // V_C=U₀·Z₃/(Z₁+Z₃)
+  const VD=cdiv(cmul(cx(U0,0),Z4),cadd(Z2,Z4));   // V_D=U₀·Z₄/(Z₂+Z₄)
+  const d=csub(VC,VD);
+  const mv=Math.hypot(d.re,d.im)*1000;            // 复数模（不能用 Math.abs 求对象模）
+  return Math.max(0,mv*(1+(Math.random()-0.5)*0.02));   // ±1% 读数涨落
+}
+/* 理论桥臂值 */
+function calcTheory(){
+  if(state.mode==='disp'){
+    const R1=1000, R4=W*W*state.C1*R1*Lx0;          // R₄=ω²C₁R₁Lx
+    const P2=R1*R4+Lx0/state.C1;                     // R₂R₃=R₁R₄+Lx/C₁
+    const R23=Math.round(Math.sqrt(P2));
+    return {R:[R1,R23,R23,Math.round(R4)], note:`R₄=ω²C₁R₁L_x=${fmt(R4,1)} Ω；R₂R₃=R₁R₄+L_x/C₁=${(P2/1e3).toFixed(1)}×10³ Ω² → R₂=R₃=${R23} Ω（R₁ 取 1000 Ω）`};
+  }
+  const R4=1000, R3=Math.round(C0/state.C1*R4);     // R₃=Cx0/C₁·R₄
+  return {R:[R3,R4,R3,R4], note:`R₃=C_x0/C₁·R₄=${fmt(C0/state.C1*R4,0)} Ω，按 R₁=R₃、R₂=R₄ 赋值（R₄ 取 1000 Ω）`};
+}
+const recN=()=>Object.keys(state.recs).length;
+const needN=10;
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,220,480);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,800);
+camera.position.set(14,30,54);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,7,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.1); dl.position.set(50,110,80); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+/* 实验台 */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(110,3,40), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-1.5; scene.add(bench);
+/* JD-I 实验仪（后中）：面板 canvas 纹理实时刷新 */
+const faceCv=document.createElement('canvas'); faceCv.width=1024; faceCv.height=360;
+const faceTex=new THREE.CanvasTexture(faceCv);
+function drawFace(){
+  const g=faceCv.getContext('2d');
+  g.fillStyle='#1b2432'; g.fillRect(0,0,1024,360);
+  g.strokeStyle='#3a4a63'; g.lineWidth=3; g.strokeRect(6,6,1012,348);
+  g.fillStyle='#cfe3ff'; g.font='bold 30px Microsoft YaHei'; g.textAlign='center';
+  g.fillText('JD-I 型交流电桥实验仪',512,44);
+  g.font='20px Consolas,monospace'; g.fillStyle='#9fb6d0';
+  g.fillText('信号源：正弦 5.0 V  1592 Hz',200,84);
+  g.fillStyle=state.power?'#57e389':'#445';
+  g.beginPath(); g.arc(370,78,9,0,7); g.fill();
+  g.fillStyle='#9fb6d0'; g.fillText('电源',370,110);
+  /* 电源拨杆开关 */
+  g.fillStyle='#0a0f18'; g.fillRect(278,126,26,44); g.strokeStyle='#3a4a63'; g.strokeRect(278,126,26,44);
+  g.fillStyle=state.power?'#57e389':'#8b98a9';
+  g.fillRect(281,state.power?130:150,20,20);
+  g.strokeStyle='#8b98a9'; g.beginPath(); g.moveTo(288,126); g.lineTo(288,170); g.stroke();
+  g.font='14px Microsoft YaHei'; g.fillText('开关',291,182);
+  /* 平衡指示灯（≤2mV 亮绿） */
+  const mv0=state.power?bridgeMV():999;
+  g.fillStyle=state.power&&mv0<=2?'#3ad17e':(state.power?'#c0392b':'#334');
+  g.beginPath(); g.arc(648,78,11,0,7); g.fill();
+  g.fillStyle='#9fb6d0'; g.font='16px Microsoft YaHei'; g.fillText('平衡指示',648,110);
+  /* C₁ 交流元件选择旋钮（三挡） */
+  const C1ANG={0.1e-6:-0.7,0.01e-6:0,0.001e-6:0.7}[state.C1]||0;
+  g.fillStyle='#22304a'; g.beginPath(); g.arc(730,86,24,0,7); g.fill();
+  g.strokeStyle='#d8c04a'; g.lineWidth=4; g.beginPath(); g.moveTo(730,86);
+  g.lineTo(730+Math.sin(C1ANG)*20,86-Math.cos(C1ANG)*20); g.stroke(); g.lineWidth=1;
+  g.font='13px Consolas,monospace'; g.fillStyle='#8b98a9';
+  g.fillText('0.001μF',730,46); g.fillText('0.01μF',770,90); g.fillText('0.1μF',690,90);
+  g.fillStyle='#9fb6d0'; g.font='16px Microsoft YaHei'; g.fillText('C₁ 选择',730,124);
+  /* 毫伏表窗口 */
+  g.fillStyle='#0a1410'; g.fillRect(392,64,240,64); g.strokeStyle='#3a4a63'; g.strokeRect(392,64,240,64);
+  const mv=bridgeMV();
+  g.fillStyle='#57e389'; g.font='bold 40px Consolas,monospace';
+  const txt=mv>=1000?fmt(mv,0):mv>=100?fmt(mv,1):fmt(mv,2);
+  g.fillText(txt+' mV',512,112);
+  g.font='16px Microsoft YaHei'; g.fillStyle='#9fb6d0'; g.fillText('交流毫伏表（四位半·自动量程）',512,150);
+  /* 四个电阻箱窗口 */
+  for(let i=0;i<4;i++){
+    const x=90+i*230;
+    g.fillStyle='#0a1410'; g.fillRect(x,180,180,58); g.strokeStyle='#3a4a63'; g.strokeRect(x,180,180,58);
+    g.fillStyle='#57e389'; g.font='bold 32px Consolas,monospace';
+    g.fillText(state.R[i]+' Ω',x+90,220);
+    g.fillStyle='#9fb6d0'; g.font='18px Microsoft YaHei'; g.fillText('R'+(i+1),x+90,258);
+  }
+  g.font='20px Microsoft YaHei'; g.fillStyle='#9fb6d0';
+  g.fillText('交流元件选择器：C₁ = '+(state.C1*1e6).toFixed(3)+' μF',512,310);
+  g.font='15px Microsoft YaHei'; g.fillStyle='#8b98a9';
+  g.fillText('桥路接线端 E1 ~ E8（经屏蔽线接位移/角度传感器）',512,340);
+  faceTex.needsUpdate=true;
+  $('#mvShow').textContent=txt+' mV';
+}
+const box=new THREE.Mesh(new THREE.BoxGeometry(58,20,10), M(0x2c3648,{roughness:.5}));
+box.position.set(0,10,-12); scene.add(box);
+const face=new THREE.Mesh(new THREE.PlaneGeometry(56,19), new THREE.MeshBasicMaterial({map:faceTex}));
+face.position.set(0,10,-6.94); scene.add(face);
+tag(box,'JD-I 型交流电桥实验仪','含信号源（正弦 5V、1592 Hz）、四位半交流毫伏表、4 个多值电阻器（0~11110 Ω）、交流元件选择器（0.001~0.1 μF），通过插线完成桥路连接。');
+/* 电感式位移传感器（左）：底座落地 + 细密绕线螺线管 + 磁棒推拉手轮 + 竖立游标刻度尺 */
+const sen1=new THREE.Group();
+const base1=new THREE.Mesh(new THREE.BoxGeometry(46,1.4,10), M(0x2c3648,{metalness:.5,roughness:.45}));
+base1.position.set(-13,0.7,0); sen1.add(base1);
+tag(base1,'传感器底座','X 位移调节器导轨与螺线管安装座，底座端子经屏蔽线接入桥路。');
+/* 螺线管：骨架 + 24 匝细密绕线 + 两端引出端子 */
+const solenoid=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,16,28), M(0xc7b9a0,{roughness:.6}));
+solenoid.rotation.z=Math.PI/2; solenoid.position.set(0,3.9,0); sen1.add(solenoid);
+for(let i=0;i<24;i++){ const ring=new THREE.Mesh(new THREE.TorusGeometry(2.7,.09,6,40), M(0x9c6620,{metalness:.65,roughness:.45}));
+  ring.rotation.y=Math.PI/2; ring.position.set(-7.6+i*0.66,3.9,0); sen1.add(ring); }
+const termL=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,1.6,10), M(0xd8c04a,{metalness:.85}));
+termL.rotation.x=Math.PI/2; termL.position.set(-8.6,3.9,0); sen1.add(termL);
+const termR=termL.clone(); termR.position.x=8.6; sen1.add(termR);
+/* 磁棒（右端对齐管口：l=0 恰在管口，l=50 全插入）+ 尾端推拉手轮 + 滑轨 */
+const bar=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,26,20), M(0x181b20,{metalness:.55,roughness:.35}));
+bar.rotation.z=Math.PI/2; bar.position.set(-21,3.9,0); sen1.add(bar);
+const grip=new THREE.Mesh(new THREE.TorusGeometry(1.2,.28,8,24), M(0xcfa54b,{metalness:.8,roughness:.3}));
+grip.rotation.y=Math.PI/2; grip.position.set(-35.3,3.9,0); sen1.add(grip);
+const rail1=new THREE.Mesh(new THREE.BoxGeometry(26,.9,1.6), M(0x3d4a5e,{metalness:.6,roughness:.4}));
+rail1.position.set(-23,2.0,0); sen1.add(rail1);
+/* 竖立刻度尺（0~50mm，管口为零点）+ 游标亮块 */
+const rulerCv=document.createElement('canvas'); rulerCv.width=512; rulerCv.height=64;
+(function(){ const g=rulerCv.getContext('2d');
+  g.fillStyle='#10161f'; g.fillRect(0,0,512,64); g.strokeStyle='#8b98a9';
+  g.font='16px Consolas,monospace'; g.fillStyle='#8b98a9'; g.textAlign='center';
+  for(let m=0;m<=50;m+=5){ const x=20+m/50*472;
+    g.beginPath(); g.moveTo(x,40); g.lineTo(x,m%10?48:56); g.stroke();
+    if(m%10===0) g.fillText(m+'',x,20); }
+  g.fillStyle='#cfe3ff'; g.textAlign='left'; g.fillText('插入深度 /mm（游标精度 1 mm）',20,62);
+})();
+const rulerTex=new THREE.CanvasTexture(rulerCv);
+const ruler=new THREE.Mesh(new THREE.PlaneGeometry(16,2), new THREE.MeshBasicMaterial({map:rulerTex}));
+ruler.position.set(0,2.2,5.6); sen1.add(ruler);
+const cursor1=new THREE.Mesh(new THREE.BoxGeometry(.4,2.2,.15), M(0xffd54f,{emissive:0x664400,emissiveIntensity:.7}));
+cursor1.position.set(-8,2.2,5.5); sen1.add(cursor1);
+sen1.position.set(-19,0,2); scene.add(sen1);
+tag(solenoid,'螺线管（电感式位移传感器）','铭牌：Lx=10 mH、Q=1。磁棒插入深度改变线圈电感 ΔL=μ₀n²(μ_r−1)SΔl，每插入 1 mm 电感约增大 1%。');
+tag(bar,'磁棒','由 X 轴位移调节器（尾端手轮）驱动水平插入/抽出螺线管，游标刻度尺以管口为零点读出位移（精度 1 mm）。');
+/* 电容式角度传感器（右）：底座+立柱落地，可变电容器（3 动 2 定）与角度盘同轴，指针初始指 0° */
+const sen2=new THREE.Group();
+const dialCv=document.createElement('canvas'); dialCv.width=512; dialCv.height=256;
+(function(){ const g=dialCv.getContext('2d');
+  g.fillStyle='#10161f'; g.fillRect(0,0,512,256);
+  g.strokeStyle='#8b98a9'; g.lineWidth=2;
+  g.beginPath(); g.arc(256,240,210,Math.PI,2*Math.PI); g.stroke();
+  g.font='20px Consolas,monospace'; g.fillStyle='#cfe3ff'; g.textAlign='center';
+  for(let a=0;a<=180;a+=10){ const t=Math.PI+a/180*Math.PI;
+    const x1=256+Math.cos(t)*210,y1=240+Math.sin(t)*210, x2=256+Math.cos(t)*(a%30?198:186),y2=240+Math.sin(t)*(a%30?198:186);
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    g.fillText(a+'°',256+Math.cos(t)*168,240+Math.sin(t)*168+7); }
+  g.font='16px Microsoft YaHei'; g.fillStyle='#8b98a9'; g.fillText('旋出角 θ（最小刻度 2°）',256,240);
+})();
+const dialTex=new THREE.CanvasTexture(dialCv);
+const dial=new THREE.Mesh(new THREE.PlaneGeometry(20,10), new THREE.MeshBasicMaterial({map:dialTex,transparent:true}));
+const base2=new THREE.Mesh(new THREE.BoxGeometry(20,1.2,10), M(0x2c3648,{metalness:.5,roughness:.45}));
+base2.position.y=.6; sen2.add(base2);
+const col2=new THREE.Mesh(new THREE.BoxGeometry(2.4,7.6,2.4), M(0x3d4a5e,{metalness:.6,roughness:.4}));
+col2.position.set(0,4.4,-3.6); sen2.add(col2);
+/* 转轴（沿 z，轴心 y=5.6）+ 轴端手轮帽 */
+const axle=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,5,14), M(0xcfd8dc,{metalness:.9,roughness:.25}));
+axle.rotation.x=Math.PI/2; axle.position.set(0,5.6,0); sen2.add(axle);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,.5,16), M(0xcfa54b,{metalness:.85,roughness:.3}));
+hub.rotation.x=Math.PI/2; hub.position.set(0,5.6,2.55); sen2.add(hub);
+tag(hub,'转轴手轮','旋动手轮使动片绕轴转动，旋出角 θ 由角度盘与指针读出（最小刻度 2°）。');
+/* 动片 3 片 + 定片 2 片（半圆，交错间距） */
+const rotorG=new THREE.Group(); rotorG.position.set(0,5.6,0); sen2.add(rotorG);
+for(let i=0;i<3;i++){ const blade=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,.12,24,1,false,0,Math.PI), M(0xc8ccd4,{metalness:.8,roughness:.3}));
+  blade.rotation.x=Math.PI/2; blade.position.z=(i-1)*.55; rotorG.add(blade); }
+for(let i=0;i<2;i++){ const st=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,.1,24,1,false,0,Math.PI), M(0x8a92a0,{metalness:.7,roughness:.35}));
+  st.rotation.x=Math.PI/2; st.position.z=(i-.5)*.57; sen2.add(st); }
+/* 角度盘（竖立、与转轴同轴心，位于转子后方）+ 指针（θ=0 指向 0° 刻度） */
+dial.position.set(0,5.6,-4.9); sen2.add(dial);
+const needle=new THREE.Mesh(new THREE.BoxGeometry(9.2,.28,.28), M(0xff6b6b,{emissive:0x551111}));
+needle.geometry.translate(-4.6,0,0); needle.position.set(0,5.6,-4.55); sen2.add(needle);
+/* 底座端子 */
+for(const s of [-1,1]){ const t2=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,1.4,10), M(0xd8c04a,{metalness:.85}));
+  t2.position.set(s*6,1.7,0); sen2.add(t2); }
+sen2.position.set(24,0,2); scene.add(sen2);
+tag(dial,'电容式角度传感器','铭牌：C₀=500 pF（动片完全旋入）。动片为半圆形，旋出角 θ 时 C_θ=C₀θ/180°；角度盘最小刻度 2°，指针随转轴转动。');
+tag(rotorG,'空气介质可变电容器','3 片动片与 2 片定片交错同轴安装，旋转动片改变与定片的正对面积从而改变容量（直线电容式）。');
+/* 导线：从仪器面板接线排出发，落到两只传感器的端子上（端点必须落在部件上） */
+function wire(pts,color=0xcc4444){
+  const curve=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve,50,.18,8), M(color,{roughness:.5})));
+}
+/* 面板下缘接线排（8 孔） */
+for(let i=0;i<8;i++){ const jk=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,1.5,10), M(0xd8c04a,{metalness:.85}));
+  jk.position.set(-24+i*6.9,0.75,-6.2); scene.add(jk); }
+wire([[-28.6,3.9,2],[-31,2.8,-1],[-24.2,1.6,-6.2],[-24,1.5,-6.2]],0x6688cc);
+wire([[-11.4,3.9,2],[-12.5,1.8,-2],[-17.3,1.5,-6.2],[-17.1,1.5,-6.2]],0xccaa44);
+wire([[18,1.7,2],[16.5,1.5,-3],[17.3,1.5,-6.2],[17.1,1.5,-6.2]],0x3f9f6f);
+wire([[30,1.7,2],[30.5,1.4,-3],[23.9,1.5,-6.2],[24.1,1.5,-6.2]],0xcc4444);
+/* 模式可见性 */
+function refreshMode(){
+  sen1.visible = state.mode==='disp';
+  sen2.visible = state.mode==='ang';
+  $('#btnMDisp').classList.toggle('on',state.mode==='disp');
+  $('#btnMAng').classList.toggle('on',state.mode==='ang');
+  $('#posLab').textContent=state.mode==='disp'?'磁棒插入深度 l':'动片旋出角度 θ';
+  const sl=$('#sldPos');
+  if(state.mode==='disp'){ sl.min=0; sl.max=50; sl.step=1; } else { sl.min=0; sl.max=180; sl.step=1; }
+  $('#posShow').textContent=state.mode==='disp'?state.pos+' mm':state.pos+' °';
+  $('#smpShow').textContent=state.mode==='disp'
+    ?'传感器铭牌：Lx=10 mH、Q=1；元件选择器 C₁='+(state.C1*1e6)+' μF'
+    :'传感器铭牌：C₀=500 pF；元件选择器 C₁='+(state.C1*1e6)+' μF';
+  $('#tblTitle').textContent=state.mode==='disp'?'表 2.27.1　位移-电压关系':'表 2.27.2　角度-电压关系';
+  $('#cvTitle').textContent=state.mode==='disp'?'定标曲线（位移-电压）':'定标曲线（角度-电压）';
+  $('#ansUnit').textContent=state.mode==='disp'?'mm':'°';
+}
+
+/* ================= 交互 ================= */
+function setMode(m){
+  if(state.mode===m) return;
+  state.mode=m;
+  state.C1 = m==='disp'?0.1e-6:0.001e-6;
+  invalidateAll('实验模式已切换');
+  refreshMode();
+  toast('已切换到'+(m==='disp'?'测相对位移（电感式传感器）':'测转动角度（电容式传感器）')+'模式，元件选择器 C₁='+(state.C1*1e6)+' μF');
+}
+$('#btnMDisp').onclick=()=>setMode('disp');
+$('#btnMAng').onclick=()=>setMode('ang');
+/* 计算与赋值 */
+$('#btnCalc').onclick=()=>{
+  state.calc=calcTheory();
+  $('#calcShow').innerHTML='<b style="color:var(--accent)">理论值：</b>'+state.calc.note;
+  toast('桥臂理论值已算出：R₁~R₄ = '+state.calc.R.join(' / ')+' Ω，请点「按计算值赋值」');
+};
+$('#btnAssign').onclick=()=>{
+  if(!state.calc){ toast('请先点「计算桥臂理论值」'); return; }
+  state.R=state.calc.R.map(v=>{
+    const dev=1+(Math.random()-0.5)*0.006;             // ±0.3% 赋值偏差（需微调平衡）
+    return Math.max(0,Math.min(11110,Math.round(v*dev)));
+  });
+  state.assigned=true; state.done1=true;
+  renderBoxes(); checkSteps(); updUI();
+  toast('✓ 已按计算值赋值（存在 ±0.3% 偏差，接通电源后须微调平衡）。R₁~R₄ = '+state.R.join(' / ')+' Ω');
+};
+/* 电阻箱 */
+function renderBoxes(){
+  const wrap=$('#rboxes'); wrap.innerHTML='';
+  ['−100','−10','−1','+1','+10','+100'].forEach(()=>{});
+  for(let i=0;i<4;i++){
+    const div=document.createElement('div'); div.className='rbox';
+    div.innerHTML=`<b>R${i+1}</b><span class="val" id="rb${i}">${state.R[i]} Ω</span>`;
+    [['−100',-100],['−10',-10],['−1',-1],['+1',1],['+10',10],['+100',100]].forEach(([lab,d])=>{
+      const b=document.createElement('button'); b.className='b'; b.textContent=lab;
+      b.onclick=()=>setR(i,d); div.appendChild(b);
+    });
+    wrap.appendChild(div);
+  }
+}
+function setR(i,d){
+  state.R[i]=Math.max(0,Math.min(11110,state.R[i]+d));
+  $('#rb'+i).textContent=state.R[i]+' Ω';
+  if(state.balRec||recN()>0||state.assigned){
+    if(recN()>0||state.balRec) invalidateAll('桥臂电阻已改动');   // 记录后改箱 → 全部失效
+  }
+  checkSteps(); updUI();
+}
+/* 电源 */
+$('#btnPwr').onclick=()=>{
+  state.power=!state.power;
+  $('#btnPwr').textContent=state.power?'断开电源':'接通电源';
+  $('#btnPwr').classList.toggle('on',state.power);
+  toast(state.power?'✓ 电源已接通（5 V 正弦、1592 Hz），观察毫伏表读数':'电源已断开');
+  updUI();
+};
+/* 平衡点记录 */
+$('#btnRecBal').onclick=()=>{
+  if(!state.power){ toast('⚠ 请先接通电源'); return; }
+  if(state.pos!==0){ toast('⚠ 记录平衡点前请把'+(state.mode==='disp'?'磁棒完全抽出（l=0）':'动片完全旋入（θ=0）')); return; }
+  const mv=bridgeMV();
+  if(mv>2.0){ toast(`<b style="color:var(--warn)">电桥未平衡</b>（${fmt(mv,2)} mV &gt; 2 mV），请继续微调 R₃、R₄（±1 Ω）使读数达到极小（≤2 mV）`); return; }
+  state.balRec=true; state.done2=true;
+  checkSteps(); updUI();
+  toast('✓ 电桥已平衡（'+fmt(mv,2)+' mV），平衡点已记录。开始逐点记录 10 组数据');
+};
+/* 位置滑块 */
+$('#sldPos').addEventListener('input',e=>{
+  if(state.mystery){ e.target.value=state.pos; return; }   // 未知工况下禁止手动移动
+  state.pos=+e.target.value;
+  $('#posShow').textContent=state.mode==='disp'?state.pos+' mm':state.pos+' °';
+  updUI();
+});
+/* 数据点记录 */
+$('#btnRecPt').onclick=()=>{
+  if(!state.power||!state.balRec){ toast('⚠ 请先接通电源、调平衡并记录平衡点'); return; }
+  if(state.mystery){ toast('⚠ 未知工况进行中，请先提交反查结果'); return; }
+  const v=state.pos, mv=bridgeMV();
+  if(state.mode==='disp'){
+    if(!Number.isInteger(v)||v<1||v>10){ toast('⚠ 请将磁棒插入深度调至 1~10 mm 的整数刻度（每 1 mm 记录一组）'); return; }
+    if(state.recs[v]!==undefined){ toast('⚠ l='+v+' mm 已记录过'); return; }
+    if(mv<=1.0){ toast('⚠ 读数仍接近零（电桥还在平衡点附近），请继续插入磁棒'); return; }
+    state.recs[v]=+mv.toFixed(2);
+  } else {
+    if(v%10!==0||v<10||v>100){ toast('⚠ 请将旋出角度调至 10°~100° 的 10° 整数倍（每 10° 记录一组）'); return; }
+    if(state.recs[v]!==undefined){ toast('⚠ θ='+v+'° 已记录过'); return; }
+    if(mv<=1.0){ toast('⚠ 读数仍接近零（电桥还在平衡点附近），请继续旋出动片'); return; }
+    state.recs[v]=+mv.toFixed(2);
+  }
+  renderTable(); drawPlot(); checkSteps(); updUI();
+  toast('✓ 已记录 '+(state.mode==='disp'?'l='+v+' mm':'θ='+v+'°')+' → U='+fmt(mv,2)+' mV（'+recN()+'/'+needN+'）');
+};
+/* 未知工况 */
+$('#btnMystery').onclick=()=>{
+  if(recN()<needN){ toast('⚠ 请先完成 10 组定标记录'); return; }
+  const val=state.mode==='disp'?(2+Math.floor(Math.random()*8))       /* 2~9 mm，在定标范围内 */
+                               :(15+Math.floor(Math.random()*17)*5);  /* 15~95°，在定标范围内 */
+  state.mystery={val}; state.solved=false;
+  state.pos=val; $('#sldPos').value=val;
+  $('#sldPos').disabled=true;
+  $('#ansRow').style.display='flex';
+  $('#posShow').textContent='？ '+(state.mode==='disp'?'mm':'°');
+  $('#posLab').textContent=state.mode==='disp'?'磁棒已被移动（位置未知）':'动片已被转动（角度未知）';
+  checkSteps(); updUI();
+  toast('🎲 已随机移动'+(state.mode==='disp'?'磁棒':'动片')+'到未知位置！请读毫伏表，在定标曲线上反查后输入答案（判据 ±'+(state.mode==='disp'?'0.5 mm':'2°')+'）');
+};
+$('#btnAns').onclick=()=>{
+  if(!state.mystery) return;
+  const ans=parseFloat($('#inpAns').value);
+  if(isNaN(ans)){ toast('请输入反查结果'); return; }
+  const d=Math.abs(ans-state.mystery.val);
+  const tol=state.mode==='disp'?0.5:2;
+  if(d<=tol){
+    state.solved=true; $('#ansRow').style.display='none';
+    toast('<b style="color:var(--ok)">✓ 反查成功！</b>你提交 '+ans+'，真实值 '+state.mystery.val+'，误差 '+fmt(d,2)+(state.mode==='disp'?' mm':'°')+'');
+    conclude();
+  } else {
+    toast('✗ 误差 '+fmt(d,2)+(state.mode==='disp'?' mm':'°')+' 超出 ±'+tol+'，请对照定标曲线重新读取毫伏表值');
+  }
+  checkSteps(); updUI();
+};
+function invalidateAll(why){
+  const had=recN()>0||state.balRec||state.assigned||state.mystery;
+  state.assigned=false; state.balRec=false; state.calc=null;
+  state.done1=false; state.done2=false; state.done4=false;
+  state.recs={}; state.mystery=null; state.solved=false;
+  state.pos=0; $('#sldPos').value=0; $('#sldPos').disabled=false;
+  $('#ansRow').style.display='none';
+  $('#calcShow').textContent='尚未计算。位移模式按 R₄=ω²C₁R₁L_x、R₂R₃=R₁R₄+L_x/C₁；角度模式按 C_x=C₁R₃/R₄、R₁R₄=R₂R₃。';
+  renderBoxes(); renderTable(); drawPlot();
+  if(had){ toast('⚠ '+why+'，所有记录与赋值已失效，请重新计算、赋值、调平衡'); }
+  checkSteps(); updUI();
+}
+function updUI(){
+  $('#balShow').textContent='平衡点：'+(state.balRec?'✓ 已记录（'+(state.mode==='disp'?'l=0':'θ=0')+'）':'未记录');
+  $('#recShow').textContent='已记录 '+recN()+'/'+needN+' 组'+(state.mystery?'　｜　未知工况进行中（读表反查）':'');
+}
+
+/* ================= 数据处理 ================= */
+function renderTable(){
+  const pts=Object.keys(state.recs).map(Number).sort((a,b)=>a-b);
+  let head,rows;
+  if(state.mode==='disp'){
+    head='<tr><th>l /mm</th>'+Array.from({length:10},(_,i)=>i+1).map(v=>`<th>${v}</th>`).join('')+'</tr>';
+    rows='<tr><td><b>U /mV</b></td>'+Array.from({length:10},(_,i)=>{
+      const r=state.recs[i+1];
+      return `<td class="num ${r?'':'empty'}">${r!==undefined?fmt(r,2):'—'}</td>`;}).join('')+'</tr>';
+  } else {
+    head='<tr><th>序号</th>'+Array.from({length:10},(_,i)=>i+1).map(v=>`<th>${v}</th>`).join('')+'</tr>'
+        +'<tr><th>θ /(°)</th>'+Array.from({length:10},(_,i)=>(i+1)*10).map(v=>`<th>${v}</th>`).join('')+'</tr>';
+    rows='<tr><td><b>V /mV</b></td>'+Array.from({length:10},(_,i)=>{
+      const r=state.recs[(i+1)*10];
+      return `<td class="num ${r?'':'empty'}">${r!==undefined?fmt(r,2):'—'}</td>`;}).join('')+'</tr>';
+  }
+  $('#tbl').innerHTML='<table>'+head+rows+'</table>';
+}
+function axis(g,Wd,Ht,x0,x1,y0,y1){
+  const X=x=>44+(x-x0)/(x1-x0)*(Wd-64), Y=y=>Ht-30-(y-y0)/(y1-y0)*(Ht-50);
+  g.strokeStyle='#2a3341';
+  for(let k=0;k<=5;k++){ const v=y0+k/5*(y1-y0); g.beginPath(); g.moveTo(X(x0),Y(v)); g.lineTo(X(x1),Y(v)); g.stroke(); }
+  g.strokeStyle='#8b98a9'; g.beginPath();
+  g.moveTo(X(x0),Y(y0)); g.lineTo(X(x1),Y(y0)); g.moveTo(X(x0),Y(y0)); g.lineTo(X(x0),Y(y1)); g.stroke();
+  return {X,Y};
+}
+function drawPlot(){
+  const cv=$('#cv1'), g=cv.getContext('2d'), Wd=cv.width, Ht=cv.height;
+  g.fillStyle='#10161f'; g.fillRect(0,0,Wd,Ht);
+  const pts=Object.keys(state.recs).map(Number).sort((a,b)=>a-b);
+  const isD=state.mode==='disp';
+  const xmax=isD?12:110, ymax=Math.max(50,...pts.map(p=>state.recs[p]*1.15),10);
+  const A=axis(g,Wd,Ht,0,xmax,0,ymax);
+  g.fillStyle='#8b98a9'; g.font='11px Consolas,monospace';
+  g.fillText(isD?'l/mm':'θ/(°)',Wd-46,Ht-12);
+  g.fillText('U/mV',10,16);
+  if(pts.length){
+    g.strokeStyle='#4cc2ff'; g.lineWidth=1.8; g.beginPath();
+    pts.forEach((p,i)=>{ const x=A.X(p),y=A.Y(state.recs[p]); i?g.lineTo(x,y):g.moveTo(x,y); });
+    g.stroke();
+    g.fillStyle='#3ad17e';
+    pts.forEach(p=>{ g.beginPath(); g.arc(A.X(p),A.Y(state.recs[p]),3.5,0,7); g.fill(); });
+  }
+  if(state.mystery){
+    const mv=bridgeMV();
+    g.fillStyle='#ffb454'; g.beginPath();
+    g.arc(A.X(Math.min(state.mystery.val,xmax)),A.Y(Math.min(mv,ymax)),5,0,7); g.fill();
+    g.fillText('未知工况（可由 U='+fmt(mv,1)+' mV 反查）',A.X(4),A.Y(ymax*0.92));
+  }
+  if(!pts.length&&!state.mystery){
+    g.fillStyle='#39584a'; g.font='13px Microsoft YaHei'; g.textAlign='center';
+    g.fillText('记录数据后自动绘制定标曲线',Wd/2,Ht/2);
+  }
+}
+function conclude(){
+  const pts=Object.keys(state.recs).map(Number).sort((a,b)=>a-b);
+  if(pts.length<needN){ return; }
+  /* 线性拟合（0~10mm / 10~100° 段） */
+  const n=pts.length, sx=pts.reduce((a,b)=>a+b,0), sy=pts.reduce((a,b)=>a+state.recs[b],0);
+  const sxx=pts.reduce((a,b)=>a+b*b,0), sxy=pts.reduce((a,b)=>a+b*state.recs[b],0);
+  const k=(n*sxy-sx*sy)/(n*sxx-sx*sx), b0=(sy-k*sx)/n;
+  let sse=0,sst=0; pts.forEach(p=>{ sse+=(state.recs[p]-(k*p+b0))**2; sst+=(state.recs[p]-sy/n)**2; });
+  const r2=1-sse/sst;
+  const unit=state.mode==='disp'?'mm':'°';
+  $('#conclude').innerHTML='<table><tr><th>比较项</th><th>数值</th></tr>'
+    +'<tr><td>定标曲线灵敏度 k</td><td class="num">'+fmt(k,2)+' mV/'+unit+'</td></tr>'
+    +'<tr><td>线性相关 R²</td><td class="num">'+r2.toFixed(4)+(r2>0.995?'（高度线性 ✓）':'')+'</td></tr>'
+    +'<tr><td>反查结果</td><td class="num">'+(state.solved?'✓ 误差≤'+(state.mode==='disp'?'0.5 mm':'2°'):'—')+'</td></tr></table>'
+    +'<div class="info">结论：① 交流电桥平衡条件为相对臂阻抗乘积相等 Z₁Z₄=Z₂Z₃（复数方程，需实虚两部同时平衡）；② 非平衡电桥输出电压与位移（角度）在测量范围内近似线性（Δl=KK′ΔV），据此可由电压定标反查未知位移/角度；③ 电感式（磁通改变法）与电容式（改变正对面积）传感器都把几何量转换为电桥不平衡电压，实现非电量电测。</div>';
+}
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  state.mode='disp'; state.C1=0.1e-6;
+  state.calc=calcTheory(); state.R=state.calc.R.slice();
+  state.power=true; state.assigned=true; state.done1=true; state.balRec=true; state.done2=true;
+  for(let l=1;l<=10;l++){
+    state.pos=l; state.recs[l]=+bridgeMV().toFixed(2);
+  }
+  state.pos=0; $('#sldPos').value=0;
+  $('#btnPwr').textContent='断开电源'; $('#btnPwr').classList.add('on');
+  refreshMode(); renderBoxes(); renderTable(); drawPlot(); conclude();
+  $('#btnMystery').onclick && toast('');
+  state.done4=true;
+  checkSteps(); updUI();
+  toast('已自动填入示例数据（位移模式 10 组定标）。请到「数据处理」页查看曲线，点「生成未知工况」体验反查。');
+};
+$('#btnReset').onclick=()=>{
+  invalidateAllSilent();
+  $('#btnPwr').textContent='接通电源'; $('#btnPwr').classList.remove('on');
+  setModeSilent('disp');
+  toast('实验已重置');
+};
+function invalidateAllSilent(){
+  state.assigned=false; state.balRec=false; state.calc=null;
+  state.done1=false; state.done2=false; state.done4=false;
+  state.recs={}; state.mystery=null; state.solved=false; state.power=false;
+  state.pos=0; $('#sldPos').value=0; $('#sldPos').disabled=false;
+  $('#ansRow').style.display='none';
+  $('#calcShow').textContent='尚未计算。位移模式按 R₄=ω²C₁R₁L_x、R₂R₃=R₁R₄+L_x/C₁；角度模式按 C_x=C₁R₃/R₄、R₁R₄=R₂R₃。';
+  renderBoxes(); renderTable(); drawPlot(); checkSteps(); updUI();
+}
+function setModeSilent(m){
+  state.mode=m; state.C1=m==='disp'?0.1e-6:0.001e-6;
+  refreshMode(); renderTable(); drawPlot();
+}
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  /* ①②"做过即锁存"：赋值/平衡点记录后不因后续移动传感器而熄灭；失效时由 invalidateAll 复位 */
+  const c=recN()>=needN;
+  const s=[
+    state.done1,
+    state.done2&&state.balRec,
+    c,
+    state.done4||(c&&!!state.mystery),
+    state.solved===true
+  ];
+  const tips=['赋值完成，请接通电源调平衡。','平衡点已记录，请逐点记录 10 组数据。','10 组记录完成，请到数据处理页查看定标曲线并生成未知工况。','未知工况已生成，请读表反查提交。','全部完成：定标反查成功，非电量电测原理验证完毕！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')&&i>0) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+  /* ④ 数据页查看 */
+  $('#btnMystery').disabled=recN()<needN;
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,faceT=1;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  /* 磁棒：l=0 时右端恰在管口（x=-8），l=50 全插入（右端至管右端 x=+8）；手轮/游标联动 */
+  bar.position.x=-21+state.pos/50*16;
+  grip.position.x=bar.position.x-14.3;
+  cursor1.position.x=-8+state.pos/50*16;
+  /* 指针与动片随 θ 旋转（θ=0 指向 0° 刻度） */
+  needle.rotation.z=-state.pos/180*Math.PI;
+  rotorG.rotation.z=state.pos/180*Math.PI;
+  faceT+=1/60;
+  if(faceT>0.15){ faceT=0; drawFace(); }
+  controls.update(); renderer.render(scene,camera);
+}
+setModeSilent('disp'); renderBoxes(); renderTable(); drawPlot(); checkSteps(); updUI(); drawFace();
+loop();
+</script>
+</body>
+</html>

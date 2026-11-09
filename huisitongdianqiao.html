@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验23 · 组装惠斯通电桥测电阻</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+aside{width:400px;flex:0 0 400px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+.row label{flex:0 0 105px;color:var(--muted)}
+.val{flex:0 0 90px;text-align:right;font-variant-numeric:tabular-nums}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+#lcdBox{position:absolute;right:14px;bottom:14px;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:5}
+#lcdBox .bar{display:flex;align-items:center;padding:7px 10px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line);gap:8px}
+#lcdBox .bar b{color:var(--text);font-weight:600;flex:1}
+#lcd2d{width:100%;height:140px;display:block}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 3px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;flex:1}
+#rsVal{font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验23 · 组装惠斯通电桥测电阻</h1>
+  <span class="tag">R<sub>X</sub> = C·R<sub>S</sub> · <b>S = Δn/ΔR<sub>S</sub></b> · σR<sub>X</sub> = 0.1·C·ΔR<sub>S</sub>/Δn</span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动填入示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="lcdBox">
+    <div class="bar"><b>电桥监测</b><span id="swLamp" style="width:10px;height:10px;border-radius:50%;background:#333;display:inline-block"></span>电源</div>
+    <canvas id="lcd2d" width="278" height="140"></canvas>
+  </div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">测量操作</div>
+    <div class="tab" data-tab="data">数据处理</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>粗测</b>：数字万用表表笔接触待测电阻，记录 R<sub>X0</sub></div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>组建桥路</b>：按表 2.23.1 选定组态，按平衡方程 R<sub>S</sub>=R<sub>X0</sub>·R<sub>B</sub>/R<sub>A</sub> 估算并赋值比较臂</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>平衡</b>：接通电源，微调 R<sub>S</sub> 使电流计指零（≤1/10 格），记录平衡值 R<sub>S</sub></div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>测灵敏度</b>：改变 R<sub>S</sub> 使电流计偏转 Δn=5 格，记录 R<sub>S</sub>'，得 ΔR<sub>S</sub>、R<sub>X</sub>、S、σR<sub>X</sub></div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div>换组态重复，完成表 2.23.1（4 行）、2.23.2（2 行）、2.23.3（2 行），总结灵敏度规律</div></div>
+    </section>
+    <section>
+      <h4>注意事项</h4>
+      <div class="info">① 应先按平衡方程估算 R<sub>S</sub> 再通电，防止电流计过载（打表）；② 平衡判断以电流计 ≤1/10 格偏转视为指零；③ 测灵敏度时偏转 Δn 取 5 格；④ 共 6 种组态（其中 E=3V、R<sub>g</sub>=100Ω、R<sub>A</sub>=R<sub>B</sub>=100Ω 一组同时属于三张表）。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 数字万用表（粗测）</h4>
+      <button class="b" id="btnMM">表笔接触待测电阻 R<sub>X</sub></button>
+      <span class="val" id="mmShow">— —</span>
+    </section>
+    <section>
+      <h4>② 桥路组态</h4>
+      <div class="row"><label>电源电压 E</label><select id="selE"><option value="3">3.0 V</option><option value="4.5">4.5 V</option></select></div>
+      <div class="row"><label>电流计内阻 R<sub>g</sub></label><select id="selG"><option value="100">100 Ω</option><option value="2500">2500 Ω</option></select></div>
+      <div class="grid2">
+        <div class="row"><label>R<sub>A</sub> (Ω)</label><select id="selA"><option>100</option><option>1000</option><option>10</option></select></div>
+        <div class="row"><label>R<sub>B</sub> (Ω)</label><select id="selB"><option>100</option><option>1000</option></select></div>
+      </div>
+      <div class="info" id="cfgShow"></div>
+    </section>
+    <section>
+      <h4>③ 比较臂 R<sub>S</sub>（直流多值电阻器）</h4>
+      <div style="text-align:center;margin:4px 0"><span id="rsVal">—</span><span class="info"> Ω</span></div>
+      <input type="range" id="sRS" min="0" max="12000" step="0.1" value="100" style="width:100%">
+      <div>
+        <button class="b" data-d="-10">−10</button><button class="b" data-d="-1">−1</button><button class="b" data-d="-0.1">−0.1</button>
+        <button class="b" data-d="0.1">+0.1</button><button class="b" data-d="1">+1</button><button class="b" data-d="10">+10</button>
+      </div>
+      <button class="b" id="btnAssign">按平衡方程赋值 R_S = R_X0·R_B/R_A</button>
+    </section>
+    <section>
+      <h4>④ 测量</h4>
+      <button class="b" id="btnSw">电源开关</button>
+      <span class="info" id="swState">断开</span><br>
+      <button class="b" id="btnRecBal">记录平衡点 R_S（指零时）</button><br>
+      <button class="b" id="btnRec5">调至偏转 Δn=5 格并记录 R_S'</button>
+      <div class="info" id="measShow">指针偏转：—</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>粗测记录</h4>
+      <div class="info" id="mmRec">万用表粗测 R_X0 = —（待测电阻标称 100 Ω）</div>
+    </section>
+    <section>
+      <h4>表 2.23.1 电桥灵敏度与桥臂比的关系（E=3 V，R_g=100 Ω）</h4>
+      <div id="tbl1"></div>
+    </section>
+    <section>
+      <h4>表 2.23.2 电桥灵敏度与电源电压的关系（R_A=R_B=100 Ω，R_g=100 Ω）</h4>
+      <div id="tbl2"></div>
+    </section>
+    <section>
+      <h4>表 2.23.3 电桥灵敏度与灵敏电流计内阻的关系（E=3 V，R_A=R_B=100 Ω）</h4>
+      <div id="tbl3"></div>
+    </section>
+    <section>
+      <h4>结论</h4>
+      <div class="info" id="conclude">完成全部 6 种组态后自动给出结论。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>电桥工作原理</h4>
+      <p class="info">R<sub>A</sub>、R<sub>B</sub>（比率臂）、R<sub>X</sub>（测量臂，待测）、R<sub>S</sub>（比较臂）构成电桥四臂；1、3 对角间接电源与开关，2、4 对角间接灵敏电流计。平衡时 I_g=0，2、4 两点电势相等，由 I<sub>AB</sub>R_A = I<sub>XS</sub>R_X 可得：</p>
+      <div class="formula">R_A/R_B = R_X/R_S　（2.23.1）</div>
+      <div class="formula">R_X = (R_A/R_B)·R_S = C·R_S　（2.23.2）</div>
+      <p class="info">C 称为桥臂比，体现待测电阻与比较臂电阻之间的比例关系。平衡方程可用于估算比较臂理论值 R_S = R_X0·R_B/R_A。</p>
+    </section>
+    <section>
+      <h4>电桥灵敏度</h4>
+      <div class="formula">S₁ = Δn/ΔI_g（电流计灵敏度，div/A）</div>
+      <div class="formula">S = Δn/ΔR_S　（2.23.3）</div>
+      <p class="info">由基尔霍夫定律，电桥灵敏度与电路参数的关系：</p>
+      <div class="formula">S = E·S_i / [(R_X+R_A+R_B+R_S) + (2+R_X/R_S+R_B/R_A)·R_g]　（2.23.4）</div>
+      <p class="info">S 与桥臂比 C、电源电压 E、电流计灵敏度 S_i 及内阻 R_g 有关。仿真内核采用戴维南等效电路精确求解非平衡电流：I_g = V_th/(R_th+R_g)，V_th = E[R_S/(R_X+R_S) − R_B/(R_A+R_B)]，R_th = R_A∥R_X + R_B∥R_S。</p>
+    </section>
+    <section>
+      <h4>灵敏度引入的误差</h4>
+      <p class="info">规定灵敏电流计 1/10 分度的偏转为平衡判断的分辨界限，则由电桥灵敏度引入的待测电阻不确定度：</p>
+      <div class="formula">σR_X = 0.1·C·ΔR_S/Δn = 0.1·C/S　（2.23.5、2.23.6）</div>
+    </section>
+    <section>
+      <h4>本仿真参数</h4>
+      <div class="info">电流计灵敏度 S_i = 1.0×10⁵ div/A（分度值 10 μA/div），量程 ±60 格（超出打表）；电阻器最小步进 0.1 Ω；待测电阻真值 100 Ω。改变组态后需重新估算赋值、平衡、测灵敏度。</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+const D2R=Math.PI/180;
+
+/* ================= 物理参数与状态 ================= */
+const PHYS={ Si:1.0e5, RX:100, RANGE:60, NOISE:0.03 };   // 电流计灵敏度 div/A、待测电阻真值、量程格
+const CFG={
+  E:3, Rg:100, RA:100, RB:100, RS:100,
+  sw:false, RX0:null,
+  mm:false, assigned:false, bal:false, div5:false,   // 当前组态进度
+  rec:{}                                             // 组态key -> {RS,RS5,dRS,RX,S,sRX}
+};
+const key=(E,g,a,b)=>`${E}|${g}|${a}|${b}`;
+const cfgKey=()=>key(CFG.E,CFG.Rg,CFG.RA,CFG.RB);
+/* 戴维南等效：电流计电流 → 偏转格数（带符号），物理内核 */
+function ndivAt(RS,E,g,a,b){
+  const RX=PHYS.RX;
+  const V4=E*RS/(RX+RS), V2=E*b/(a+b);
+  const Rth=a*RX/(a+RX)+b*RS/(b+RS);
+  return PHYS.Si*(V4-V2)/(Rth+g);
+}
+function ndiv(){ let n=ndivAt(CFG.RS,CFG.E,CFG.Rg,CFG.RA,CFG.RB); if(CFG.sw) n+=(Math.random()-0.5)*PHYS.NOISE; return n; }
+function clampN(n){ return Math.max(-PHYS.RANGE,Math.min(PHYS.RANGE,n)); }
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,560,1200);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000);
+camera.position.set(16,74,140);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0,6,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x8899bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.15); dl.position.set(120,220,150); scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x6688cc,.3); dl2.position.set(-120,60,-160); scene.add(dl2);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.userData={title,text};
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+/* 文字标签精灵（canvas 纹理，可重绘） */
+function makeLabel(draw,w,h,sx,sy){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  sp.scale.set(sx,sy,1);
+  sp.userData.redraw=(...a)=>{ draw(c.getContext('2d'),w,h,...a); tex.needsUpdate=true; };
+  sp.userData.redraw();
+  return sp;
+}
+
+/* 实验台 */
+const bench=new THREE.Mesh(new THREE.BoxGeometry(200,8,90), M(0x4a3a28,{roughness:.85}));
+bench.position.y=-4; scene.add(bench);
+[[-88,-34],[88,-34],[-88,34],[88,34]].forEach(p=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(9,64,9), M(0x3a2e20));
+  leg.position.set(p[0],-40,p[1]); scene.add(leg);
+});
+const floor=new THREE.Mesh(new THREE.CircleGeometry(900,48), M(0x11161f,{roughness:1}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-72; scene.add(floor);
+
+/* ---- 直流稳压电源（左） ---- */
+const pwrBox=new THREE.Mesh(new THREE.BoxGeometry(24,16,12), M(0x2c3648,{roughness:.5}));
+pwrBox.position.set(-70,8,20); scene.add(pwrBox);
+tag(pwrBox,'直流稳压电源','提供 E=3.0V / 4.5V 可选直流电压，经开关加到电桥 1、3 对角。');
+const pwrLcd=makeLabel((g,w,h,E)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 40px Consolas,monospace'; g.textAlign='center';
+  g.fillText('E = '+(+E).toFixed(1)+' V',w/2,h/2+14); },256,64,15,3.75);
+pwrLcd.position.set(-70,13,26.2); scene.add(pwrLcd);
+[[-76,0xff5555],[-64,0x8899aa]].forEach(([x,c])=>{
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(1,1,3,10), M(c,{metalness:.6}));
+  t.position.set(x,17,14); scene.add(t);
+});
+
+/* ---- 灵敏电流计（后中，表盘朝 +z） ---- */
+const gBox=new THREE.Mesh(new THREE.BoxGeometry(22,22,10), M(0x39424e,{roughness:.5}));
+gBox.position.set(28,11,36); scene.add(gBox);
+tag(gBox,'AC15 灵敏电流计','检流计：S_i=1.0×10⁵ div/A，内阻 R_g 可选 100/2500Ω，量程 ±60 格，1/10 格为平衡分辨界限。');
+const dialCv=document.createElement('canvas'); dialCv.width=512; dialCv.height=256;
+(function(){ const g=dialCv.getContext('2d');
+  g.fillStyle='#f2ead8'; g.fillRect(0,0,512,256);
+  g.strokeStyle='#333'; g.lineWidth=3; g.beginPath(); g.arc(256,250,215,Math.PI,2*Math.PI); g.stroke();
+  g.fillStyle='#222'; g.font='bold 22px Consolas,monospace'; g.textAlign='center';
+  for(let d=-60;d<=60;d+=10){                       // d>0 → 右偏
+    const r1=d%20?0.94:0.86;
+    const x1=256+Math.sin(-d*D2R)*215*r1, y1=250-Math.cos(-d*D2R)*215*r1;
+    const x2=256+Math.sin(-d*D2R)*215,   y2=250-Math.cos(-d*D2R)*215;
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    if(d%20===0) g.fillText(String(Math.abs(d)),256+Math.sin(-d*D2R)*175,250-Math.cos(-d*D2R)*175+8);
+  }
+  g.font='16px Microsoft YaHei'; g.fillStyle='#555'; g.fillText('AC15 灵敏电流计（格）',256,150);
+})();
+const dial=new THREE.Mesh(new THREE.PlaneGeometry(20,10), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(dialCv)}));
+dial.position.set(28,13,41.2); scene.add(dial);
+const needle=new THREE.Group(); needle.position.set(28,12.4,41.4); scene.add(needle);
+const ndl=new THREE.Mesh(new THREE.BoxGeometry(.35,9,.2), M(0xc0392b,{emissive:0x220000}));
+ndl.position.y=4.2; needle.add(ndl);
+
+/* ---- 开关 ---- */
+const swBase=new THREE.Mesh(new THREE.BoxGeometry(8,2,6), M(0x2c3648));
+swBase.position.set(-14,1,20); scene.add(swBase);
+const lever=new THREE.Group(); lever.position.set(-14,2.2,20); scene.add(lever);
+const lv=new THREE.Mesh(new THREE.BoxGeometry(6,.8,1.2), M(0xd0d6de,{metalness:.6}));
+lv.position.x=2.2; lever.add(lv);
+const knobTip=new THREE.Mesh(new THREE.SphereGeometry(1,10,8), M(0xc0392b));
+knobTip.position.x=5; lever.add(knobTip);
+tag(swBase,'开关','接通/断开电源对角线。合上前务必按平衡方程估算比较臂阻值，防止电流计打表。');
+function setLever(on){ lever.rotation.z=on?-0.9:0.55; }
+
+/* ---- 三个直流多值电阻器（电阻箱） ---- */
+function resBox(x,name){
+  const box=new THREE.Mesh(new THREE.BoxGeometry(16,7,11), M(0x31405a,{roughness:.45}));
+  box.position.set(x,3.5,20); scene.add(box);
+  tag(box,'直流多值电阻器（'+name+'）','四位可调电阻箱，最小步进 0.1 Ω。'+(name==='R_S'?'比较臂：微调它使电桥平衡，其读数直接进入 R_X=C·R_S。':'比率臂：决定桥臂比 C=R_A/R_B。'));
+  const lb=makeLabel((g,w,h,v)=>{ g.clearRect(0,0,w,h); g.fillStyle='#cfe3ff'; g.font='bold 44px Consolas,monospace';
+    g.textAlign='center'; g.fillText(name+'='+fmt(v,1)+'Ω',w/2,h/2+16); },256,64,17,4.2);
+  lb.position.set(x,11.5,20); scene.add(lb);
+  return lb;
+}
+const lbA=resBox(0,'R_A'), lbB=resBox(18,'R_B'), lbS=resBox(56,'R_S');
+/* 待测电阻（色环：棕黑棕金 = 100Ω） */
+const rx=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,10,20), M(0xd8c9a3,{roughness:.4}));
+rx.rotation.z=Math.PI/2; rx.position.set(38,3,20); scene.add(rx);
+[[2.6,0x8B4513],[-0.4,0x222222],[-3.2,0x8B4513],[-5.6,0xd4af37]].forEach(([dx,c])=>{
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,.9,20), M(c));
+  band.rotation.z=Math.PI/2; band.position.set(38+dx,3,20); scene.add(band);
+});
+tag(rx,'待测电阻 R_X','标称 100 Ω（色环 棕黑棕金）。接在测量臂，由平衡方程 R_X=C·R_S 求出。');
+
+/* ---- 数字万用表（台面前） ---- */
+const mmBox=new THREE.Mesh(new THREE.BoxGeometry(14,8,8), M(0x2c3648,{roughness:.5}));
+mmBox.position.set(-38,4,44); scene.add(mmBox);
+tag(mmBox,'数字万用表','电阻挡粗测待测电阻，为估算比较臂理论值 R_S=R_X0·R_B/R_A 提供依据。');
+const mmLcd=makeLabel((g,w,h,v)=>{ g.fillStyle='#04140c'; g.fillRect(0,0,w,h);
+  g.fillStyle='#57e389'; g.font='bold 40px Consolas,monospace'; g.textAlign='center';
+  g.fillText(v?('Ω '+v):'-- --',w/2,h/2+14); },256,64,12,3);
+mmLcd.position.set(-38,7,48.2); scene.add(mmLcd);
+/* 表笔 */
+const probeR=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,30,8), M(0xff5555));
+probeR.position.set(26,3.2,32); probeR.rotation.z=Math.PI/2; scene.add(probeR);
+const probeB=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,30,8), M(0x222222));
+probeB.position.set(28,1.6,32); probeB.rotation.z=Math.PI/2; scene.add(probeB);
+
+/* ---- 导线（桥路连线） ---- */
+function wire(pts,color){
+  const curve=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve,48,.28,8), M(color,{roughness:.5})));
+}
+wire([[-64,17,14],[-64,12,10],[-17,4,12],[-17,3,18]],0xff5555);        // 电源+ → 开关左
+wire([[-11,3,18],[-10,3,14],[-8,4,16]],0xff5555);                      // 开关右 → 节点1
+wire([[-76,17,14],[-76,8,4],[28,8,4],[28,3,14]],0x556070);             // 电源− → 节点3
+wire([[-8,4,16],[0,6,17],[9,5,14]],0x8899aa);                          // 节点1 → R_A → 节点2
+wire([[10,5,17],[18,6,17],[28,3,14]],0x8899aa);                        // 节点2 → R_B → 节点3
+wire([[-10,3,14],[2,1.5,10],[33,3,10],[33,4,17]],0x8899aa);            // 节点1 → R_X
+wire([[43,4,17],[46,5,14]],0x8899aa);                                  // R_X → 节点4
+wire([[48,4,17],[56,6,17]],0x8899aa);                                  // 节点4 → R_S
+wire([[64,4,17],[74,4,8],[28,7,5],[28,3,14]],0x8899aa);                // R_S → 节点3
+wire([[9,5,14],[9,8,22],[22,11,36]],0xd4af37);                         // 节点2 → 电流计
+wire([[34,11,36],[46,8,22],[46,5,14]],0xd4af37);                       // 电流计 → 节点4
+
+/* ================= 浮动液晶窗 ================= */
+const lcdCanvas=document.createElement('canvas'); lcdCanvas.width=278; lcdCanvas.height=140;
+function drawLCD(){
+  const g=lcdCanvas.getContext('2d');
+  g.fillStyle='#04140c'; g.fillRect(0,0,278,140);
+  g.font='14px Consolas,monospace'; g.textAlign='left';
+  const n=CFG.sw?ndiv():0, an=Math.abs(n);
+  const status=!CFG.sw?'电源断开':(an>PHYS.RANGE?'打表!':(an<0.1?'指 零':'偏转'));
+  g.fillStyle='#57e389';
+  g.fillText('组态 E='+CFG.E.toFixed(1)+'V  Rg='+CFG.Rg+'Ω',10,24);
+  g.fillText('R_A='+CFG.RA+'  R_B='+CFG.RB+'  C='+(CFG.RA/CFG.RB),10,44);
+  g.fillText('R_S = '+fmt(CFG.RS,1)+' Ω',10,64);
+  g.fillStyle=an>PHYS.RANGE?'#ff5555':'#57e389';
+  g.fillText('I_g = '+(CFG.sw?fmt(Math.abs(ndivAt(CFG.RS,CFG.E,CFG.Rg,CFG.RA,CFG.RB)/PHYS.Si*1e6),3):'0.000')+' μA',10,84);
+  g.fillStyle=an>PHYS.RANGE?'#ff5555':'#57e389';
+  g.fillText('偏转 n = '+(CFG.sw?(n>=0?'+':'')+fmt(n,2):'0.00')+' 格  ['+status+']',10,104);
+  g.fillStyle='#8fb7a0';
+  g.fillText('平衡判据：|n| ≤ 0.1 格',10,124);
+  $('#lcd2d').getContext('2d').drawImage(lcdCanvas,0,0);
+}
+
+/* ================= 交互 ================= */
+function updateRS(v){
+  CFG.RS=Math.max(0,Math.min(12000,Math.round(v*10)/10));
+  $('#rsVal').textContent=fmt(CFG.RS,1); $('#sRS').value=CFG.RS;
+  lbS.userData.redraw(CFG.RS);
+  /* 平衡点一经记录即保持有效（btnRecBal 已有 |n|≤0.1 实时校验），调 R_S 测灵敏度不失效 */
+  checkSteps();
+}
+$('#sRS').oninput=e=>updateRS(+e.target.value);
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>updateRS(CFG.RS+ +b.dataset.d));
+
+$('#selE').onchange=e=>{ CFG.E=+e.target.value; onConfigChange(); };
+$('#selG').onchange=e=>{ CFG.Rg=+e.target.value; onConfigChange(); };
+$('#selA').onchange=e=>{ CFG.RA=+e.target.value; onConfigChange(); };
+$('#selB').onchange=e=>{ CFG.RB=+e.target.value; onConfigChange(); };
+function onConfigChange(){
+  pwrLcd.userData.redraw(CFG.E);
+  lbA.userData.redraw(CFG.RA); lbB.userData.redraw(CFG.RB);
+  $('#cfgShow').textContent='当前组态：E='+CFG.E.toFixed(1)+'V，R_g='+CFG.Rg+'Ω，R_A='+CFG.RA+'Ω，R_B='+CFG.RB+'Ω（C='+(CFG.RA/CFG.RB)+'）';
+  const r=CFG.rec[cfgKey()];
+  CFG.assigned=!!r; CFG.bal=!!r; CFG.div5=!!r;   // 已完成的组态直接视为已完成
+  if(CFG.sw){ CFG.sw=false; setLever(false); $('#btnSw').classList.remove('on'); $('#swState').textContent='断开'; }
+  updUI(); checkSteps();
+}
+$('#btnMM').onclick=()=>{
+  if(CFG.mm){ toast('已完成粗测：R_X0 = '+fmt(CFG.RX0,1)+' Ω'); return; }
+  CFG.RX0=100+(Math.random()-0.5)*0.6;           // 万用表粗测（±0.3Ω）
+  CFG.mm=true;
+  mmLcd.userData.redraw(fmt(CFG.RX0,1));
+  $('#mmShow').textContent=fmt(CFG.RX0,1)+' Ω';
+  $('#mmRec').innerHTML='万用表粗测 <b>R_X0 = '+fmt(CFG.RX0,1)+' Ω</b>（待测电阻标称 100 Ω）';
+  toast('粗测完成：<b>R_X0 = '+fmt(CFG.RX0,1)+' Ω</b>。下一步按平衡方程估算比较臂理论值 R_S=R_X0·R_B/R_A 并赋值。');
+  checkSteps();
+};
+$('#btnAssign').onclick=()=>{
+  if(!CFG.mm){ toast('<b style="color:var(--warn)">请先用万用表粗测 R_X0</b>'); return; }
+  const est=CFG.RX0*CFG.RB/CFG.RA;
+  updateRS(est);
+  CFG.assigned=true;
+  toast('已按平衡方程赋值：R_S = R_X0·R_B/R_A = '+fmt(CFG.RX0,1)+'×'+CFG.RB+'/'+CFG.RA+' = <b>'+fmt(est,1)+' Ω</b>。可接通电源微调平衡。');
+  checkSteps();
+};
+$('#btnSw').onclick=()=>{
+  if(!CFG.sw&&!CFG.assigned){ toast('<b style="color:var(--warn)">请先按平衡方程赋值 R_S</b>，防止电流计打表'); return; }
+  CFG.sw=!CFG.sw;
+  setLever(CFG.sw);
+  $('#btnSw').classList.toggle('on',CFG.sw);
+  $('#swState').textContent=CFG.sw?'接通':'断开';
+  $('#swLamp').style.background=CFG.sw?'#3ad17e':'#333';
+  if(CFG.sw&&Math.abs(ndivAt(CFG.RS,CFG.E,CFG.Rg,CFG.RA,CFG.RB))>PHYS.RANGE)
+    toast('<b style="color:var(--warn)">电流计打表！</b>偏转超量程，请检查组态与 R_S 赋值');
+  updUI();
+};
+$('#btnRecBal').onclick=()=>{
+  if(!CFG.sw){ toast('<b style="color:var(--warn)">请先接通电源</b>'); return; }
+  const n=Math.abs(ndiv());
+  if(n>=PHYS.RANGE){ toast('<b style="color:var(--warn)">电流计打表</b>，无法读数，请调整 R_S 使偏转回到量程内'); return; }
+  if(n>=0.1){ toast('指针偏转 <b>'+fmt(n,2)+' 格</b>，未指零（判据 |n|≤0.1）。请微调 R_S（±0.1 挡）。'); return; }
+  CFG.bal=true;
+  toast('电桥平衡！已记录 <b>R_S = '+fmt(CFG.RS,1)+' Ω</b>。下一步改变 R_S 使偏转 Δn=5 格，测电桥灵敏度。');
+  checkSteps();
+};
+/* 数值求解 |n(R_S')|=5：从已记录的平衡点出发、沿偏离方向搜索（|n| 随偏离单调增，任何当前偏转都能收敛） */
+function solveDiv5(){
+  const f=rs=>Math.abs(ndivAt(rs,CFG.E,CFG.Rg,CFG.RA,CFG.RB));
+  const RS0=CFG.recBalRS();
+  const dir=(CFG.RS>=RS0)?1:-1;                    // 沿当前偏离方向
+  let prev=RS0, cur=RS0, step=0.2, found=null;
+  for(let i=0;i<400;i++){
+    cur=prev+dir*step;
+    if(cur<0||cur>30000) break;
+    if(f(cur)>=5){ found=[prev,cur]; break; }
+    prev=cur; step=Math.min(step*1.5,500);
+  }
+  if(!found) return null;
+  let [a,b]=found;
+  for(let i=0;i<80;i++){ const m=(a+b)/2; if(f(m)>=5) b=m; else a=m; }
+  return (a+b)/2;
+}
+$('#btnRec5').onclick=()=>{
+  if(!CFG.sw||!CFG.bal){ toast('<b style="color:var(--warn)">请先记录平衡点 R_S</b>'); return; }
+  const target=solveDiv5();
+  if(target===null){ toast('未能找到偏转 5 格的位置（超出电阻器范围）'); return; }
+  const RS5=Math.round(target*10)/10;
+  if(Math.abs(RS5-CFG.recBalRS())<0.05){ toast('5 格位置与平衡点几乎重合，请检查组态'); return; }
+  updateRS(RS5);
+  CFG.div5=true;
+  const dRS=Math.abs(RS5-CFG.recBalRS()), C=CFG.RA/CFG.RB;
+  const rec={RS:CFG.recBalRS(), RS5, dRS, RX:C*CFG.recBalRS(), S:5/dRS, sRX:0.1*C*dRS/5};
+  CFG.rec[cfgKey()]=rec;
+  CFG.assigned=true; CFG.bal=true;   // 本组态流程已完成
+  toast('已记录 R_S\' = <b>'+fmt(RS5,1)+' Ω</b>（偏转 5.00 格）：ΔR_S='+fmt(dRS,2)+'Ω，R_X='+fmt(rec.RX,2)+'Ω，S='+rec.S.toPrecision(3)+' div/Ω，σR_X='+rec.sRX.toPrecision(3)+'Ω');
+  renderTables(); checkSteps();
+};
+/* 平衡点暂存（记录 R_S 时保存，供 ΔR_S 计算） */
+CFG._rsBal=100;
+CFG.recBalRS=()=>CFG._rsBal;
+const _oldRecBal=$('#btnRecBal').onclick;
+$('#btnRecBal').onclick=function(){ _oldRecBal.call(this); if(CFG.bal) CFG._rsBal=CFG.RS; };
+
+function updUI(){
+  $('#measShow').textContent='指针偏转：'+(CFG.sw?fmt(ndiv(),2)+' 格':'—（电源断开）');
+}
+function checkSteps(){
+  const done=Object.keys(CFG.rec).length;
+  const s=[CFG.mm, CFG.assigned, CFG.bal, CFG.div5, done>=6];
+  const tips=['粗测完成，开始组建桥路。','比较臂已赋值，接通电源微调平衡。','平衡点已记录，测电桥灵敏度。','本组态完成！换下一组态继续。','全部 6 种组态完成，查看数据处理页的结论！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')&&tips[i]) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 数据处理 ================= */
+function rowHTML(E,g,a,b,withE,withG){
+  const r=CFG.rec[key(E,g,a,b)];
+  const tdE=withE?`<td>${E.toFixed(1)}</td>`:'' , tdG=withG?`<td>${g}</td>`:'';
+  if(!r) return `<tr><td>${a}</td><td>${b}</td>${tdE}${tdG}<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+  return `<tr><td>${a}</td><td>${b}</td>${tdE}${tdG}<td class="num">${r.RS.toFixed(1)}</td><td class="num">${r.RS5.toFixed(1)}</td><td class="num">${r.dRS.toFixed(2)}</td><td class="num">${r.RX.toFixed(2)}</td><td class="num">${r.S.toPrecision(3)}</td><td class="num">${r.sRX.toPrecision(3)}</td></tr>`;
+}
+function renderTables(){
+  $('#tbl1').innerHTML=`<table>
+    <tr><th>R_A/Ω</th><th>R_B/Ω</th><th>R_S/Ω</th><th>R_S'/Ω</th><th>ΔR_S/Ω</th><th>R_X/Ω</th><th>S/(div/Ω)</th><th>σR_X/Ω</th></tr>
+    ${rowHTML(3,100,100,100)}${rowHTML(3,100,1000,1000)}${rowHTML(3,100,100,1000)}${rowHTML(3,100,10,1000)}</table>
+    <div class="info">桥臂比 C=R_A/R_B：1、1、0.1、0.01。观察 C 偏离 1 时灵敏度 S 的变化。</div>`;
+  $('#tbl2').innerHTML=`<table>
+    <tr><th>E/V</th><th>R_A/Ω</th><th>R_B/Ω</th><th>R_S/Ω</th><th>R_S'/Ω</th><th>ΔR_S/Ω</th><th>R_X/Ω</th><th>S/(div/Ω)</th><th>σR_X/Ω</th></tr>
+    ${rowHTML(3,100,100,100,true)}${rowHTML(4.5,100,100,100,true)}</table>
+    <div class="info">观察电源电压升高对灵敏度的影响。</div>`;
+  $('#tbl3').innerHTML=`<table>
+    <tr><th>R_g/Ω</th><th>R_A/Ω</th><th>R_B/Ω</th><th>R_S/Ω</th><th>R_S'/Ω</th><th>ΔR_S/Ω</th><th>R_X/Ω</th><th>S/(div/Ω)</th><th>σR_X/Ω</th></tr>
+    ${rowHTML(3,100,100,100,false,true)}${rowHTML(3,2500,100,100,false,true)}</table>
+    <div class="info">观察电流计内阻增大对灵敏度的影响。</div>`;
+  /* 结论 */
+  const all=Object.values(CFG.rec);
+  if(all.length>=6){
+    const r1=CFG.rec[key(3,100,100,100)], r2=CFG.rec[key(3,100,1000,1000)],
+          r3=CFG.rec[key(3,100,100,1000)], r4=CFG.rec[key(3,100,10,1000)],
+          r45=CFG.rec[key(4.5,100,100,100)], rg25=CFG.rec[key(3,2500,100,100)];
+    const best=all.reduce((a,b)=>b.sRX<a.sRX?b:a);
+    $('#conclude').innerHTML=`<table>
+      <tr><th>比较项</th><th>结果</th></tr>
+      <tr><td>桥臂比：C=1（100/100）vs C=1（1000/1000）</td><td class="num">S=${r1.S.toFixed(2)} vs ${r2.S.toFixed(2)} div/Ω——桥臂阻值越小，R_th 越小，灵敏度越高</td></tr>
+      <tr><td>桥臂比：C=1 vs C=0.1 vs C=0.01</td><td class="num">S=${r1.S.toFixed(2)} / ${r3.S.toPrecision(2)} / ${r4.S.toPrecision(2)} div/Ω——C 偏离 1 灵敏度骤降</td></tr>
+      <tr><td>电源电压：E=3V vs 4.5V</td><td class="num">S=${r1.S.toFixed(2)} vs ${r45.S.toFixed(2)} div/Ω——S ∝ E</td></tr>
+      <tr><td>电流计内阻：R_g=100 vs 2500Ω</td><td class="num">S=${r1.S.toFixed(2)} vs ${rg25.S.toFixed(2)} div/Ω——R_g 越大灵敏度越低</td></tr>
+      <tr><td>误差最小的测量</td><td class="num"><b>R_X = ${best.RX.toFixed(2)} Ω（σR_X = ${best.sRX.toPrecision(3)} Ω，相对误差 ${(best.sRX/best.RX*100).toFixed(2)}%）</b></td></tr></table>
+      <div class="info">结论：为提高电桥灵敏度应选 C≈1 的较小桥臂、较高电源电压与较小内阻的电流计；灵敏度越高，平衡判断越准，σR_X 越小。</div>`;
+  } else $('#conclude').innerHTML='完成全部 6 种组态后自动给出结论。（已完成 '+all.length+'/6）';
+}
+
+/* ================= 示例数据 / 重置 ================= */
+function measureAll(){    // 对 6 种组态依次"虚拟测量"
+  const cfgs=[[3,100,100,100],[3,100,1000,1000],[3,100,100,1000],[3,100,10,1000],[4.5,100,100,100],[3,2500,100,100]];
+  CFG.RX0=100.2; CFG.mm=true;
+  mmLcd.userData.redraw(fmt(CFG.RX0,1));
+  $('#mmShow').textContent=fmt(CFG.RX0,1)+' Ω';
+  $('#mmRec').innerHTML='万用表粗测 <b>R_X0 = 100.2 Ω</b>（待测电阻标称 100 Ω）';
+  cfgs.forEach(([E,g,a,b])=>{
+    const C=a/b, RSbal=CFG.RX0*b/a;
+    /* 求偏转 5 格的 R_S'（数值搜索） */
+    const f=rs=>ndivAt(rs,E,g,a,b);
+    let dir=f(RSbal+1)>0?1:-1, prev=RSbal, cur=RSbal, step=Math.max(0.2,RSbal*0.002), found=null;
+    for(let i=0;i<300;i++){
+      cur=prev+dir*step;
+      if(cur<0||cur>60000) break;
+      if(Math.abs(f(cur))>=5){ found=[prev,cur]; break; }
+      prev=cur; step=Math.min(step*1.5,800);
+    }
+    let RS5=RSbal+dir*100;   // 兜底（正常时数值搜索必然命中）
+    if(found){ let [lo,hi]=found; for(let i=0;i<80;i++){ const m=(lo+hi)/2; if(Math.abs(f(m))>=5) hi=m; else lo=m; } RS5=(lo+hi)/2; }
+    const dRS=Math.abs(RS5-RSbal);
+    CFG.rec[key(E,g,a,b)]={RS:RSbal, RS5, dRS, RX:C*RSbal, S:5/dRS, sRX:0.1*C*dRS/5};
+  });
+  renderTables(); checkSteps();
+  toast('已自动填入 6 种组态的示例数据（含粗测 R_X0=100.2Ω）。查看「数据处理」页结论。');
+}
+$('#btnSample').onclick=measureAll;
+$('#btnReset').onclick=()=>{
+  CFG.E=3; CFG.Rg=100; CFG.RA=100; CFG.RB=100; CFG.RS=100; CFG.sw=false; CFG.RX0=null;
+  CFG.mm=false; CFG.assigned=false; CFG.bal=false; CFG.div5=false; CFG.rec={}; CFG._rsBal=100;
+  $('#selE').value='3'; $('#selG').value='100'; $('#selA').value='100'; $('#selB').value='100'; $('#sRS').value=100;
+  $('#btnSw').classList.remove('on'); $('#swState').textContent='断开'; $('#swLamp').style.background='#333';
+  setLever(false); mmLcd.userData.redraw(null); pwrLcd.userData.redraw(3);
+  $('#mmShow').textContent='— —'; $('#mmRec').innerHTML='万用表粗测 R_X0 = —（待测电阻标称 100 Ω）';
+  updateRS(100); onConfigChange(); renderTables(); checkSteps();
+  toast('实验已重置');
+};
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0,lcdT=1;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  /* 指针偏转动画（电流计） */
+  const target=CFG.sw?clampN(ndiv()):0;
+  needle.rotation.z+= (target*D2R-needle.rotation.z)*0.25;   // 平滑趋近
+  lcdT+=1/60;
+  if(lcdT>0.12){ lcdT=0; drawLCD(); updUI(); }
+  controls.update(); renderer.render(scene,camera);
+}
+onConfigChange(); renderTables(); checkSteps(); drawLCD();
+loop();
+</script>
+</body>
+</html>

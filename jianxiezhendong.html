@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验1 · 简谐振动的研究 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 记录表格 */
+  table.rec { width: 100%; border-collapse: collapse; font-size: 11px; color: #a9c6e8; }
+  table.rec th, table.rec td { border: 1px solid #1d3252; padding: 4px 5px; text-align: center; }
+  table.rec th { color: #7fd7ff; background: rgba(21, 101, 192, 0.15); font-weight: 600; }
+  table.rec td.val { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+  table.rec td.val.ok { color: #69f0ae; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.dark { background: #1a1a2e; border-color: #5c5c8a; color: #c5c5e8; }
+
+  /* 进度条 */
+  .progress { height: 8px; background: rgba(41, 210, 255, 0.1); border-radius: 4px;
+    overflow: hidden; margin-top: 8px; }
+  .progress .fill { height: 100%; width: 0%; border-radius: 4px;
+    background: linear-gradient(90deg, #29d2ff, #69f0ae); transition: width 0.1s; }
+
+  /* 视口叠加层 */
+  #hudPanel { position: absolute; bottom: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #hudPanel .big { font-size: 20px; color: #7fd7ff; font-weight: 700;
+    font-variant-numeric: tabular-nums; font-family: "Consolas", monospace; }
+  #hudPanel .row { margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); cursor: pointer; }
+  #hint { position: absolute; bottom: 14px; right: 14px;
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验1 · 简谐振动的研究</h1>
+    <div class="sub">气垫导轨 + 弹簧振子 + MUJ-5B 计时计数测速仪 ｜ F=−2kx ｜ T=2π√((m+m₀)/2k) ｜ T²–m 作图法求刚度系数 k 与弹簧有效质量 m₀ ｜ ⚠ 电压设置不当易损坏管</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">导轨与计时器</button>
+        <button data-p="p3">测量记录</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾，达成后锁定）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开气泵，观察出气孔大气是否均匀</span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 调节导轨调平旋钮，使气垫导轨处于水平状态（滑块静态平衡）</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 打开计时计数测速仪电源，选周期功能，周期数设为 10</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 弹簧振子：光电门置于平衡位置，测量滑块通过光电门 21 次（10 个周期）时间，每质量重复 6 次取平均；改变滑块质量 6 次</span></div>
+          <div class="step" id="st5"><span class="box"></span><span>⑤ 作 T²–m 关系曲线：由截距得 m₀（验证 m₀=⅓m_s），由斜率求刚度系数 k</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>气垫导轨利用导轨表面小孔喷出的压缩空气，在滑块与导轨间形成薄空气层把滑块托起，摩擦力接近于零。</li>
+            <li>调平标志：滑块在导轨上任意位置都能近似静止（静态平衡）。</li>
+            <li>MUJ-5B 周期功能：不定期档每完成一个周期显示周期数加 1；定期档预置周期数后自动累计时间。</li>
+            <li>振幅应在弹簧弹性限度内；光电门置于滑块平衡位置 O 处。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 导轨与计时器 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>气泵</h3>
+          <button id="btnPump" class="btn primary">打开气泵</button>
+          <span id="pumpState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（气泵未开）</span>
+        </div>
+        <div class="card">
+          <h3>导轨调平（左右支脚高度微调）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>导轨倾角 θ (°)</span><b id="labTilt">0.30</b></div>
+            <input type="range" id="sldTilt" min="-0.5" max="0.5" step="0.01" value="0.30">
+          </div>
+          <p id="tiltInfo">|θ| ≤ 0.05° 即达到静态平衡。当前滑块将向右侧（低端）缓慢滑动。</p>
+        </div>
+        <div class="card">
+          <h3>MUJ-5B 计时计数测速仪</h3>
+          <button id="btnTimer" class="btn" disabled>选周期功能（周期数预置 10）</button>
+          <p id="timerInfo" style="margin-top:6px;">需先打开气泵并调平导轨。</p>
+        </div>
+        <div class="card">
+          <h3>弹簧振子参数</h3>
+          <div class="slider-row">
+            <div class="lab"><span>滑块质量 m₁~m₆ (g)</span><b id="labMass">150</b></div>
+            <input type="range" id="sldMass" min="0" max="5" step="1" value="0">
+          </div>
+          <div class="slider-row">
+            <div class="lab"><span>振幅 A (cm，弹性限度内)</span><b id="labAmp">10</b></div>
+            <input type="range" id="sldAmp" min="5" max="15" step="1" value="10">
+          </div>
+          <button id="btnMeasure" class="btn green" disabled>测量 10 个周期（重复 6 次）</button>
+          <div class="progress"><div class="fill" id="measFill"></div></div>
+          <p id="measInfo" style="margin-top:6px;">需先完成气泵、调平与计时器设置。</p>
+        </div>
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">滑块位移 x (cm)</div><div class="v" id="rX">0.0</div></div>
+            <div class="data-cell"><div class="k">理论周期 T (s)</div><div class="v" id="rT">--</div></div>
+            <div class="data-cell"><div class="k">MUJ-5B 计时显示 (s)</div><div class="v" id="rDisp">0.00</div></div>
+            <div class="data-cell"><div class="k">挡光计数（/21）</div><div class="v" id="rGate">0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 测量记录 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>表 2.1.1　周期测量表（m_s = <span id="pMs">24.0</span> g）</h3>
+          <table class="rec">
+            <tr><th>T / s</th><th>m₁</th><th>m₂</th><th>m₃</th><th>m₄</th><th>m₅</th><th>m₆</th></tr>
+            <tr><td>m / g</td><td class="val" id="mV1">150</td><td class="val" id="mV2">200</td><td class="val" id="mV3">250</td><td class="val" id="mV4">300</td><td class="val" id="mV5">350</td><td class="val" id="mV6">400</td></tr>
+            <tr><td>T₁</td><td class="val" id="t11">--</td><td class="val" id="t21">--</td><td class="val" id="t31">--</td><td class="val" id="t41">--</td><td class="val" id="t51">--</td><td class="val" id="t61">--</td></tr>
+            <tr><td>T₂</td><td class="val" id="t12">--</td><td class="val" id="t22">--</td><td class="val" id="t32">--</td><td class="val" id="t42">--</td><td class="val" id="t52">--</td><td class="val" id="t62">--</td></tr>
+            <tr><td>T₃</td><td class="val" id="t13">--</td><td class="val" id="t23">--</td><td class="val" id="t33">--</td><td class="val" id="t43">--</td><td class="val" id="t53">--</td><td class="val" id="t63">--</td></tr>
+            <tr><td>T₄</td><td class="val" id="t14">--</td><td class="val" id="t24">--</td><td class="val" id="t34">--</td><td class="val" id="t44">--</td><td class="val" id="t54">--</td><td class="val" id="t64">--</td></tr>
+            <tr><td>T₅</td><td class="val" id="t15">--</td><td class="val" id="t25">--</td><td class="val" id="t35">--</td><td class="val" id="t45">--</td><td class="val" id="t55">--</td><td class="val" id="t65">--</td></tr>
+            <tr><td>T₆</td><td class="val" id="t16">--</td><td class="val" id="t26">--</td><td class="val" id="t36">--</td><td class="val" id="t46">--</td><td class="val" id="t56">--</td><td class="val" id="t66">--</td></tr>
+            <tr><td>T̄</td><td class="val" id="tA1">--</td><td class="val" id="tA2">--</td><td class="val" id="tA3">--</td><td class="val" id="tA4">--</td><td class="val" id="tA5">--</td><td class="val" id="tA6">--</td></tr>
+          </table>
+          <div style="margin-top:8px;">
+            <button id="btnClear" class="btn dark">清空记录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>T²–m 作图法</h3>
+          <span class="formula">T² = (2π²/k)·m + 2π²m₀/k　→　k = 2π²/斜率，m₀ = 截距/斜率</span>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">斜率 (s²/kg)</div><div class="v" id="cSlope">--</div></div>
+            <div class="data-cell"><div class="k">截距 (s²)</div><div class="v" id="cInter">--</div></div>
+            <div class="data-cell"><div class="k">刚度系数 k (N/m)</div><div class="v" id="cK">--</div></div>
+            <div class="data-cell"><div class="k">m₀ / ⅓m_s (g)</div><div class="v" id="cM0">--</div></div>
+          </div>
+          <p id="cInfo" style="margin-top:6px;">至少测出 2 个质量点的 T̄ 后即可拟合；6 点全部测完后步骤⑤完成。m₀ ≈ ⅓m_s = 8.0 g 验证弹簧有效质量公式。</p>
+        </div>
+        <div class="card">
+          <h3>思考题</h3>
+          <p>（1）简谐振动的特点：加速度（合外力）与位移成正比而方向相反（F=−2kx），x=A sin(ωt+φ)，周期只由系统本身性质（k 与 M）决定，与振幅无关。</p>
+          <p>（2）如果两弹簧刚度系数不同（k₁≠k₂），合外力 F=−(k₁+k₂)x 仍与位移成正比、方向相反，振动仍是简谐振动（等效 k=k₁+k₂）。若气垫导轨不水平，滑块受恒定的重力分量，振动平衡位置偏离弹簧原长处，但回复力仍为线性，周期不变（只是平衡点偏移、两侧振幅不对称）。</p>
+          <p>（3）由于阻尼存在振幅逐渐衰减，滑块通过平衡位置的速度最大、受阻尼影响的时间最短，因此光电门应放在平衡位置处，测得的周期最准确。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>背景简介</h3>
+          <p>简谐振动是物体最简单、最基本和最有代表性的周期运动形式。任何一个复杂的振动都可以为很多不同频率的简谐振动的合成，为研究复杂振动提供了十分重要而实用的方法。在微观世界中和原子、离子内部的振动也可视作简谐振动，所以简谐振动也成为研究各种波动的基础。</p>
+        </div>
+        <div class="card">
+          <h3>实验原理</h3>
+          <p>在水平气垫导轨上有一质量为 m 的滑块，其两端分别与刚度系数 k₁=k₂=k 的弹簧连接，弹簧另一端各自固定在导轨两端。滑块位于平衡位置 O 时所受合外力为零。当滑块从平衡位置移动距离 x 到 O′ 后，所受合外力：</p>
+          <span class="formula">F = −2kx　(2.1.1)</span>
+          <p>由牛顿第二定律：M·d²x/dt² = −2kx　(2.1.2)。由于弹簧不仅产生运动而且参与运动，M 不仅包含滑块质量 m，还包含弹簧有效质量 m₀：</p>
+          <span class="formula">M = m + m₀　(2.1.3)　　m₀ = ⅓m_s　(2.1.4)</span>
+          <span class="formula">ω² = 2k/M　(2.1.5)　→　x = A sin(ωt + φ₀)　(2.1.6)</span>
+          <p>A 为振幅；ω=(2k/M)^½ 为角频率，只与刚度系数和有效质量有关；φ₀ 为初相位。周期：</p>
+          <span class="formula">T = 2π√(M/2k) = 2π√((m+m₀)/2k)　(2.1.7)</span>
+          <p>经变形：m = (k/2π²)T² − m₀　(2.1.8)。在气垫导轨上通过改变振子质量测出对应周期 T，用<b>作图法</b>（T²–m 直线）求出刚度系数和弹簧有效质量，验证简谐振动的特点。</p>
+        </div>
+        <div class="card">
+          <h3>实验仪器</h3>
+          <ul>
+            <li>气垫导轨系统：由导轨、滑块及光电转换装置三个基本部分构成，配有气泵、计时计数测速仪、电子天平、弹簧、挡光片等附件。</li>
+            <li>L-QG-T-2000/5.8 型气垫导轨：导轨、端盖、气口（换气孔、出气孔）、出气孔、滑行器、弹射器、标尺、测压口、支承脚、底座、口字形垫脚、调平螺钉、垫脚、砝码、挡光片、弹簧、光电门、进气口、开始/关机、数字计时器。</li>
+            <li>MUJ-5B 计时计数测速仪 8 个功能键：S1（一个光电门挡光时间）、S2（P1 或 P2 两次挡光间隔）、a（加速度）、PBzh（碰撞，等质量/不等质量）、g（重力加速度）、T（周期，可存储前 20 个周期时间值）、J（计数，光电门遮光次数）、XH（信号源）。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>实验拓展</h3>
+          <p><b>水面上上下浮动的物体做简谐振动：</b>设物体为均匀立方体，质量 m、密度 ρ、浸水部分高 h、面积 A。平衡时 ρhAg = mg（受外力下压 r 时外力消失）→ ΣF = ρgA·Δx 方向向上，可写成 ΣF = −ρgA·x（向上为正）——该物体做简谐振动。</p>
+          <p><b>木星第4颗卫星的发现：</b>1610 年伽利略以自制的望远镜发现了木星的第4颗卫星，此卫星以均匀的角速度绕木星运动。伽利略所见恰是等速率圆周运动在运动平面上某一直线的投影——简谐振动。</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="hudPanel">
+        MUJ-5B 计时计数测速仪
+        <div class="big" id="hudDisp"> 0.00 s</div>
+        <div class="row" id="hudGate">挡光计数：0 / 21</div>
+        <div class="row" id="hudT">理论 T = --</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 调平后滑块做简谐振动 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const MASSES = [0.150, 0.200, 0.250, 0.300, 0.350, 0.400];   // 滑块质量 kg
+const MS = 0.024;               // 弹簧质量 kg（m_s）
+const M0 = MS / 3;              // 弹簧有效质量 8.0 g
+const K_TRUE = 8.0;             // 弹簧刚度系数真值 N/m
+const TILT_TOL = 0.05;          // 调平容差 °
+const REPS = 6;                 // 每质量重复测量次数
+const SPEEDUP = 8;              // 测量时演示加速倍率
+
+/** 理论周期 T = 2π√((m+m₀)/2k) */
+function periodOf(m) { return 2 * Math.PI * Math.sqrt((m + M0) / (2 * K_TRUE)); }
+
+const state = {
+  pumpOn: false,
+  tilt: 0.30,
+  timerSet: false,
+  step1Done: false, step2Done: false, step3Done: false,   // 达成后锁定保持
+  massIdx: 0,
+  amp: 10,                       // 振幅 cm
+  table: [null, null, null, null, null, null],   // 每列：[T1..T6] 或 null
+  meas: null,                    // 测量中 {rep, simT, gate, lastSign, pause}
+  phase: 0,                      // 振动相位
+  xCm: 0,                        // 当前位移 cm
+  gateFlash: 0,
+  panelMin: false,
+  t: 0,
+  lastTime: performance.now()    // 时间源：模块加载时刻
+};
+
+/** T²–m 最小二乘拟合：{slope, inter, k, m0} 或 null */
+function linearFit() {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    if (state.table[i]) {
+      const Tb = state.table[i].avg;
+      pts.push([MASSES[i], Tb * Tb]);
+    }
+  }
+  if (pts.length < 2) return null;
+  const n = pts.length;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  const inter = (sy - slope * sx) / n;
+  return { slope, inter, k: 2 * Math.PI * Math.PI / slope, m0: inter / slope };
+}
+
+/* ================================================================
+ *  Three.js 3D 场景：气垫导轨 + 弹簧振子 + 光电门 + 气泵
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let railGroup, sliderGrp, springL, springR, airLayer, gateLed, pumpHose;
+let sliderLabel, gateLabel;      // 标注（模块级；滑块标注随滑块移动）
+
+const X_END = 3.0;               // 弹簧固定端
+const HALF_SLIDER = 0.38;        // 滑块半宽
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+/** 沿 +x 的螺旋弹簧（0→1），使用时 scale.x = 长度 */
+function makeSpring() {
+  const pts = [];
+  const coils = 14, r = 0.07, N = 240;
+  for (let i = 0; i <= N; i++) {
+    const u = i / N;
+    pts.push(new THREE.Vector3(u, r * Math.cos(u * coils * Math.PI * 2),
+      r * Math.sin(u * coils * Math.PI * 2)));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  return new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 300, 0.016, 8, false),
+    new THREE.MeshStandardMaterial({ color: 0xb0bec5, metalness: 0.7, roughness: 0.35 }));
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 14, 34);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(2.2, 2.8, 6.4);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.2, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 1.8; controls.maxDistance = 18;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.5));
+  const pt = new THREE.PointLight(0xffffff, 55, 40);
+  pt.position.set(0, 5, 3); scene.add(pt);
+
+  // ---- 导轨整体组（倾角联动） ----
+  railGroup = new THREE.Group();
+  scene.add(railGroup);
+
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(6.6, 0.09, 0.14),
+    new THREE.MeshStandardMaterial({ color: 0x546e7a, metalness: 0.65, roughness: 0.35 }));
+  rail.position.y = 0.02;
+  railGroup.add(rail);
+  // 底座 + 支脚
+  const bed = new THREE.Mesh(
+    new THREE.BoxGeometry(6.8, 0.08, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x14203a, metalness: 0.4, roughness: 0.6 }));
+  bed.position.y = -0.12;
+  railGroup.add(bed);
+  for (const lx of [-2.8, 2.8]) {
+    for (const lz of [-0.16, 0.16]) {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.04, 0.3, 10),
+        new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.6, roughness: 0.4 }));
+      leg.position.set(lx, -0.32, lz);
+      railGroup.add(leg);
+    }
+  }
+
+  // ---- 气垫层（气泵开时发光薄层） ----
+  airLayer = new THREE.Mesh(
+    new THREE.BoxGeometry(6.5, 0.02, 0.12),
+    new THREE.MeshBasicMaterial({ color: 0x6fd8ff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  airLayer.position.y = 0.085;
+  railGroup.add(airLayer);
+
+  // ---- 滑块（含挡光片） ----
+  sliderGrp = new THREE.Group();
+  const block = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 0.14, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.6, roughness: 0.4 }));
+  block.position.y = 0.15;
+  sliderGrp.add(block);
+  const flag = new THREE.Mesh(
+    new THREE.BoxGeometry(0.03, 0.14, 0.26),
+    new THREE.MeshStandardMaterial({ color: 0xffd54f, metalness: 0.3, roughness: 0.5 }));
+  flag.position.y = 0.22;
+  sliderGrp.add(flag);
+  railGroup.add(sliderGrp);
+
+  // ---- 两侧弹簧（固定端 → 滑块边） ----
+  springL = makeSpring(); railGroup.add(springL);
+  springR = makeSpring(); railGroup.add(springR);
+  for (const sx of [-X_END, X_END]) {
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.3, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x22304d, metalness: 0.5, roughness: 0.5 }));
+    post.position.set(sx, 0.12, 0);
+    railGroup.add(post);
+  }
+
+  // ---- 光电门（平衡位置 O 处，带指示灯） ----
+  const gatePost = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 0.5, 10),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.6, roughness: 0.4 }));
+  gatePost.position.set(0, 0.32, 0.18);
+  railGroup.add(gatePost);
+  gateLed = new THREE.Mesh(
+    new THREE.SphereGeometry(0.03, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff5252 }));
+  gateLed.position.set(0, 0.55, 0.18);
+  railGroup.add(gateLed);
+
+  // ---- 气泵 ----
+  const pump = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.4, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x263238, metalness: 0.5, roughness: 0.5 }));
+  pump.position.set(-2.6, -0.55, 1.1); scene.add(pump);
+  pumpHose = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 1, 10),
+    new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.6 }));
+  pumpHose.rotation.z = Math.PI / 2.6;
+  pumpHose.position.set(-2.1, -0.3, 0.62); scene.add(pumpHose);
+  const pumpLabel = makeTextSprite('气泵', '#80d8ff', 0.55);
+  pumpLabel.position.set(-2.6, -0.15, 1.1); scene.add(pumpLabel);
+
+  // ---- 标注（创建时即定位） ----
+  const railLabel = makeTextSprite('气垫导轨（L-QG-T-2000/5.8）', '#a7ffeb', 1.5);
+  railLabel.position.set(-0.6, 1.35, 0); scene.add(railLabel);
+  const springLLabel = makeTextSprite('弹簧 k₁', '#ffe082', 0.6);
+  springLLabel.position.set(-2.2, 0.75, 0); scene.add(springLLabel);
+  const springRLabel = makeTextSprite('弹簧 k₂', '#ffe082', 0.6);
+  springRLabel.position.set(2.2, 0.75, 0); scene.add(springRLabel);
+  gateLabel = makeTextSprite('光电门（平衡位置 O）', '#80cbc4', 1.0);
+  gateLabel.position.set(0, 1.0, 0.3); scene.add(gateLabel);
+  sliderLabel = makeTextSprite('滑块 m', '#b3e5fc', 0.6);
+  sliderLabel.position.set(0, 0.62, 0); scene.add(sliderLabel);
+}
+
+/** 元件与运动每帧更新；ideal 为真实简谐振动状态 */
+function updateScene3D(t, dt, ideal) {
+  // 导轨倾角可视化（×4 夸张）
+  railGroup.rotation.z = state.tilt * Math.PI / 180 * 4;
+
+  // 振动位移（cm → 世界坐标 ×0.02）
+  const ampW = state.amp * 0.02;
+  let xW;
+  if (ideal) {
+    xW = ampW * Math.sin(state.phase);
+  } else if (state.pumpOn) {
+    // 未调平：滑块带漂移的衰减振动
+    xW = state.xCm * 0.02 + Math.sign(state.tilt) * dt * 0.06;
+    xW = Math.max(-1.2, Math.min(1.2, xW));
+  } else {
+    // 气泵关：滑块贴轨，被弹簧缓慢拉回并滑动（有摩擦）
+    xW = state.xCm * 0.02 + Math.sign(state.tilt || 0.0001) * dt * 0.03;
+    xW = Math.max(-1.2, Math.min(1.2, xW));
+  }
+  state.xCm = xW / 0.02;
+  sliderGrp.position.x = xW;
+  sliderLabel.position.set(xW, 0.62, 0);
+
+  // 滑块浮起高度：气泵开 → 悬浮（挡光片等子件随组移动）
+  sliderGrp.position.y = state.pumpOn ? 0.05 : 0.0;
+
+  // 气垫层发光
+  airLayer.material.opacity = state.pumpOn ? 0.25 + 0.1 * Math.sin(t * 5) : 0;
+
+  // 弹簧随滑块伸缩
+  const xL = xW - HALF_SLIDER, xR = xW + HALF_SLIDER;
+  springL.position.x = -X_END;
+  springL.scale.x = xL - (-X_END);
+  springR.position.x = xR;
+  springR.scale.x = X_END - xR;
+
+  // 光电门指示灯：滑块经过平衡位置时闪绿
+  gateLed.material.color.setHex(state.gateFlash > 0 ? 0x69f0ae : 0xff5252);
+  if (state.gateFlash > 0) state.gateFlash -= dt;
+}
+
+/* ================================================================
+ *  视口叠加图：T²–m 关系曲线 + 拟合直线 + 已测散点 + 当前质量游标
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 320 * oDpr; overlayCanvas.height = 190 * oDpr;
+overlayCanvas.style.width = '320px'; overlayCanvas.style.height = '190px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+const CH = { x: 46, y: 16, w: 248, h: 140, mMin: 0.12, mMax: 0.44, yMin: 0.3, yMax: 1.15 };
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 320, 190);
+  // 半透明面板底色，避免遮挡 3D 模型
+  octx.fillStyle = 'rgba(10,16,28,0.6)';
+  octx.strokeStyle = '#1d3252';
+  octx.beginPath(); octx.rect(0, 0, 320, 190); octx.fill(); octx.stroke();
+  octx.fillStyle = '#7fd7ff'; octx.font = 'bold 11px sans-serif'; octx.textAlign = 'left';
+  octx.fillText('T²–m 关系曲线（斜率→k，截距→m₀）', 12, 13);
+
+  const px = m => CH.x + CH.w * (m - CH.mMin) / (CH.mMax - CH.mMin);
+  const py = y => CH.y + CH.h * (1 - (y - CH.yMin) / (CH.yMax - CH.yMin));
+
+  // 网格与坐标轴
+  octx.strokeStyle = 'rgba(41,210,255,0.12)';
+  octx.beginPath();
+  for (let m = 0.15; m <= 0.40; m += 0.05) { octx.moveTo(px(m), CH.y); octx.lineTo(px(m), CH.y + CH.h); }
+  for (let y = 0.4; y <= 1.1; y += 0.2) { octx.moveTo(CH.x, py(y)); octx.lineTo(CH.x + CH.w, py(y)); }
+  octx.stroke();
+  octx.strokeStyle = '#2e5c96';
+  octx.beginPath();
+  octx.moveTo(CH.x, CH.y); octx.lineTo(CH.x, CH.y + CH.h); octx.lineTo(CH.x + CH.w, CH.y + CH.h);
+  octx.stroke();
+  octx.fillStyle = '#6fa8dc'; octx.font = '10px sans-serif';
+  for (let m = 0.15; m <= 0.40; m += 0.05) octx.fillText((m * 1000).toFixed(0), px(m) - 10, CH.y + CH.h + 14);
+  for (let y = 0.4; y <= 1.0; y += 0.3) octx.fillText(y.toFixed(1), CH.x - 22, py(y) + 4);
+  octx.fillText('m / g', CH.x + CH.w - 26, CH.y + CH.h + 28);
+  octx.save(); octx.translate(12, CH.y + 60); octx.rotate(-Math.PI / 2);
+  octx.fillText('T² / s²', -12, 0); octx.restore();
+
+  // 理论曲线（虚线）T² = 4π²(m+m₀)/2k
+  octx.strokeStyle = 'rgba(77,208,225,0.45)'; octx.setLineDash([3, 3]); octx.lineWidth = 1.2;
+  octx.beginPath();
+  for (let i = 0; i <= 320; i++) {
+    const m = CH.mMin + (CH.mMax - CH.mMin) * i / 320;
+    const y = periodOf(m) ** 2;
+    if (i === 0) octx.moveTo(px(m), py(y)); else octx.lineTo(px(m), py(y));
+  }
+  octx.stroke(); octx.setLineDash([]); octx.lineWidth = 1;
+
+  // 已测平均点（T̄²）
+  const fit = linearFit();
+  for (let i = 0; i < 6; i++) {
+    if (!state.table[i]) continue;
+    const y = state.table[i].avg ** 2;
+    octx.fillStyle = '#69f0ae'; octx.strokeStyle = '#eaf6ff';
+    octx.beginPath(); octx.arc(px(MASSES[i]), py(y), 4.5, 0, Math.PI * 2); octx.fill(); octx.stroke();
+  }
+  // 拟合直线
+  if (fit) {
+    octx.strokeStyle = '#ffd54f'; octx.lineWidth = 1.5;
+    octx.beginPath();
+    octx.moveTo(px(CH.mMin), py(fit.slope * CH.mMin + fit.inter));
+    octx.lineTo(px(CH.mMax), py(fit.slope * CH.mMax + fit.inter));
+    octx.stroke(); octx.lineWidth = 1;
+  }
+
+  // 当前质量游标
+  const mc = MASSES[state.massIdx];
+  octx.strokeStyle = 'rgba(255,255,255,0.55)';
+  octx.setLineDash([4, 4]);
+  octx.beginPath(); octx.moveTo(px(mc), CH.y); octx.lineTo(px(mc), CH.y + CH.h); octx.stroke();
+  octx.setLineDash([]);
+
+  octx.fillStyle = '#4a6a94'; octx.font = '9px sans-serif'; octx.textAlign = 'right';
+  octx.fillText('虚线=理论 · 黄线=拟合 · 点击面板可收起', 310, 183);
+}
+
+/* ================================================================
+ *  UI 逻辑：步骤锁定打勾、测量状态机、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldTilt = $('sldTilt'), sldMass = $('sldMass'), sldAmp = $('sldAmp');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+function leveled() { return Math.abs(state.tilt) <= TILT_TOL; }
+
+/** 「测量 10 个周期」按钮使能刷新：气泵开 + 已调平 + 计时器就绪 + 当前质量未测 + 无进行中测量 */
+function updateMeasureBtn() {
+  const col = state.table[state.massIdx];
+  $('btnMeasure').disabled =
+    !(state.pumpOn && leveled() && state.timerSet && !col && !state.meas);
+}
+
+/** 步骤自动打勾状态机（①②③为一次性状态，达成后锁定保持） */
+function updateSteps() {
+  if (state.pumpOn) state.step1Done = true;
+  if (leveled()) state.step2Done = true;
+  if (state.timerSet) state.step3Done = true;
+  const done = state.table.filter(c => c !== null).length;
+  $('st1').classList.toggle('done', state.step1Done);
+  $('st2').classList.toggle('done', state.step2Done);
+  $('st3').classList.toggle('done', state.step3Done);
+  $('st4').classList.toggle('done', done === 6);
+  // 第⑤步：6 个质量点全部测完即视为完成（拟合随之自动算出）
+  $('st5').classList.toggle('done', done === 6);
+}
+
+/** 每帧刷新读数类 UI */
+function updateReadouts() {
+  const T = periodOf(MASSES[state.massIdx]);
+  const disp = state.meas ? state.meas.disp : 0;
+  const gate = state.meas ? state.meas.gate : 0;
+  $('hudDisp').textContent = disp.toFixed(2) + ' s';
+  $('hudGate').textContent = '挡光计数：' + gate + ' / 21';
+  $('hudT').textContent = '理论 T = ' + T.toFixed(3) + ' s';
+  $('rX').textContent = state.xCm.toFixed(1);
+  $('rT').textContent = T.toFixed(3) + ' s';
+  $('rDisp').textContent = disp.toFixed(2);
+  $('rGate').textContent = gate;
+}
+
+/** 记录表刷新 */
+function updateTables() {
+  for (let i = 0; i < 6; i++) {
+    const col = state.table[i];
+    for (let r = 0; r < REPS; r++) {
+      const cell = $('t' + (i + 1) + (r + 1));
+      cell.textContent = col && col.reps[r] !== undefined ? col.reps[r].toFixed(3) : '--';
+      cell.className = 'val' + (col && col.reps[r] !== undefined ? ' ok' : '');
+    }
+    const avgCell = $('tA' + (i + 1));
+    avgCell.textContent = col ? col.avg.toFixed(3) : '--';
+    avgCell.className = 'val' + (col ? ' ok' : '');
+  }
+}
+
+/** 数据处理刷新 */
+function updateData() {
+  const fit = linearFit();
+  $('cSlope').textContent = fit ? fit.slope.toFixed(2) : '--';
+  $('cInter').textContent = fit ? fit.inter.toFixed(3) : '--';
+  $('cK').textContent = fit ? fit.k.toFixed(2) + ' N/m' : '--';
+  $('cM0').textContent = fit
+    ? (fit.m0 * 1000).toFixed(1) + ' / 8.0 g'
+    : '--';
+  $('cM0').className = 'v ' + (fit ? 'ok' : '');
+  $('cInfo').style.color = fit ? '#69f0ae' : '#a9c6e8';
+}
+
+/** 测量推进（8 倍速演示）：每 repetition 10 个周期，共 6 次 */
+function updateMeasure(dt) {
+  if (!state.meas) return;
+  const m = state.meas;
+  const T = periodOf(MASSES[m.col]);
+  if (m.pause > 0) { m.pause -= dt; return; }
+  const step = dt * SPEEDUP;          // 模拟时间步
+  m.simT += step;
+  m.disp = m.simT;
+  // 挡光计数：滑块每次经过平衡位置计 1，共 21 次
+  const sgn = Math.sin(state.phase) >= 0 ? 1 : -1;
+  if (m.lastSign !== 0 && sgn !== m.lastSign && m.gate < 21) {
+    m.gate++;
+    state.gateFlash = 0.12;
+  }
+  m.lastSign = sgn;
+  if (m.simT >= 10 * T || m.gate >= 21) {
+    const Ti = (m.simT / 10) * (1 + (Math.random() - 0.5) * 0.006);
+    state.table[m.col].reps[m.rep] = Ti;
+    m.rep++; m.simT = 0; m.disp = 0; m.gate = 0; m.lastSign = 0; m.pause = 0.35;
+    updateTables();
+    if (m.rep >= REPS) {
+      const arr = state.table[m.col].reps;
+      state.table[m.col].avg = arr.reduce((s, v) => s + v, 0) / REPS;
+      state.meas = null;
+      $('measFill').style.width = '0%';
+      updateMeasureBtn();
+      const doneN = state.table.filter(c => c !== null).length;
+      toast(doneN === 6
+        ? '✓ 6 个质量点全部测完！T²–m 拟合已给出 k 与 m₀'
+        : '✓ m = ' + (MASSES[m.col] * 1000).toFixed(0) + ' g 测量完成（' + doneN + '/6），请换下一个质量');
+      updateData(); updateSteps();
+    }
+    return;
+  }
+  const total = 10 * T * REPS;
+  const doneSim = m.rep * 10 * T + m.simT;
+  $('measFill').style.width = (doneSim / total * 100).toFixed(1) + '%';
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 气泵开关
+$('btnPump').addEventListener('click', () => {
+  state.pumpOn = !state.pumpOn;
+  $('btnPump').textContent = state.pumpOn ? '关闭气泵' : '打开气泵';
+  $('btnPump').classList.toggle('primary', !state.pumpOn);
+  $('pumpState').textContent = state.pumpOn ? '（气泵已开，出气均匀）' : '（气泵未开）';
+  $('btnTimer').disabled = !(state.pumpOn && leveled() && !state.timerSet);
+  updateMeasureBtn(); updateSteps();
+  toast(state.pumpOn ? '气泵已开，请调节导轨调平' : '气泵已关闭');
+});
+
+// 调平滑块
+sldTilt.addEventListener('input', () => {
+  state.tilt = +sldTilt.value;
+  $('labTilt').textContent = state.tilt.toFixed(2);
+  if (leveled()) {
+    $('tiltInfo').textContent = '✓ 滑块在任意位置都能近似静止——导轨已调平（静态平衡）。';
+  } else {
+    $('tiltInfo').textContent = '|θ| ≤ 0.05° 即达到静态平衡。当前滑块将向' +
+      (state.tilt > 0 ? '右侧（低端）' : '左侧（低端）') + '缓慢滑动。';
+  }
+  $('btnTimer').disabled = !(state.pumpOn && leveled() && !state.timerSet);
+  updateMeasureBtn(); updateSteps();
+});
+
+// 计时器设置（一次性操作，完成后锁定）
+$('btnTimer').addEventListener('click', () => {
+  if (!state.pumpOn) { toast('⚠ 请先打开气泵'); return; }
+  if (!leveled()) { toast('⚠ 请先将导轨调平（|θ| ≤ 0.05°）'); return; }
+  state.timerSet = true;
+  $('btnTimer').disabled = true;
+  $('btnTimer').textContent = '✓ 周期功能已选（周期数 10）';
+  $('timerInfo').textContent = '✓ 功能键转到"周期"，转换键预置周期数 10，光电门置于平衡位置。';
+  updateMeasureBtn(); updateSteps();
+  toast('✓ 计时器已就绪，选择滑块质量后开始测量');
+});
+
+// 滑块质量与振幅
+sldMass.addEventListener('input', () => {
+  state.massIdx = +sldMass.value;
+  $('labMass').textContent = (MASSES[state.massIdx] * 1000).toFixed(0);
+  const col = state.table[state.massIdx];
+  $('measInfo').textContent = col
+    ? '该质量已测量完成（T̄ = ' + col.avg.toFixed(3) + ' s），请切换其他质量。'
+    : '当前质量 T₁~T₆ 未测，点击「测量 10 个周期」自动重复 6 次。';
+  updateMeasureBtn();
+});
+sldAmp.addEventListener('input', () => {
+  state.amp = +sldAmp.value;
+  $('labAmp').textContent = state.amp.toFixed(0);
+});
+
+// 测量按钮（门控：气泵开、已调平、计时器就绪、该质量未测、无进行中测量）
+$('btnMeasure').addEventListener('click', () => {
+  if (!state.pumpOn) { toast('⚠ 请先打开气泵'); return; }
+  if (!leveled()) { toast('⚠ 导轨未调平，滑块将滑动，无法测量'); return; }
+  if (!state.timerSet) { toast('⚠ 请先设置计时器（周期功能，周期数 10）'); return; }
+  if (state.table[state.massIdx]) { toast('该质量已测，请切换其他质量（或清空记录重测）'); return; }
+  state.table[state.massIdx] = { reps: [], avg: 0 };
+  state.meas = { col: state.massIdx, rep: 0, simT: 0, disp: 0, gate: 0, lastSign: 0, pause: 0 };
+  $('btnMeasure').disabled = true;
+  toast('测量中（8 倍速演示）：滑块通过光电门 21 次计 10 个周期 × 6 次');
+});
+
+// 清空记录
+$('btnClear').addEventListener('click', () => {
+  if (state.meas) { toast('测量进行中，无法清空'); return; }
+  state.table = [null, null, null, null, null, null];
+  updateTables(); updateData(); updateMeasureBtn(); updateSteps();
+  toast('记录已清空');
+});
+
+// 点击右上数据面板：收起 / 展开
+overlayCanvas.addEventListener('click', () => { state.panelMin = !state.panelMin; });
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.pumpOn = true;
+  state.tilt = 0;
+  sldTilt.value = 0; $('labTilt').textContent = '0.00';
+  state.timerSet = true;
+  for (let i = 0; i < 6; i++) {
+    const T = periodOf(MASSES[i]);
+    const reps = [];
+    for (let r = 0; r < REPS; r++) reps.push(T * (1 + (Math.random() - 0.5) * 0.004));
+    state.table[i] = { reps, avg: reps.reduce((s, v) => s + v, 0) / REPS };
+  }
+  $('btnPump').textContent = '关闭气泵';
+  $('pumpState').textContent = '（气泵已开，出气均匀）';
+  $('tiltInfo').textContent = '✓ 滑块在任意位置都能近似静止——导轨已调平（静态平衡）。';
+  $('btnTimer').disabled = true;
+  $('btnTimer').textContent = '✓ 周期功能已选（周期数 10）';
+  $('timerInfo').textContent = '✓ 功能键转到"周期"，转换键预置周期数 10，光电门置于平衡位置。';
+  $('measInfo').textContent = '6 个质量点全部测完，T²–m 拟合结果见「数据处理」。';
+  updateTables(); updateData(); updateMeasureBtn(); updateSteps();
+  const fit = linearFit();
+  toast('⚡ 示例流程已完成：k = ' + fit.k.toFixed(2) + ' N/m，m₀ = ' + (fit.m0 * 1000).toFixed(1) + ' g');
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  Object.assign(state, {
+    pumpOn: false, tilt: 0.30, timerSet: false,
+    step1Done: false, step2Done: false, step3Done: false,
+    massIdx: 0, amp: 10, table: [null, null, null, null, null, null],
+    meas: null, phase: 0, xCm: 0, panelMin: false
+  });
+  sldTilt.value = 0.30; $('labTilt').textContent = '0.30';
+  sldMass.value = 0; $('labMass').textContent = '150';
+  sldAmp.value = 10; $('labAmp').textContent = '10';
+  $('btnPump').textContent = '打开气泵'; $('btnPump').classList.add('primary');
+  $('pumpState').textContent = '（气泵未开）';
+  $('tiltInfo').textContent = '|θ| ≤ 0.05° 即达到静态平衡。当前滑块将向右侧（低端）缓慢滑动。';
+  $('btnTimer').disabled = true;
+  $('btnTimer').textContent = '选周期功能（周期数预置 10）';
+  $('timerInfo').textContent = '需先打开气泵并调平导轨。';
+  $('measInfo').textContent = '需先完成气泵、调平与计时器设置。';
+  $('measFill').style.width = '0%';
+  updateTables(); updateData(); updateMeasureBtn(); updateSteps();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  // 相位推进：理想状态（气泵开+已调平）做简谐振动；测量中 8 倍速
+  const ideal = state.pumpOn && leveled();
+  if (ideal) {
+    const w = 2 * Math.PI / periodOf(MASSES[state.massIdx]);
+    state.phase += w * dt * (state.meas ? SPEEDUP : 1);
+  } else {
+    state.phase += dt * 2;   // 非理想状态缓慢转动（视觉）
+  }
+
+  updateMeasure(dt);
+  updateScene3D(state.t, dt, ideal);
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+  updateReadouts();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+// 监听容器尺寸变化（含首帧布局完成后的变化），保证 WebGL 画布始终铺满视口
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(onResize).observe(viewEl);
+}
+onResize();
+updateScene3D(0, 0, false);
+renderer.render(scene, camera);
+updateSteps();
+updateTables();
+updateData();
+animate();
+</script>
+<!-- end of file -->
+</html>

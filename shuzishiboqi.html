@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实验5 · 数字示波器的使用</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--line:#2a3341;--text:#dbe4ee;--muted:#8b98a9;--accent:#4cc2ff;--ok:#3ad17e;--warn:#ffb454;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+header h1{font-size:16px}
+header .tag{font-size:12px;color:var(--muted)}
+header .tag b{color:var(--accent)}
+header .sp{flex:1}
+.hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.hbtn:hover{border-color:var(--accent)}
+main{flex:1;display:flex;min-height:0}
+#sceneWrap{flex:1;position:relative;min-width:0}
+#scene{width:100%;height:100%;display:block}
+#benchRead{position:absolute;left:14px;top:14px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;font-variant-numeric:tabular-nums}
+#benchRead b{color:#57e389}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:.35s;pointer-events:none;max-width:80%;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+aside{width:450px;flex:0 0 450px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabBody{flex:1;overflow-y:auto;padding:14px;display:none;min-height:0}
+.tabBody.on{display:block}
+section{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+h4{font-size:13px;margin-bottom:8px;color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap}
+.row label{flex:0 0 96px;color:var(--muted)}
+.b{background:#20406b;border:1px solid #2f5c96;color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+.b:hover{background:#27517f}
+.b.on{background:#1d5c38;border-color:#2f965e}
+.b:disabled{opacity:.4;cursor:not-allowed}
+.steps .step{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:13px;background:#141a24}
+.steps .dot{flex:0 0 20px;height:20px;border-radius:50%;background:#2a3341;color:var(--muted);text-align:center;line-height:20px;font-size:12px}
+.steps .step.done{border-color:var(--ok)} .steps .step.done .dot{background:var(--ok);color:#06220f}
+.steps .step.current{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+th{background:#202a38;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums} td.empty{color:#556}
+input[type=number]{width:64px;background:#0d1420;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px 6px;font-size:13px}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.info{color:var(--muted);font-size:12px}
+.formula{background:#10161f;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0;color:#bcd3ea}
+.mv{font-size:12px;color:var(--muted)} .mv b{color:#57e389;font-family:Consolas,monospace}
+#curRead{font-family:Consolas,monospace;font-size:12px;color:#9ad7ff;margin-top:4px}
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<header>
+  <h1>实验5 · 数字示波器的使用</h1>
+  <span class="tag">测量值 = <b>分度值 × 格数</b>　·　Δφ = <b>2π·Δt/T</b>　·　φ = <b>arcsin(a/b)</b></span>
+  <span class="sp"></span>
+  <button class="hbtn" id="btnSample">自动设置并填示例数据</button>
+  <button class="hbtn" id="btnReset">重置实验</button>
+</header>
+<main>
+<div id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="benchRead"></div>
+  <div id="toast"></div>
+</div>
+<aside>
+  <div class="tabs">
+    <div class="tab on" data-tab="guide">操作引导</div>
+    <div class="tab" data-tab="meas">仪器操作</div>
+    <div class="tab" data-tab="data">测量记录</div>
+    <div class="tab" data-tab="theory">原理</div>
+  </div>
+
+  <div class="tabBody on" id="tab-guide">
+    <section class="steps" id="stepList">
+      <div class="step" id="st1"><div class="dot">1</div><div><b>设置函数信号发生器</b>：给 DG1022U 通电，选择波形、设定输出电压（幅值）与频率，打开输出</div></div>
+      <div class="step" id="st2"><div class="dot">2</div><div><b>观察三种波形</b>：用探头将信号输入示波器并开机，依次观察正弦波、锯齿波、方波，按"AUTO"自动设置，必要时手动调节垂直/水平系统</div></div>
+      <div class="step" id="st3"><div class="dot">3</div><div><b>测量正弦交流信号（表 2.5.3）</b>：按"Measure"自动测量电压峰-峰值与周期；再用手动法数格填表：手动调节至屏上仅显示 1~2 个周期，测量值=分度值×格数</div></div>
+      <div class="step" id="st4"><div class="dot">4</div><div><b>测量直流信号（表 2.5.4）</b>：将输入改接一节干电池（直流耦合），数格读取其电压</div></div>
+      <div class="step" id="st5"><div class="dot">5</div><div><b>RC 电路相位差（表 2.5.5）</b>：接入 RC 串联电路板（10 kHz），CH1=U<sub>RC</sub>、CH2=U<sub>C</sub>，用光标法测 Δt 得 Δφ=2π·Δt/T；再用 X-Y 李萨如图形法数 a、b 格数，φ=arcsin(a/b)</div></div>
+    </section>
+    <section>
+      <h4>示波器操作要点（DS1072U）</h4>
+      <div class="info">① 垂直控制区：SCALE 旋钮改变电压分度（1-2-5 序列），POSITION 调垂直位置——**3D 面板上的 CH1/水平 SCALE 旋钮可直接点击**（左半减挡、右半加挡），MENU 键开 CH2，AUTO/Measure/电源键可点击；② 水平控制区：SCALE 改变时基分度，MENU 可切换 Y-T / X-Y 模式；③ 触发控制区：LEVEL 调触发电平——电平须在信号幅值之内波形才能稳定，否则波形向左/右滚动；④ Measure 提供 22 种自动测量参数；⑤ Cursor 光标测量分手动（X 光标读时间、Y 光标读电压）与追踪模式。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-meas">
+    <section>
+      <h4>① 函数信号发生器 DG1022U</h4>
+      <button class="b" id="btnGenOn">发生器开机</button>
+      <div class="row"><label>波形</label><button class="b" data-wv="sine" disabled>正弦波</button><button class="b" data-wv="ramp" disabled>锯齿波</button><button class="b" data-wv="square" disabled>方波</button></div>
+      <div class="row"><label>输出频率</label><button class="b" data-fq="10" disabled>10 Hz</button><button class="b" data-fq="100" disabled>100 Hz</button><button class="b" data-fq="1000" disabled>1 kHz</button><button class="b" data-fq="10000" disabled>10 kHz</button><button class="b" data-fq="100000" disabled>100 kHz</button><span class="mv"><b id="vFq">—</b></span></div>
+      <div class="row"><label>输出幅值</label><input type="range" id="sldVpp" min="0.5" max="5" step="0.1" value="2" disabled><span class="mv"><b id="vVpp">—</b></span></div>
+      <button class="b" id="btnOut" disabled>通道输出：关</button>
+      <div class="row"><label>改接输入</label><button class="b" id="btnDC">接干电池（DC 1.5 V）</button><button class="b" id="btnRC">接 RC 电路板（10 kHz）</button><button class="b" id="btnGen">接回信号发生器</button></div>
+      <div class="mv" id="genShow">信号发生器未开机</div>
+    </section>
+    <section>
+      <h4>② 示波器 DS1072U</h4>
+      <button class="b" id="btnScopeOn">示波器开机</button>
+      <div class="row"><label>CH2 通道</label><button class="b" id="btnCh2" disabled>CH2 开 / 关（蓝色）</button></div>
+      <div class="row"><label>垂直 SCALE</label><button class="b" data-vs="-1" disabled>−</button><button class="b" data-vs="1" disabled>＋</button><span class="mv">CH1: <b id="vVS">—</b> ｜ CH2: <b id="vVS2">—</b></span></div>
+      <div class="row"><label>水平 SCALE（时基）</label><button class="b" data-ts="-1" disabled>−</button><button class="b" data-ts="1" disabled>＋</button><span class="mv">M: <b id="vTS">—</b></span></div>
+      <div class="row"><label>触发 LEVEL</label><input type="range" id="sldTrig" min="-5" max="5" step="0.05" value="0" disabled><span class="mv"><b id="vTrig">0.00 V</b></span></div>
+      <div class="row"><label>显示模式</label><button class="b" id="btnXY" disabled>Y-T / X-Y 切换</button><button class="b" id="btnAuto" disabled>AUTO 自动设置</button><button class="b" id="btnMeas" disabled>Measure 自动测量</button></div>
+      <div class="row"><label>光标（手动）</label><button class="b" data-cur="x1:-0.1" disabled>X1−</button><button class="b" data-cur="x1:0.1" disabled>X1＋</button><button class="b" data-cur="x2:-0.1" disabled>X2−</button><button class="b" data-cur="x2:0.1" disabled>X2＋</button></div>
+      <div id="curRead">光标未启用（X 光标测量时间间隔 Δt）</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-data">
+    <section>
+      <h4>表 2.5.3　测量交流值（正弦波）</h4>
+      <button class="b" id="btnMeasFill">⬇ 填入自动测量值（Vpp、T）</button>
+      <div id="tbl3"></div>
+      <div class="row"><label>手动：Vpp 格数</label><input type="number" id="inVn" step="0.1" min="0"><button class="b" id="btnVn">记录手动 Vpp</button></div>
+      <div class="row"><label>手动：周期格数</label><input type="number" id="inTn" step="0.1" min="0"><button class="b" id="btnTn">记录手动周期</button></div>
+      <div class="info">提示：屏上 1 格 = 当前分度值。电压格数 = 波形峰-峰高度格数；周期格数 = 一个完整波形的水平宽度格数（可调时基使屏上显示 1~2 个周期便于读数）。</div>
+    </section>
+    <section>
+      <h4>表 2.5.4　测量直流信号（干电池）</h4>
+      <div id="tbl4"></div>
+      <div class="row"><label>格数 /div</label><input type="number" id="inDn" step="0.1" min="0"><button class="b" id="btnDn">记录直流测量</button></div>
+      <div class="info">接干电池后波形为一条水平直线，其偏离零电平的高度即格数（直流耦合）。</div>
+    </section>
+    <section>
+      <h4>表 2.5.5　测量交流信号的相位差（RC 电路）</h4>
+      <button class="b" id="btnCurRec">📋 记录光标法读数（Δt）</button>
+      <div id="tbl5"></div>
+      <div class="row"><label>李萨如：a 格数</label><input type="number" id="inA" step="0.1" min="0"><button class="b" id="btnAb">记录李萨如法</button></div>
+      <div class="row"><label>b 格数</label><input type="number" id="inB" step="0.1" min="0"></div>
+      <div class="info">光标法：两条 X 光标分别夹住 CH1 与 CH2 波形的对应相位点（如各自上升沿过零点），Δt 即两波形时间差；T 用自动测量值。李萨如法：切 X-Y 模式，a 为椭圆与 X 轴的截距（中心到交点）、b 为椭圆水平方向半宽（均按 CH2 电压分度数格）。</div>
+    </section>
+    <section>
+      <h4>结论</h4>
+      <div id="conclude" class="info">完成全部测量后自动生成结论。</div>
+    </section>
+  </div>
+
+  <div class="tabBody" id="tab-theory">
+    <section>
+      <h4>数字示波器的原理</h4>
+      <div class="info">数字示波器是计算机技术的一种应用：输入信号经放大/衰减后取样量化（A/D 转换），在逻辑控制电路作用下依次写入存储器，CPU 读出并显示波形。垂直分辨率由 A/D 转换器决定，水平分辨率由采样率决定；采样频率至少应为被测信号频率的 5~8 倍。</div>
+    </section>
+    <section>
+      <h4>测量方法</h4>
+      <div class="formula">测量值 = 分度值 × 格数　（2.5.1）</div>
+      <div class="info">自动测量（Measure）：22 种波形参数；手动测量：数格后按上式计算；光标测量（Cursor）：X 光标读时间、Y 光标读电压。</div>
+    </section>
+    <section>
+      <h4>RC 串联电路的相位差</h4>
+      <div class="formula">Δφ = 2π·Δt/T　（2.5.2）</div>
+      <div class="info">10 kHz 正弦电压加在 R、C 串联电路上，U<sub>RC</sub>（总压）与 U<sub>C</sub> 存在相位差。本电路板 R=5 kΩ、C=0.01 μF：X<sub>C</sub>=1/(ωC)≈1.59 kΩ，U<sub>C</sub> 滞后总压 90°−arctan(X<sub>C</sub>/R)≈72.3°。</div>
+    </section>
+    <section>
+      <h4>李萨如图形</h4>
+      <div class="info"><b>测频率</b>：f<sub>x</sub>/f<sub>s</sub> = 图形与竖直方向切点数 / 水平方向切点数（1:1、2:1、3:1、3:2…）。<br><b>测相位差</b>：u₁ 加 Y 偏转板、u₂ 加 X 偏转板得椭圆，设 X 方向截距 a、水平最大偏转 b，则 φ = arcsin(a/b)。φ=0°/180° 时为直线，φ=90° 时为圆；椭圆主轴在一、三象限时 φ∈0~90°。</div>
+    </section>
+    <section>
+      <h4>实验仪器</h4>
+      <div class="info">DG1022U 系列双通道函数/任意波形发生器、DS1072U 型数字示波器、探头、RLC 电路板、干电池。</div>
+    </section>
+    <section>
+      <h4>思考题</h4>
+      <div class="info">(1) 为了提高示波器的测量精度，实验中应注意哪些问题？<br>(2) 示波器能否用来测量直流电压？若能，应如何进行？<br>(3) 如何用示波器观察李萨如图形？如何应用李萨如图形确定两个信号的频率比值？</div>
+    </section>
+  </div>
+</aside>
+</main>
+<script>
+/* ================= 工具 ================= */
+const $=s=>document.querySelector(s);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),4200); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+const fmt=(v,n=2)=>(+v).toFixed(n);
+const VSC=[0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2,5];               // V/div
+const vLab=v=>v>=1?(v+' V'):(v>=0.1?fmt(v*1000,0)+' mV':fmt(v*1000,1)+' mV');
+const TSC=[1e-6,2e-6,5e-6,1e-5,2e-5,5e-5,1e-4,2e-4,5e-4,1e-3,2e-3,5e-3,1e-2];
+const tLab=t=>t<1e-3?fmt(t*1e6,0)+' μs':(t<1?fmt(t*1e3,0)+' ms':t+' s');
+
+/* ================= 物理参数与状态 ================= */
+const F_RC=1e4, R_RC=5000, C_RC=1e-8;                // RC 电路板
+const XC=1/(2*Math.PI*F_RC*C_RC), ZM=Math.hypot(R_RC,XC);
+const PH_RC=Math.PI/2-Math.atan(XC/R_RC);            // U_C 滞后总压的相位差 (rad)
+const DT_RC=PH_RC/(2*Math.PI*F_RC)*1e6;              // μs
+const V_DC=1.5;                                       // 干电池
+const state={
+  genOn:false, wave:'sine', fGen:1000, vpp:2.0, genOut:false, mode:'gen',   // gen/dc/rc
+  scopeOn:false, ch2On:false,
+  v1:6, v2:6,                    // VSC 索引（默认 0.5 V/div）
+  ts:6,                          // TSC 索引（默认 0.1 ms/div）
+  trig:0, xy:false,
+  cx1:0.3, cx2:0.7,              // 光标位置（屏宽比例 0~1）
+  measShow:false, measVpp:null, measT:null,
+  seen:{sine:false,ramp:false,square:false}, autoCount:0,
+  t3:{aVpp:null,aT:null,mVn:null,mV:null,mTn:null,mT:null},
+  t4:{n:null,val:null},
+  t5:{dt:null,T:null,phi:null, a:null,b:null,phi2:null},
+  lock1:false,                                   // 步骤①做过即锁存（后续改接输入源不倒退）
+  done1:false, done2:false, done3:false, done4:false, done5:false
+};
+const vScale=()=>VSC[state.v1], v2Scale=()=>VSC[state.v2], tScale=()=>TSC[state.ts];
+const tWin=()=>tScale()*10;                                   // 屏幕时间窗
+function chV(ch,t){                                            /* t 秒 → 通道电压 */
+  const A=state.vpp/2;
+  if(state.mode==='dc') return ch===1?V_DC:0;
+  if(state.mode==='rc'){
+    if(ch===1) return state.vpp*Math.sin(2*Math.PI*F_RC*t);
+    return state.vpp*(XC/ZM)*Math.sin(2*Math.PI*F_RC*t-PH_RC);
+  }
+  const ph=(2*Math.PI*state.fGen*t)%(2*Math.PI);
+  if(state.wave==='square') return (ph<Math.PI?A:-A);
+  if(state.wave==='ramp'){ const x=(t*state.fGen)%1; return -A+2*A*x; }
+  return A*Math.sin(ph);
+}
+/* 触发：触发电平在 CH1 幅值内 → 稳定 */
+function trigStable(){
+  if(!state.scopeOn) return true;
+  const L=state.trig, A=(state.mode==='dc')?V_DC:state.vpp/2;
+  return Math.abs(L)<=A*0.96;
+}
+/* 触发对齐偏移：使 CH1 上升沿过触发电平的点位于屏内 12% 处 */
+function alignPhase(){
+  if(!trigStable()) return 2*Math.PI*((state.mode==='rc')?F_RC:state.fGen)*(loopT||0)*0.7;   // 滚动
+  if(state.mode==='dc') return 0;
+  const f=(state.mode==='rc')?F_RC:state.fGen, A=state.vpp/2;
+  const c=Math.max(-1,Math.min(1,state.trig/A));
+  return Math.asin(c)/(2*Math.PI*f) - 0.12*tWin();
+}
+let loopT=0;   // 主循环累计时间（滚动动画用）
+
+/* ================= 三维场景 ================= */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x10131a); scene.fog=new THREE.Fog(0x10131a,260,700);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,2000); camera.position.set(2,30,84); camera.lookAt(0,9,0);
+const controls=new THREE.OrbitControls(camera,canvas); controls.target.set(0,9,0); controls.enableDamping=true; controls.dampingFactor=.08;
+scene.add(new THREE.AmbientLight(0x99a5bb,.85));
+const dl=new THREE.DirectionalLight(0xffffff,.9); dl.position.set(40,90,80); scene.add(dl);
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+function tag(mesh,title,text){
+  mesh.addEventListener('pointerdown',()=>{ if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+    toast('<b style="color:var(--accent)">'+title+'</b>　'+text); });
+}
+/* 桌面 */
+const desk=new THREE.Mesh(new THREE.BoxGeometry(120,3,46), M(0x3d4654,{roughness:.8}));
+desk.position.set(0,1.5,0); scene.add(desk);
+/* 示波器机身（DS1072U 真机布局：浅灰机身、黑屏框、右侧 VERTICAL/HORIZONTAL/TRIGGER 三区） */
+const oscG=new THREE.Group();
+const body=new THREE.Mesh(new THREE.BoxGeometry(46,26,14), M(0xe3e5e8,{roughness:.5}));
+body.position.y=13; oscG.add(body);
+const vent=new THREE.Mesh(new THREE.BoxGeometry(42,1.4,0.5), M(0x2c3036)); vent.position.set(0,1.6,7.01); oscG.add(vent);
+/* 前面板丝印贴图（透明叠加，与 3D 旋钮/按键对位） */
+const pnCv=document.createElement('canvas'); pnCv.width=920; pnCv.height=520;
+const pn=pnCv.getContext('2d');
+(function drawPanel(){          /* 920×520 ↔ 46×26，20px/单位；px=(x+23)*20, py=(26-y)*20 */
+  pn.clearRect(0,0,920,520);
+  /* 屏幕黑框 */
+  pn.fillStyle='#23262b'; pn.fillRect(38,96,546,330);
+  pn.fillStyle='#15171b'; pn.fillRect(46,104,530,314);
+  /* 右侧三分区框 */
+  pn.strokeStyle='#9aa0a8'; pn.lineWidth=2;
+  [[598,36,316,136,'VERTICAL'],[598,178,316,136,'HORIZONTAL'],[598,318,316,124,'TRIGGER']].forEach(z=>{
+    pn.strokeRect(z[0],z[1],z[2],z[3]);
+    pn.fillStyle='#3a3f46'; pn.font='bold 15px Arial'; pn.fillText(z[4],z[0]+10,z[1]+20);
+  });
+  pn.fillStyle='#3a3f46'; pn.font='13px Arial';
+  /* VERTICAL 丝印 */
+  pn.fillText('POSITION',590,415); pn.fillText('SCALE',688,415); pn.fillText('MENU',788,415);
+  pn.fillText('CH1 · VOLTS/DIV',600,92);
+  /* HORIZONTAL / TRIGGER 丝印 */
+  pn.fillText('SCALE',638,470); pn.fillText('MENU',788,470);
+  pn.fillText('LEVEL',638,510-6); pn.fillText('MENU',788,504);
+  /* 底部功能键丝印 + 电源 */
+  pn.font='13px Arial';
+  [['AUTO',-17],['Measure',-11.5],['Cursor',-6],['Acquire',-0.5],['Display',5]].forEach(k=>{
+    pn.fillStyle='#3a3f46'; pn.fillText(k[0],(k[1]+23)*20-22,492);
+  });
+  pn.fillStyle='#3a3f46'; pn.font='12px Arial'; pn.fillText('POWER',782,508);
+  pn.fillStyle='#565e6c'; pn.font='11px Arial';
+  pn.fillText('DS1072U  数字示波器  70MHz  1GSa/s',60,506);
+  pn.fillText('RIGOL',830,70);
+})();
+const pnTex=new THREE.CanvasTexture(pnCv);
+const pFace=new THREE.Mesh(new THREE.PlaneGeometry(46,26), new THREE.MeshBasicMaterial({map:pnTex,transparent:true}));
+pFace.position.set(0,13,7.02); oscG.add(pFace);
+/* 示波器屏幕 canvas 纹理（与面板黑框内区对齐：x −21~5.5、y 5.1~20.8） */
+const scopeCv=document.createElement('canvas'); scopeCv.width=520; scopeCv.height=304;
+const sg=scopeCv.getContext('2d');
+const scopeTex=new THREE.CanvasTexture(scopeCv);
+window.__scopeCv=scopeCv;   /* 自查用：暴露屏幕画布 */
+const scr=new THREE.Mesh(new THREE.PlaneGeometry(25.6,15.1), new THREE.MeshBasicMaterial({map:scopeTex}));
+scr.position.set(-7.75,12.95,7.1); oscG.add(scr);
+/* 屏幕玻璃斜反光 */
+const glCv=document.createElement('canvas'); glCv.width=128; glCv.height=128;
+const glg=glCv.getContext('2d');
+const grd=glg.createLinearGradient(0,0,128,128);
+grd.addColorStop(0,'rgba(255,255,255,0.10)'); grd.addColorStop(0.45,'rgba(255,255,255,0.03)'); grd.addColorStop(0.46,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+glg.fillStyle=grd; glg.fillRect(0,0,128,128);
+const glTex=new THREE.CanvasTexture(glCv);
+const glass=new THREE.Mesh(new THREE.PlaneGeometry(25.6,15.1), new THREE.MeshBasicMaterial({map:glTex,transparent:true,depthWrite:false}));
+glass.position.set(-7.75,12.95,7.15); oscG.add(glass);
+/* 旋钮与按键（3D，可点击） */
+function knob(x,y,color,mark=true){
+  const g=new THREE.Group();
+  const k=new THREE.Mesh(new THREE.CylinderGeometry(1.7,1.9,1.2,28), M(color||0x565e6c,{metalness:.35,roughness:.5}));
+  k.rotation.x=Math.PI/2; g.add(k);
+  if(mark){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.28,1.5,0.15), M(0xf2f4f6)); m.position.set(0,0.9,0.65); g.add(m); g.userData.mark=m; }
+  g.position.set(x,y,7.6); oscG.add(g); return g;
+}
+function key3d(x,y,w,label){
+  const k=new THREE.Mesh(new THREE.BoxGeometry(w||3,2,0.7), M(0x6a7280,{roughness:.55}));
+  k.position.set(x,y,7.35); oscG.add(k); return k;
+}
+const knPos =knob(10,20.2,0x494f58);                       // CH1 POSITION（装饰）
+const knV   =knob(15.6,20.2,0x494f58);                     // CH1 SCALE（可点）
+const kyVM  =key3d(20.4,20.2,2.6);                         // CH1 MENU
+const knT   =knob(13.4,13.4,0x494f58);                     // 水平 SCALE（可点）
+const kyTM  =key3d(18.6,13.4,2.6);                         // H MENU
+const knL   =knob(13.4,6.8,0x494f58);                      // TRIG LEVEL（装饰提示）
+const kyLM  =key3d(18.6,6.8,2.6);                          // T MENU
+const kBt={};                                              // 底部功能键
+[[-17,'auto'],[-11.5,'meas'],[-6,'cur'],[-0.5,'acq'],[5,'disp']].forEach(a=>{ kBt[a[1]]=key3d(a[0],2.6,3.6); });
+const kPow=key3d(20.6,1.4,2.2); kPow.material=M(0x9c3d33,{roughness:.5});   // 电源键
+oscG.position.set(-4,3.2,0); scene.add(oscG);
+/* 3D 点击拾取 */
+const ray=new THREE.Raycaster(), clickable=[];
+function addAction(mesh,fn){ mesh.userData.act=fn; clickable.push(mesh); }
+function pressAnim(mesh){ if(!mesh)return; mesh.position.z-=0.22; setTimeout(()=>mesh.position.z+=0.22,130); }
+function knobTurn(kn,dir){ if(kn.userData.mark){ kn.userData.mark.position.y=dir>0?0.9:0.9; kn.rotation.z+=(dir>0?1:-1)*Math.PI/6; } }
+function flashKey(fn,mesh){ pressAnim(mesh); setTimeout(fn,60); }
+addAction(knV,hit=>{ const lx=oscG.worldToLocal(hit.point.clone()).x;
+  const dir=lx>15.6?1:-1; knobTurn(knV,dir);
+  state.v1=Math.max(0,Math.min(VSC.length-1,state.v1+dir)); updPanel();
+  toast((dir>0?'⚙ 垂直 SCALE → ':'⚙ 垂直 SCALE ← ')+vLab(vScale())+'/div'); });
+addAction(knT,hit=>{ const lx=oscG.worldToLocal(hit.point.clone()).x;
+  const dir=lx>13.4?1:-1; knobTurn(knT,dir);
+  state.ts=Math.max(0,Math.min(TSC.length-1,state.ts+dir)); updPanel();
+  toast((dir>0?'⚙ 时基 SCALE → ':'⚙ 时基 SCALE ← ')+tLab(tScale())+'/div'); });
+addAction(kyVM,()=>flashKey(()=>{ state.ch2On=!state.ch2On; updPanel();
+  toast(state.ch2On?'✓ CH2 已打开（蓝色通道）——RC 实验中 CH2 接 U_C':'CH2 已关闭'); },kyVM));
+addAction(kyTM,()=>flashKey(()=>{ $('#btnXY').click(); },kyTM));
+addAction(knL,()=>toast('⚙ TRIG LEVEL：请在左侧面板用「触发 LEVEL」滑条调节（电平须在信号幅值内波形才稳定）'));
+addAction(kBt.auto,()=>flashKey(()=>$('#btnAuto').click(),kBt.auto));
+addAction(kBt.meas,()=>flashKey(doMeasure,kBt.meas));
+addAction(kBt.cur,()=>flashKey(()=>toast('Cursor 光标测量：请在左侧面板用 X1/X2 按钮移动光标'),kBt.cur));
+addAction(kBt.acq,()=>flashKey(()=>toast('Acquire 采样设置（本仿真略）'),kBt.acq));
+addAction(kBt.disp,()=>flashKey(()=>toast('Display 显示设置（本仿真略）'),kBt.disp));
+addAction(kPow,()=>flashKey(()=>$('#btnScopeOn').click(),kPow));
+canvas.addEventListener('pointerup',e=>{
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+  const r=canvas.getBoundingClientRect();
+  ray.setFromCamera({x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1}, camera);
+  const hits=ray.intersectObjects(clickable,false);
+  if(hits.length) hits[0].object.userData.act(hits[0]);
+});
+tag(oscG,'DS1072U 数字示波器','屏幕与面板实时联动：右侧 CH1/水平 SCALE 旋钮可直接<b>点击</b>（左半减挡/右半加挡）、MENU 键开 CH2、AUTO/Measure/电源键均可点击；TRIG LEVEL 用左侧滑条。');
+/* 函数信号发生器 */
+const genG=new THREE.Group();
+const gbody=new THREE.Mesh(new THREE.BoxGeometry(22,12,10), M(0xe8e4da,{roughness:.5})); gbody.position.y=6; genG.add(gbody);
+const genCv=document.createElement('canvas'); genCv.width=300; genCv.height=110;
+const gg=genCv.getContext('2d');
+const genTex=new THREE.CanvasTexture(genCv);
+const gscr=new THREE.Mesh(new THREE.PlaneGeometry(15,5.4), new THREE.MeshBasicMaterial({map:genTex}));
+gscr.position.set(0,8.2,5.05); genG.add(gscr);
+for(let i=0;i<4;i++){ const b=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.6,.8), M(0x9aa2ae)); b.position.set(-6+i*4,2.4,5.1); genG.add(b); }
+genG.position.set(34,3.2,2); scene.add(genG);
+tag(genG,'DG1022U 函数信号发生器','双通道函数/任意波形发生器：输出正弦、方波、锯齿波，频率与幅值可调（左下信号源面板设置）。');
+/* RC 串联电路板（R=5kΩ、C=0.01μF）：PCB+丝印+色环电阻+膜电容+香蕉端子 */
+const rcG=new THREE.Group();
+const PCBW=19, PCBD=12;
+const pcb=new THREE.Mesh(new THREE.BoxGeometry(PCBW,0.5,PCBD), M(0x0e3d24,{roughness:.55})); pcb.position.y=0.55; rcG.add(pcb);
+/* 顶面丝印纹理 */
+const pcbCv=document.createElement('canvas'); pcbCv.width=570; pcbCv.height=360;
+const pg2=pcbCv.getContext('2d');
+pg2.fillStyle='#1a6a3c'; pg2.fillRect(0,0,570,360);
+/* 铜走线：IN 端子 → 电阻 → 节点 → 电容 → 回路；CH1 并在 IN 两端、CH2 并在 C 两端 */
+pg2.strokeStyle='#c8a23c'; pg2.lineWidth=5; pg2.setLineDash([]);
+pg2.beginPath(); pg2.moveTo(70,300); pg2.lineTo(70,190); pg2.lineTo(120,190); pg2.stroke();          // IN+ → R 左
+pg2.beginPath(); pg2.moveTo(255,190); pg2.lineTo(330,190); pg2.lineTo(330,235); pg2.stroke();        // R 右 → C 上
+pg2.beginPath(); pg2.moveTo(330,320); pg2.lineTo(330,345); pg2.lineTo(70,345); pg2.lineTo(70,322); pg2.stroke(); // C 下 → IN−
+pg2.beginPath(); pg2.moveTo(200,190); pg2.lineTo(200,90); pg2.lineTo(330,90); pg2.lineTo(330,160); pg2.stroke(); // 节点→C上(绕)
+pg2.beginPath(); pg2.moveTo(420,190); pg2.lineTo(470,190); pg2.lineTo(470,300); pg2.stroke();        // 节点→CH2+
+pg2.beginPath(); pg2.moveTo(500,235); pg2.lineTo(500,190); pg2.lineTo(540,190); pg2.lineTo(540,300); pg2.stroke(); // C下侧→CH2−（并联示意）
+/* 白丝印 */
+pg2.fillStyle='#e8eaec'; pg2.strokeStyle='#e8eaec'; pg2.lineWidth=2;
+pg2.font='bold 24px Arial'; pg2.textAlign='center';
+pg2.fillText('RC 串联移相电路板',285,42);
+pg2.font='18px Arial';
+pg2.fillText('R = 5 kΩ ±5%',185,110);
+pg2.fillText('C = 0.01 μF',420,110);
+pg2.font='16px Arial';
+[['IN+',70],['IN−',130],['CH1+',220],['CH1−',285],['CH2+',470],['CH2−',540]].forEach(j=>{
+  pg2.beginPath(); pg2.arc(j[1],300,20,0,7); pg2.stroke();
+  pg2.fillText(j[0],j[1],268);
+});
+pg2.font='13px Arial';
+pg2.fillText('CH1 测总压 U(RC)（并联输入端）  CH2 测电容电压 U(C)（并联电容端）',285,350);
+const pcbTex=new THREE.CanvasTexture(pcbCv);
+const pcbTop=new THREE.Mesh(new THREE.PlaneGeometry(PCBW,PCBD), new THREE.MeshStandardMaterial({map:pcbTex,roughness:.5}));
+pcbTop.rotation.x=-Math.PI/2; pcbTop.position.y=0.82; rcG.add(pcbTop);
+/* 电阻 5.1kΩ（色环：绿-棕-红-金）横放，带引脚 */
+const resG=new THREE.Group();
+const rBody=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,3.4,18), M(0xd8c9a8,{roughness:.5}));
+rBody.rotation.z=Math.PI/2; resG.add(rBody);
+[[0x2e8b57,-1.05],[0x8a5a2a,-0.45],[0xc23b2e,0.15],[0xc9a53a,0.85]].forEach(b=>{
+  const ring=new THREE.Mesh(new THREE.CylinderGeometry(.58,.58,.32,18), M(b[0]));
+  ring.rotation.z=Math.PI/2; ring.position.x=b[1]; resG.add(ring);
+});
+[[-2.1,0],[2.1,0]].forEach(p=>{
+  const lead=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1.2,8), M(0xc9ccd2,{metalness:.7}));
+  lead.rotation.z=Math.PI/2; lead.position.x=p[0]; resG.add(lead);
+});
+resG.position.set(-4.8,2.1,0); rcG.add(resG);
+/* 电容 0.01μF（蓝色薄膜电容直立，顶部环氧封盖，双引脚） */
+const capG=new THREE.Group();
+const cBody=new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,2.6,24), M(0x2e5fb0,{roughness:.4}));
+cBody.position.y=2.1; capG.add(cBody);
+const cTop=new THREE.Mesh(new THREE.CylinderGeometry(1.06,1.06,.25,24), M(0x6a4a2a,{roughness:.6}));
+cTop.position.y=3.5; capG.add(cTop);
+[[-.45,0],[.45,0]].forEach(p=>{
+  const pin=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1.6,8), M(0xc9ccd2,{metalness:.7}));
+  pin.position.set(p[0],.8,0); capG.add(pin);
+});
+capG.position.set(4.6,0,0); rcG.add(capG);
+/* 6 个香蕉插座（金属座+彩色头） */
+function jack(x,c){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.55,.62,.5,14), M(0x14161a,{roughness:.5})); base.position.y=1.05; g.add(base);
+  const nut=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.35,6), M(0x8f97a2,{metalness:.6})); nut.position.y=1.45; g.add(nut);
+  const head=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.85,14), M(c)); head.position.y=2; g.add(head);
+  g.position.set(x,0,4.6); rcG.add(g); return g;
+}
+const rcJacks=[jack(-6.5,0xc23b3b),jack(-5,0x2a2d33),jack(-1.2,0xc23b3b),jack(0.3,0x2a2d33),jack(3.6,0xc23b3b),jack(5.1,0x2a2d33)];
+rcG.position.set(-25,3,12); rcG.visible=false; scene.add(rcG);
+tag(rcG,'RC 串联电路板','R=5 kΩ（色环：绿棕红金）、C=0.01 μF，输入 10 kHz 正弦波。香蕉端子：IN 接信号发生器；CH1 并联输入端测总压 U_RC；CH2 并联电容端测 U_C（滞后约 72.3°）。');
+/* 干电池 + 电池座（1 号电池，D/R20，1.5 V） */
+const batG=new THREE.Group();
+const bhold=new THREE.Mesh(new THREE.BoxGeometry(8,1.6,4.4), M(0x22252a,{roughness:.6})); bhold.position.y=0.8; batG.add(bhold);
+const bhold2=new THREE.Mesh(new THREE.BoxGeometry(8,1,1.2), M(0x2c3036,{roughness:.6})); bhold2.position.set(0,1.9,1.7); batG.add(bhold2);
+/* 电池本体（红色金属皮） */
+const bat=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,4.9,26), M(0xb03a2a,{metalness:.25,roughness:.45}));
+bat.rotation.z=Math.PI/2; bat.position.y=2.55; batG.add(bat);
+/* 标签环带 */
+const lblCv=document.createElement('canvas'); lblCv.width=256; lblCv.height=64;
+const lg2=lblCv.getContext('2d');
+lg2.fillStyle='#15171a'; lg2.fillRect(0,0,256,64);
+lg2.fillStyle='#f2f4f6'; lg2.textAlign='center';
+lg2.font='bold 26px Arial'; lg2.fillText('1.5 V',128,30);
+lg2.font='16px Arial'; lg2.fillText('D · R20 · PLUS',128,54);
+const lblTex=new THREE.CanvasTexture(lblCv);
+const lbl=new THREE.Mesh(new THREE.CylinderGeometry(1.32,1.32,2.8,26,1,true), new THREE.MeshStandardMaterial({map:lblTex,roughness:.5}));
+lbl.rotation.z=Math.PI/2; lbl.position.y=2.55; batG.add(lbl);
+/* 正极凸帽 / 负极平底 */
+const capT=new THREE.Mesh(new THREE.CylinderGeometry(.45,.6,.55,16), M(0xc9ccd2,{metalness:.75}));
+capT.rotation.z=Math.PI/2; capT.position.set(2.68,2.55,0); batG.add(capT);
+const capB=new THREE.Mesh(new THREE.CylinderGeometry(.62,.62,.2,16), M(0xb9bfc6,{metalness:.6}));
+capB.rotation.z=Math.PI/2; capB.position.set(-2.46,2.55,0); batG.add(capB);
+/* 座端弹簧触点 */
+[[-3.4],[3.4]].forEach(p=>{
+  const sp=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.9,10), M(0xc9a53a,{metalness:.7}));
+  sp.rotation.z=Math.PI/2; sp.position.set(p[0],2.55,0); batG.add(sp);
+});
+/* 座上红黑引线桩 */
+function post(x,c){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.3,.34,1.1,12), M(c)); m.position.set(x,2.1,-1.7); batG.add(m);
+}
+post(-3.2,0xc23b3b); post(3.2,0x2a2d33);
+batG.position.set(-16,3,16); batG.visible=false; scene.add(batG);
+tag(batG,'干电池（1 号 D 型）','标称 1.5 V 直流电源。红桩正极、黑桩负极，接入示波器 CH1 后用直流耦合观察水平直线并数格读数（表 2.5.4）。');
+/* 导线（带香蕉插头/金属插头端子） */
+function wire(a,b,color){
+  const pts=[]; const mid=a.clone().add(b).multiplyScalar(.5); mid.y=Math.max(a.y,b.y)+4;
+  const cur=new THREE.CatmullRomCurve3([a,mid,b]);
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(cur,28,.16,8), M(color)));
+  [a,b].forEach((p,i)=>{
+    const dir=cur.getTangent(i===0?0:1).normalize();
+    const plug=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,1.6,12), M(color));
+    plug.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    plug.position.copy(p).addScaledVector(dir,0.8); g.add(plug);
+    const tip=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,.8,10), M(0xc9ccd2,{metalness:.75}));
+    tip.quaternion.copy(plug.quaternion);
+    tip.position.copy(p).addScaledVector(dir,2.0); g.add(tip);
+  });
+  return g;
+}
+const w1=wire(new THREE.Vector3(23,11,0), new THREE.Vector3(-22,7,8.2), 0xcc4444); scene.add(w1);   // 发生器 → 示波器 CH1(BNC)
+const wDC1=wire(new THREE.Vector3(-19.2,5.3,14.3), new THREE.Vector3(-24,5.8,8.3), 0xcc4444);       // 电池红桩 → 示波器 CH1
+const wDC2=wire(new THREE.Vector3(-12.8,5.3,14.3), new THREE.Vector3(-22,5.5,8.3), 0x33363b);       // 电池黑桩 → 示波器
+wDC1.visible=wDC2.visible=false; scene.add(wDC1); scene.add(wDC2);
+const wR1=wire(new THREE.Vector3(23,11,3.2), new THREE.Vector3(-31.5,5.2,16.6), 0xcca23a);          // 发生器 → 板 IN+
+const wR2=wire(new THREE.Vector3(-26.2,5.2,16.6), new THREE.Vector3(-22,7,8.2), 0xcc4444);          // 板 CH1+ → 示波器 CH1
+const wR3=wire(new THREE.Vector3(-21.4,5.2,16.6), new THREE.Vector3(-19.5,6.4,8.2), 0x42b0ff);      // 板 CH2+ → 示波器
+wR1.visible=wR2.visible=wR3.visible=false; scene.add(wR1); scene.add(wR2); scene.add(wR3);
+
+/* ================= 示波器屏幕绘制（RIGOL 真机风格 OSD） ================= */
+const C1='#ffd21f', C2='#42b0ff';               // CH1 黄 / CH2 蓝（真机配色）
+function drawScope(){
+  const W=560,H=336, gx=W/10, gy=H/8, ox=W/2, oy=H/2;
+  sg.fillStyle='#01030a'; sg.fillRect(0,0,W,H);
+  if(!state.scopeOn){
+    sg.fillStyle='#39443c'; sg.font='22px Microsoft YaHei'; sg.textAlign='center';
+    sg.fillText('（示波器未开机）',W/2,H/2);
+    scopeTex.needsUpdate=true; return;
+  }
+  /* 网格（LCD 深蓝灰） */
+  sg.strokeStyle='#141d2c'; sg.lineWidth=1;
+  for(let i=0;i<=10;i++){ sg.beginPath(); sg.moveTo(i*gx,0); sg.lineTo(i*gx,H); sg.stroke(); }
+  for(let j=0;j<=8;j++){ sg.beginPath(); sg.moveTo(0,j*gy); sg.lineTo(W,j*gy); sg.stroke(); }
+  sg.strokeStyle='#26384e'; sg.lineWidth=1.2;
+  sg.beginPath(); sg.moveTo(0,oy); sg.lineTo(W,oy); sg.stroke();
+  sg.beginPath(); sg.moveTo(ox,0); sg.lineTo(ox,H); sg.stroke();
+  /* 中心十字刻度点 */
+  sg.fillStyle='#26384e';
+  for(let i=1;i<10;i++) for(let j=1;j<8;j++){ if(i!==5||j!==4) sg.fillRect(i*gx-1,j*gy-1,2,2); }
+  const vToY=v=>oy-v/vScale()*gy;
+  const v2ToX=v=>ox+v/v2Scale()*gx;
+  const t0=alignPhase();
+  const fr=Math.floor(loopT*24);                                    // 量化闪烁帧
+  const jit=s=>((Math.sin(s*127.3+fr*17.7)*43758.55)%1)*1.1-0.55;   // ADC 量化抖动
+  function drawWave(ch,color){
+    sg.strokeStyle=color; sg.lineWidth=2; sg.shadowColor=color; sg.shadowBlur=7;
+    sg.beginPath();
+    if(state.xy){
+      /* 李萨如：按信号周期整周采样，保证曲线封闭成椭圆 */
+      const fS=(state.mode==='rc')?F_RC:state.fGen;
+      for(let i=0;i<=800;i++){ const t=i/800*(2/fS);
+        const x=v2ToX(chV(2,t)), y=vToY(chV(1,t));
+        i?sg.lineTo(x,y):sg.moveTo(x,y);
+      }
+    } else {
+      for(let px=0;px<=W;px+=2){
+        const t=t0+(px/W)*tWin();
+        const y=vToY(chV(ch,t))+jit(px*0.31+ch*7);
+        px?sg.lineTo(px,y):sg.moveTo(px,y);
+      }
+    }
+    sg.stroke(); sg.shadowBlur=0;
+  }
+  if(state.xy&&state.ch2On){ drawWave(2,C2); drawWave(1,C1); }
+  else{
+    if(state.ch2On) drawWave(2,C2);
+    drawWave(1,C1);
+  }
+  /* 通道地线标志（左侧箭头） */
+  if(!state.xy){
+    function groundMark(y,txt,col){
+      sg.fillStyle=col; sg.beginPath(); sg.moveTo(1,y); sg.lineTo(10,y-6); sg.lineTo(10,y+6); sg.closePath(); sg.fill();
+      sg.font='bold 11px Consolas'; sg.fillText(txt,12,y+4);
+    }
+    groundMark(oy,'1',C1);
+    if(state.ch2On) groundMark(oy,'2',C2);
+  }
+  /* 触发线 + 触发位置箭头 */
+  if(!state.xy){
+    const ty=vToY(state.trig);
+    if(ty>0&&ty<H){ sg.strokeStyle='#e0642e'; sg.setLineDash([6,5]); sg.lineWidth=1.2;
+      sg.beginPath(); sg.moveTo(0,ty); sg.lineTo(W,ty); sg.stroke(); sg.setLineDash([]);
+      sg.fillStyle='#e0642e'; sg.beginPath(); sg.moveTo(ox,ty-7); sg.lineTo(ox-5,ty-13); sg.lineTo(ox+5,ty-13); sg.closePath(); sg.fill();
+      sg.font='10px Consolas'; sg.textAlign='left'; sg.fillText('T',4,ty-3); }
+  }
+  /* 光标（仅 Y-T）+ 屏上读数 */
+  if(!state.xy){
+    const x1=state.cx1*W, x2=state.cx2*W;
+    sg.strokeStyle='#c8cdd4'; sg.setLineDash([4,4]); sg.lineWidth=1.2;
+    sg.beginPath(); sg.moveTo(x1,0); sg.lineTo(x1,H); sg.stroke();
+    sg.beginPath(); sg.moveTo(x2,0); sg.lineTo(x2,H); sg.stroke();
+    sg.setLineDash([]);
+    sg.fillStyle='#c8cdd4'; sg.font='bold 11px Consolas';
+    sg.fillText('X1',x1+3,12); sg.fillText('X2',x2+3,26);
+    sg.fillStyle='#000c'; sg.fillRect(W-186,H-26,180,22);
+    sg.fillStyle='#4aa3ff'; sg.fillText('Δt='+fmt(cursorDT(),2)+'μs',W-180,H-10);
+  }
+  /* 顶部通道状态栏（黑底彩字） */
+  function topTag(x,txt,col){
+    sg.fillStyle='#000c'; const w=sg.measureText(txt).width+10;
+    sg.fillRect(x,4,w,18); sg.fillStyle=col; sg.font='bold 12px Consolas'; sg.textAlign='left';
+    sg.fillText(txt,x+5,17); sg.fillRect(x,21,w,2);
+    return x+w+8;
+  }
+  let tx=8;
+  if(state.xy) tx=topTag(tx,'X-Y  李萨如',C1);
+  else tx=topTag(tx,'CH1 '+vLab(vScale()),C1);
+  if(state.ch2On) tx=topTag(tx,'CH2 '+vLab(v2Scale()),C2);
+  /* Measure 侧栏（屏右竖排，真机样式） */
+  if(state.measShow&&state.measVpp!==null&&state.mode==='gen'&&state.wave==='sine'&&!state.xy){
+    const items=[['Vpp',fmt(state.measVpp,2)+'V'],['Period',fmt(state.measT*1e6,1)+'μs'],['Frequency',fmt(1/state.measT,0)+'Hz']];
+    sg.fillStyle='rgba(0,8,14,0.82)'; sg.fillRect(W-158,30,152,86);
+    items.forEach((it,i)=>{
+      sg.fillStyle=C1; sg.font='11px Consolas'; sg.textAlign='left'; sg.fillText(it[0],W-152,50+i*26);
+      sg.fillStyle='#fff'; sg.textAlign='right'; sg.fillText(it[1],W-12,50+i*26);
+    });
+    sg.fillStyle='#3a5568'; sg.font='10px Consolas'; sg.textAlign='left'; sg.fillText('Measure',W-152,126);
+  }
+  /* 底部状态栏 */
+  sg.font='12px Consolas'; sg.textAlign='left';
+  sg.fillStyle='#9aa5b5';
+  sg.fillText((state.mode==='dc'?'DC耦合 干电池':'M '+tLab(tScale())+'/div')+(state.ch2On&&!state.xy?'   触发源 CH1':''),8,H-8);
+  sg.textAlign='right';
+  if(state.xy) sg.fillText('CH1(Y) × CH2(X)',W-8,H-8);
+  else{ sg.fillStyle=trigStable()?'#57e389':'#e0642e';
+    sg.fillText(trigStable()?"Trig'd ●":'Auto ▶▶ 滚动',W-8,H-8); }
+  if(!trigStable()&&!state.xy){ sg.fillStyle='#e0642e'; sg.font='13px Microsoft YaHei'; sg.textAlign='center';
+    sg.fillText('⚠ 触发电平在信号幅值之外 —— 调 LEVEL 使其进入波形幅值范围',W/2,30); }
+  scopeTex.needsUpdate=true;
+}
+/* 信号发生器小屏（DG1022U 风格：大字参数+右侧波形图标） */
+function drawGen(){
+  gg.fillStyle='#04121e'; gg.fillRect(0,0,300,110);
+  gg.strokeStyle='#123a56'; gg.strokeRect(3,3,294,104);
+  if(!state.genOn){ gg.fillStyle='#3a5568'; gg.font='16px Microsoft YaHei'; gg.textAlign='center'; gg.fillText('待机',150,58); }
+  else{
+    const wname={sine:'～ 正弦波 SINE',square:'⊓ 方波 SQUARE',ramp:'∿ 锯齿波 RAMP'}[state.wave];
+    gg.fillStyle='#7fd4ff'; gg.font='15px Consolas'; gg.textAlign='left';
+    gg.fillText(wname,14,30);
+    gg.font='18px Consolas'; gg.fillStyle='#ffd27a';
+    if(state.mode==='dc') gg.fillText('OUT: DC 1.5 V（干电池）',14,62);
+    else if(state.mode==='rc') gg.fillText('OUT: '+fmt(state.vpp,1)+' Vpp @ 10 kHz (RC)',14,62);
+    else gg.fillText('OUT: '+fmt(state.vpp,1)+' Vpp @ '+(state.fGen>=1000?fmt(state.fGen/1000,state.fGen%1000?2:0)+' kHz':state.fGen+' Hz'),14,62);
+    /* 右侧波形小图标（当前波形形状） */
+    gg.strokeStyle='#7fd4ff'; gg.lineWidth=2; gg.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=196+i, u=i/80;
+      let y;
+      if(state.wave==='sine') y=Math.sin(u*2*Math.PI);
+      else if(state.wave==='square') y=(u<0.5?0.9:-0.9);
+      else y=-0.9+1.8*u;
+      const yy=44-y*11;
+      i?gg.lineTo(x,yy):gg.moveTo(x,yy);
+    }
+    gg.stroke();
+    gg.font='12px Consolas'; gg.fillStyle=state.genOut?'#57e389':'#c0554a';
+    gg.fillText(state.genOut?'● Output ON':'○ Output OFF',14,94);
+    gg.fillStyle='#3a5568'; gg.textAlign='right'; gg.fillText('CH1',282,94); gg.textAlign='left';
+  }
+  genTex.needsUpdate=true;
+}
+
+/* ================= 面板刷新 ================= */
+function updPanel(){
+  $('#vFq').textContent=state.mode==='rc'?'10 kHz（RC 板固定）':(state.genOn?(state.fGen>=1000?fmt(state.fGen/1000,state.fGen%1000?2:0)+' kHz':state.fGen+' Hz'):'—');
+  $('#vVpp').textContent=state.genOn?fmt(state.vpp,1)+' Vpp':'—';
+  $('#genShow').textContent=!state.genOn?'信号发生器未开机'
+    :(state.mode==='dc'?'已改接干电池（DC 1.5 V）——信号发生器输出断开'
+    :state.mode==='rc'?'已接入 RC 电路板（10 kHz，CH1=U_RC 总压、CH2=U_C）'
+    :('波形：'+({sine:'正弦',square:'方波',ramp:'锯齿'}[state.wave])+'　频率：'+$('#vFq').textContent+'　幅值：'+fmt(state.vpp,1)+' Vpp　输出：'+(state.genOut?'开':'关')));
+  $('#btnOut').textContent='通道输出：'+(state.genOut?'开':'关');
+  $('#btnOut').classList.toggle('on',state.genOut);
+  $('#btnGenOn').textContent=state.genOn?'发生器关机':'发生器开机';
+  $('#btnGenOn').classList.toggle('on',state.genOn);
+  $('#btnScopeOn').textContent=state.scopeOn?'示波器关机':'示波器开机';
+  $('#btnScopeOn').classList.toggle('on',state.scopeOn);
+  $('#btnCh2').classList.toggle('on',state.ch2On);
+  $('#vVS').textContent=vLab(vScale()); $('#vVS2').textContent=vLab(v2Scale());
+  $('#vTS').textContent=tLab(tScale());
+  $('#vTrig').textContent=fmt(state.trig,2)+' V';
+  $('#btnXY').classList.toggle('on',state.xy);
+  $('#btnXY').textContent=state.xy?'当前 X-Y（点击回 Y-T）':'Y-T / X-Y 切换';
+  $('#btnMeas').classList.toggle('on',state.measShow);
+  $('#benchRead').innerHTML='信号源：<b>'+(!state.genOn?'—':(state.mode==='dc'?'干电池 1.5V DC':state.mode==='rc'?'RC 板 10kHz '+fmt(state.vpp,1)+'Vpp':({sine:'正弦',square:'方波',ramp:'锯齿'}[state.wave])+' '+fmt(state.vpp,1)+'Vpp @ '+$('#vFq').textContent))+'</b>'
+    +'<br>触发：'+(trigStable()?'<b>稳定 Trig\'d</b>':'<span style="color:#e0642e">滚动 Free-run</span>')
+    +'　理论：'+(state.mode==='rc'?('Δφ='+fmt(PH_RC,3)+' rad、Δt='+fmt(DT_RC,2)+' μs'):'—');
+  const en=state.genOn, sc=state.scopeOn;
+  document.querySelectorAll('[data-wv],[data-fq]').forEach(b=>b.disabled=!en);
+  $('#sldVpp').disabled=!en; $('#btnOut').disabled=!en;
+  document.querySelectorAll('[data-vs],[data-ts],[data-cur]').forEach(b=>b.disabled=!sc);
+  $('#sldTrig').disabled=!sc; $('#btnCh2').disabled=!sc; $('#btnXY').disabled=!sc; $('#btnAuto').disabled=!sc; $('#btnMeas').disabled=!sc;
+  const dt=cursorDT();
+  $('#curRead').textContent=state.xy?'X-Y 模式（光标停用）'
+    :('X1='+fmt(state.cx1*tWin()*1e6,1)+' μs　X2='+fmt(state.cx2*tWin()*1e6,1)+' μs　Δt=<b>'+fmt(dt,2)+' μs</b>');
+}
+function cursorDT(){ return Math.abs(state.cx2-state.cx1)*tWin()*1e6; }  // μs
+
+/* ================= 交互：发生器 ================= */
+$('#btnGenOn').onclick=()=>{
+  state.genOn=!state.genOn;
+  if(!state.genOn){ state.genOut=false; }
+  updPanel(); drawGen(); checkSteps();
+  toast(state.genOn?'✓ 信号发生器已开机，请设置波形、频率与幅值后打开输出':'信号发生器已关机');
+};
+document.querySelectorAll('[data-wv]').forEach(b=>b.onclick=()=>{
+  if(state.mode!=='gen'){ toast('⚠ 当前输入已改接'+(state.mode==='dc'?'干电池':'RC 电路板')+'，请先接回信号发生器'); return; }
+  state.wave=b.dataset.wv;
+  document.querySelectorAll('[data-wv]').forEach(x=>x.classList.toggle('on',x===b));
+  state.seen[state.wave]=true;
+  updPanel(); checkSteps();
+});
+document.querySelectorAll('[data-fq]').forEach(b=>b.onclick=()=>{
+  if(state.mode!=='gen'){ toast('⚠ 当前输入已改接其他信号源，请先接回信号发生器'); return; }
+  state.fGen=+b.dataset.fq; updPanel(); checkSteps();
+});
+$('#sldVpp').addEventListener('input',e=>{ state.vpp=+e.target.value; updPanel(); checkSteps(); });
+$('#btnOut').onclick=()=>{
+  if(state.mode!=='gen'){ toast('⚠ 当前接的是'+(state.mode==='dc'?'干电池':'RC 电路板')+'，无需通道输出'); return; }
+  state.genOut=!state.genOut; updPanel(); drawGen(); checkSteps();
+  if(state.genOut) toast('✓ 输出已打开：'+({sine:'正弦',square:'方波',ramp:'锯齿'}[state.wave])+' '+fmt(state.vpp,1)+' Vpp @ '+$('#vFq').textContent);
+};
+/* 输入源切换：器件与导线可见性统一管理 */
+function setSource(m){
+  [w1,wDC1,wDC2,wR1,wR2,wR3].forEach(x=>x.visible=false);
+  if(m==='gen') w1.visible=true;
+  else if(m==='dc'){ batG.visible=true; rcG.visible=false; wDC1.visible=wDC2.visible=true; }
+  else if(m==='rc'){ batG.visible=false; rcG.visible=true; wR1.visible=wR2.visible=wR3.visible=true; }
+}
+$('#btnDC').onclick=()=>{
+  state.mode='dc'; setSource('dc');
+  updPanel(); checkSteps();
+  toast('已改接干电池（DC 1.5 V）：直流耦合下波形为水平直线，数格读数（表 2.5.4）');
+};
+$('#btnRC').onclick=()=>{
+  state.mode='rc'; setSource('rc');
+  /* 自动调挡：10 kHz 显示 2 个周期、双通道幅值合适（模拟接入后重调示波器） */
+  state.ts=TSC.indexOf(5e-5)>=0?TSC.indexOf(5e-5):state.ts;   // 50 μs/div → 2 周期/屏
+  state.v1=VSC.indexOf(0.5)>=0?VSC.indexOf(0.5):state.v1;     // 0.5 V/div
+  state.v2=VSC.indexOf(0.2)>=0?VSC.indexOf(0.2):state.v2;     // 0.2 V/div
+  state.trig=0;
+  updPanel(); checkSteps();
+  toast('已接入 RC 电路板（10 kHz），示波器重调：50 μs/div（2 周期/屏）、CH1 0.5 V/div、CH2 0.2 V/div。请打开 CH2 观察双通道，光标法测 Δt；切 X-Y 观察李萨如图形');
+};
+$('#btnGen').onclick=()=>{
+  state.mode='gen'; setSource('gen');
+  updPanel(); checkSteps();
+  toast('已接回信号发生器');
+};
+
+/* ================= 交互：示波器 ================= */
+$('#btnScopeOn').onclick=()=>{
+  state.scopeOn=!state.scopeOn; updPanel(); checkSteps();
+  toast(state.scopeOn?'✓ 示波器已开机，探头接 CH1。按 AUTO 可自动设置波形显示':'示波器已关机');
+};
+$('#btnCh2').onclick=()=>{
+  state.ch2On=!state.ch2On; updPanel();
+  toast(state.ch2On?'✓ CH2 已打开（蓝色通道）——RC 实验中 CH2 接 U_C':'CH2 已关闭');
+};
+document.querySelectorAll('[data-vs]').forEach(b=>b.onclick=()=>{
+  state.v1=Math.max(0,Math.min(VSC.length-1,state.v1+ +b.dataset.vs)); updPanel();
+});
+document.querySelectorAll('[data-ts]').forEach(b=>b.onclick=()=>{
+  state.ts=Math.max(0,Math.min(TSC.length-1,state.ts+ +b.dataset.ts)); updPanel();
+});
+$('#sldTrig').addEventListener('input',e=>{ state.trig=+e.target.value; updPanel(); });
+$('#btnXY').onclick=()=>{
+  if(state.mode!=='rc'||!state.ch2On){ toast('⚠ X-Y 模式需要 CH2 输入（李萨如实验：接 RC 电路板并打开 CH2）'); return; }
+  state.xy=!state.xy; updPanel();
+  toast(state.xy?'✓ 已切换 X-Y 模式：屏上显示李萨如图形（椭圆）。数 a（X 轴截距）、b（水平半宽）格数填表 2.5.5':'已切回 Y-T 模式');
+};
+$('#btnAuto').onclick=()=>{
+  /* 自动设置：垂直分度使 Vpp 占 3~5 格；时基显示 1~3 周期 */
+  const A=(state.mode==='dc')?V_DC:(state.mode==='rc'?state.vpp:state.vpp);
+  let bi=0; for(let i=0;i<VSC.length;i++){ const g=A*2/VSC[i]; if(g>=3&&g<=5){ bi=i; break; } }
+  state.v1=bi;
+  if(state.mode!=='dc'){
+    const f=(state.mode==='rc')?F_RC:state.fGen;
+    let bt=state.ts;
+    for(let i=0;i<TSC.length;i++){ const n=f*TSC[i]*10; if(n>=1.5&&n<=3.5){ bt=i; break; } }
+    state.ts=bt;
+  }
+  state.trig=0; state.autoCount++;
+  updPanel(); checkSteps();
+  toast('✓ AUTO：垂直 '+vLab(vScale())+'/div、时基 '+tLab(tScale())+'/div、触发 50%'+(state.mode==='gen'?'。已自动设置显示':''));
+};
+function doMeasure(){
+  if(state.mode!=='gen'||state.wave!=='sine'){ toast('⚠ Measure 自动测量示例针对正弦波：请接回信号发生器并选正弦波'); return; }
+  state.measShow=true;
+  state.measVpp=+(state.vpp*(1+(Math.random()-0.5)*0.02)).toFixed(3);          // Vpp
+  state.measT=+((1/state.fGen)*(1+(Math.random()-0.5)*0.02)).toFixed(9);        // s
+  state.t3.aVpp=state.measVpp; state.t3.aT=state.measT;                          // 同步填入表 2.5.3
+  toast('✓ 自动测量：Vpp='+fmt(state.measVpp,2)+' V、T='+fmt(state.measT*1e6,1)+' μs、f='+fmt(1/state.measT,0)+' Hz（已显示于屏右上角）');
+  renderTables(); checkSteps();
+}
+$('#btnMeas').onclick=doMeasure;
+$('#btnMeasFill').onclick=doMeasure;
+document.querySelectorAll('[data-cur]').forEach(b=>b.onclick=()=>{
+  const [k,d]=b.dataset.cur.split(':');
+  if(state.xy){ toast('⚠ X-Y 模式下光标停用'); return; }
+  state['c'+k]=Math.max(0.02,Math.min(0.98,state['c'+k]+ +d)); updPanel();
+});
+
+/* ================= 记录与判定 ================= */
+$('#btnVn').onclick=()=>{
+  if(state.mode!=='gen'||state.wave!=='sine'){ toast('⚠ 请接回信号发生器并选正弦波'); return; }
+  const n=parseFloat($('#inVn').value);
+  if(!(n>0)){ toast('⚠ 请输入峰-峰高度的格数（屏上数格）'); return; }
+  const val=+(n*vScale()).toFixed(3), err=Math.abs(val-state.vpp)/state.vpp*100;
+  if(err>8){ toast('⚠ 手动 Vpp 偏差过大（'+fmt(val,2)+' V vs 设定 '+fmt(state.vpp,2)+' V，差 '+fmt(err,1)+'%）。请重新数格（分度值 '+vLab(vScale())+'/div）'); return; }
+  state.t3.mVn=n; state.t3.mV=val; renderTables(); checkSteps();
+  toast('✓ 手动 Vpp = '+vLab(vScale())+'/div × '+fmt(n,1)+' 格 = '+fmt(val,2)+' V ✓');
+};
+$('#btnTn').onclick=()=>{
+  if(state.mode!=='gen'||state.wave!=='sine'){ toast('⚠ 请接回信号发生器并选正弦波'); return; }
+  const n=parseFloat($('#inTn').value);
+  if(!(n>0)){ toast('⚠ 请输入一个周期的水平宽度格数'); return; }
+  const val=+(n*tScale()*1e6).toFixed(2), trueT=1/state.fGen*1e6, err=Math.abs(val-trueT)/trueT*100;
+  if(err>8){ toast('⚠ 手动周期偏差过大（'+fmt(val,1)+' μs vs '+fmt(trueT,1)+' μs，差 '+fmt(err,1)+'%）。请重新数格（时基 '+tLab(tScale())+'/div）'); return; }
+  state.t3.mTn=n; state.t3.mT=val; renderTables(); checkSteps();
+  toast('✓ 手动周期 = '+tLab(tScale())+'/div × '+fmt(n,1)+' 格 = '+fmt(val,1)+' μs ✓');
+};
+$('#btnDn').onclick=()=>{
+  if(state.mode!=='dc'){ toast('⚠ 请先「接干电池」再测量直流'); return; }
+  const n=parseFloat($('#inDn').value);
+  if(!(n>0)){ toast('⚠ 请输入直线偏离零电平的格数'); return; }
+  const val=+(n*vScale()).toFixed(3), err=Math.abs(val-V_DC)/V_DC*100;
+  if(err>8){ toast('⚠ 直流测量偏差过大（'+fmt(val,2)+' V vs 1.5 V，差 '+fmt(err,1)+'%）。请重新数格（分度值 '+vLab(vScale())+'/div）'); return; }
+  state.t4.n=n; state.t4.val=val; renderTables(); checkSteps();
+  toast('✓ 干电池电压 = '+vLab(vScale())+'/div × '+fmt(n,1)+' 格 = '+fmt(val,2)+' V ✓');
+};
+$('#btnCurRec').onclick=()=>{
+  if(state.mode!=='rc'){ toast('⚠ 请先「接 RC 电路板」并用光标测 Δt'); return; }
+  if(state.xy){ toast('⚠ X-Y 模式下光标停用，请切回 Y-T'); return; }
+  if(!state.ch2On){ toast('⚠ 请打开 CH2 观察两通道波形后再测 Δt'); return; }
+  const dt=cursorDT(), err=Math.abs(dt-DT_RC)/DT_RC*100;
+  if(err>15){ toast('⚠ 光标 Δt 偏差过大（'+fmt(dt,2)+' μs vs 理论 ≈'+fmt(DT_RC,1)+' μs）。请把两条 X 光标分别移到 CH1 与 CH2 波形的对应上升沿'); return; }
+  if(state.measT===null){ toast('⚠ 请先按「Measure 自动测量」获得周期 T（或切到发生器正弦波测量后再回来）'); return; }
+  /* RC 板固定 10 kHz：T=100 μs 直接用理论+测量 */
+  state.t5.dt=+dt.toFixed(2); state.t5.T=+(1/F_RC*1e6).toFixed(1);
+  state.t5.phi=+(2*Math.PI*state.t5.dt/state.t5.T).toFixed(3);
+  renderTables(); checkSteps();
+  toast('✓ 光标法：Δt='+fmt(dt,2)+' μs、T=100.0 μs → Δφ=2π·Δt/T='+fmt(state.t5.phi,3)+' rad ✓');
+};
+$('#btnAb').onclick=()=>{
+  if(!state.xy){ toast('⚠ 请先切 X-Y 模式观察李萨如图形'); return; }
+  const a=parseFloat($('#inA').value), b=parseFloat($('#inB').value);
+  if(!(a>0&&b>0)){ toast('⚠ 请输入椭圆的 a（X 轴截距）与 b（水平半宽）格数'); return; }
+  const vA=(state.vpp*(XC/ZM))/v2Scale(), vB=vA;   // 等效同幅显示（a/b=sinφ）
+  const ea=Math.abs(a-vA*Math.abs(Math.sin(PH_RC))), eb=Math.abs(b-vA);
+  if(ea>0.4||eb>0.4){ toast('⚠ 李萨如格数偏差过大：理论 b≈'+fmt(vA,1)+' 格、a≈'+fmt(vA*Math.abs(Math.sin(PH_RC)),1)+' 格（CH2 分度 '+vLab(v2Scale())+'/div）'); return; }
+  state.t5.a=+a.toFixed(2); state.t5.b=+b.toFixed(2);
+  state.t5.phi2=+(Math.asin(Math.min(1,a/b))).toFixed(3);
+  if(Math.abs(state.t5.phi2-PH_RC)/PH_RC>0.15){
+    toast('⚠ 由 a/b 算得 φ='+fmt(state.t5.phi2,3)+' rad，与理论 '+fmt(PH_RC,3)+' rad 偏差过大（arcsin 对格数误差敏感，请仔细数格后重填）'); return;
+  }
+  renderTables(); checkSteps();
+  toast('✓ 李萨如法：φ=arcsin('+fmt(a,1)+'/'+fmt(b,1)+')='+fmt(state.t5.phi2,3)+' rad ✓');
+};
+
+/* ================= 表格与结论 ================= */
+function renderTables(){
+  const t=state.t3;
+  $('#tbl3').innerHTML='<table>'
+    +'<tr><th colspan="3">电压 U<sub>pp</sub></th><th colspan="3">周期 T</th></tr>'
+    +'<tr><th>自动测量/V</th><th>分度值/(V/div)</th><th>格数/div→测量值</th><th>自动测量/μs</th><th>分度值/(μs/div)</th><th>格数/div→测量值</th></tr>'
+    +'<tr><td class="num '+(t.aVpp!==null?'':'empty')+'">'+(t.aVpp!==null?fmt(t.aVpp,2):'—')+'</td>'
+    +'<td class="num '+(t.mV!==null?'':'empty')+'">'+(t.mV!==null?vLab(vScale()):'—')+'</td>'
+    +'<td class="num '+(t.mV!==null?'':'empty')+'">'+(t.mV!==null?fmt(t.mVn,1)+' → '+fmt(t.mV,2):'—')+'</td>'
+    +'<td class="num '+(t.aT!==null?'':'empty')+'">'+(t.aT!==null?fmt(t.aT*1e6,1):'—')+'</td>'
+    +'<td class="num '+(t.mT!==null?'':'empty')+'">'+(t.mT!==null?tLab(tScale()):'—')+'</td>'
+    +'<td class="num '+(t.mT!==null?'':'empty')+'">'+(t.mT!==null?fmt(t.mTn,1)+' → '+fmt(t.mT,1):'—')+'</td></tr></table>';
+  const d=state.t4;
+  $('#tbl4').innerHTML='<table><tr><th>分度值/(V/div)</th><th>格数/div</th><th>测量值/V</th></tr>'
+    +'<tr><td class="num '+(d.val!==null?'':'empty')+'">'+(d.val!==null?vLab(vScale()):'—')+'</td>'
+    +'<td class="num '+(d.val!==null?'':'empty')+'">'+(d.val!==null?fmt(d.n,1):'—')+'</td>'
+    +'<td class="num '+(d.val!==null?'':'empty')+'">'+(d.val!==null?fmt(d.val,2):'—')+'</td></tr></table>';
+  const s=state.t5;
+  $('#tbl5').innerHTML='<table>'
+    +'<tr><th>光标法：U_C/V</th><th>U_RC/V</th><th>Δt/μs</th><th>T/μs</th><th>Δφ=2πΔt/T /rad</th></tr>'
+    +'<tr><td class="num '+(s.dt!==null?'':'empty')+'">'+(s.dt!==null?fmt(state.vpp*(XC/ZM),2):'—')+'</td>'
+    +'<td class="num '+(s.dt!==null?'':'empty')+'">'+(s.dt!==null?fmt(state.vpp,2):'—')+'</td>'
+    +'<td class="num '+(s.dt!==null?'':'empty')+'">'+(s.dt!==null?fmt(s.dt,2):'—')+'</td>'
+    +'<td class="num '+(s.dt!==null?'':'empty')+'">'+(s.dt!==null?fmt(s.T,1):'—')+'</td>'
+    +'<td class="num '+(s.dt!==null?'':'empty')+'">'+(s.dt!==null?'<b>'+fmt(s.phi,3)+'</b>':'—')+'</td></tr>'
+    +'<tr><th colspan="2">李萨如法：a/格</th><th>b/格</th><th colspan="2">φ=arcsin(a/b) /rad</th></tr>'
+    +'<tr><td colspan="2" class="num '+(s.phi2!==null?'':'empty')+'">'+(s.phi2!==null?fmt(s.a,1):'—')+'</td>'
+    +'<td class="num '+(s.phi2!==null?'':'empty')+'">'+(s.phi2!==null?fmt(s.b,1):'—')+'</td>'
+    +'<td colspan="2" class="num '+(s.phi2!==null?'':'empty')+'">'+(s.phi2!==null?'<b>'+fmt(s.phi2,3)+'</b>':'—')+'</td></tr></table>';
+  if(s.dt!==null&&s.phi2!==null){
+    const err1=Math.abs(s.phi-PH_RC)/PH_RC*100, err2=Math.abs(s.phi2-PH_RC)/PH_RC*100;
+    $('#conclude').innerHTML='<div class="info">理论值（R=5 kΩ、C=0.01 μF、f=10 kHz）：X<sub>C</sub>='+fmt(XC,0)+' Ω，U<sub>C</sub> 滞后总压 Δφ='+fmt(PH_RC,3)+' rad（'+fmt(PH_RC*180/Math.PI,1)+'°），Δt='+fmt(DT_RC,2)+' μs。<br>'
+      +'① 光标法测得 Δφ='+fmt(s.phi,3)+' rad（误差 '+fmt(err1,1)+'%）；② 李萨如法测得 φ='+fmt(s.phi2,3)+' rad（误差 '+fmt(err2,1)+'%）。两种方法结果一致，验证了 RC 电路的相移关系；③ 自动测量与手动数格结果一致（测量值=分度值×格数），干电池直流电压测得 '+fmt(state.t4.val,2)+' V。</div>';
+  }
+}
+
+/* ================= 示例数据 / 重置 ================= */
+$('#btnSample').onclick=()=>{
+  Object.assign(state,{genOn:true,wave:'sine',fGen:1000,vpp:2,genOut:true,mode:'gen',
+    scopeOn:true,ch2On:false,v1:6,v2:6,ts:6,trig:0,xy:false,measShow:false});
+  document.querySelectorAll('[data-wv]').forEach(x=>x.classList.toggle('on',x.dataset.wv==='sine'));
+  Object.assign(state.seen,{sine:true,ramp:true,square:true}); state.autoCount=1;
+  state.measVpp=+(state.vpp*1.008).toFixed(3); state.measT=+(0.001*0.996).toFixed(9);
+  state.t3={aVpp:state.measVpp,aT:state.measT,mVn:4,mV:+(4*VSC[6]).toFixed(3),mTn:2,mT:+(2*TSC[6]*1e6).toFixed(1)};
+  /* 直流 */
+  state.mode='dc'; setSource('dc');
+  state.v1=8; state.t4={n:3,val:+(3*VSC[8]).toFixed(2)};
+  /* RC */
+  state.mode='rc'; setSource('rc');
+  state.ch2On=true; state.v1=6; state.v2=8; state.ts=5;
+  state.cx1=0.3; state.cx2=0.3+DT_RC*1e-6/tScale()*10*0.1; state.cx2=+(state.cx1+ (DT_RC*1e-6)/tScale()*10).toFixed(4);
+  state.t5.dt=+cursorDT().toFixed(2); state.t5.T=100; state.t5.phi=+(2*Math.PI*state.t5.dt/100).toFixed(3);
+  state.xy=true;
+  const vA=state.vpp*(XC/ZM)/VSC[state.v2];
+  state.t5.a=+(vA*Math.sin(PH_RC)).toFixed(1); state.t5.b=+vA.toFixed(1);
+  state.t5.phi2=+(Math.asin(state.t5.a/state.t5.b)).toFixed(3);
+  document.querySelectorAll('[data-wv]').forEach(x=>x.classList.toggle('on',x.dataset.wv==='sine'));
+  /* 收尾接回发生器、Y-T 模式（步骤灯可全亮，波形显示正常） */
+  state.mode='gen'; state.xy=false; setSource('gen');
+  $('#sldVpp').value=2; $('#sldTrig').value=0;
+  $('#inA').value=state.t5.a; $('#inB').value=state.t5.b;
+  updPanel(); drawGen(); renderTables(); checkSteps();
+  $('#btnCalc')&&0;
+  toast('已自动设置并填入示例数据（Vpp 格数按 0.5V/div×4 格、周期 0.1ms/div×2 格等）。请到「测量记录」页查看各表与结论。');
+};
+$('#btnReset').onclick=()=>{
+  Object.assign(state,{genOn:false,genOut:false,wave:'sine',fGen:1000,vpp:2,mode:'gen',
+    scopeOn:false,ch2On:false,v1:6,v2:6,ts:6,trig:0,xy:false,cx1:0.3,cx2:0.7,
+    measShow:false,measVpp:null,measT:null,autoCount:0,
+    seen:{sine:false,ramp:false,square:false},
+    t3:{aVpp:null,aT:null,mVn:null,mV:null,mTn:null,mT:null},
+    t4:{n:null,val:null},
+    t5:{dt:null,T:null,phi:null,a:null,b:null,phi2:null},
+    lock1:false,
+    done1:false,done2:false,done3:false,done4:false,done5:false});
+  rcG.visible=false; batG.visible=false; setSource('gen');
+  document.querySelectorAll('[data-wv]').forEach(x=>x.classList.remove('on'));
+  ['inVn','inTn','inDn','inA','inB'].forEach(id=>$('#'+id).value='');
+  $('#sldVpp').value=2; $('#sldTrig').value=0;
+  $('#conclude').innerHTML='完成全部测量后自动生成结论。';
+  updPanel(); drawGen(); renderTables(); checkSteps();
+  toast('实验已重置');
+};
+
+/* ================= 步骤判定 ================= */
+function checkSteps(){
+  if(state.genOn&&state.genOut&&state.mode==='gen') state.lock1=true;   // ① 满足过即锁存
+  const s=[
+    state.lock1,                                                          // ① 已设好并输出（不随后续换源倒退）
+    state.seen.sine&&state.seen.ramp&&state.seen.square&&state.autoCount>0,  // ② 三波形+AUTO
+    state.t3.aVpp!==null&&state.t3.mV!==null&&state.t3.mT!==null,        // ③ 表2.5.3
+    state.t4.val!==null,                                                  // ④ 表2.5.4
+    state.t5.dt!==null&&state.t5.phi2!==null                              // ⑤ 表2.5.5
+  ];
+  const tips=['请在发生器上选择波形、设频率与幅值并打开输出。','三波形已见，请按 AUTO 并用 Measure/数格完成表 2.5.3。','表 2.5.3 已完成，请改接干电池数格读直流（表 2.5.4）。','表 2.5.4 已完成，请接 RC 电路板：光标法测 Δt + X-Y 李萨如法（表 2.5.5）。','全部完成：示波器测量练习完毕！'];
+  [0,1,2,3,4].forEach(i=>{
+    const el=$('#st'+(i+1));
+    if(s[i]&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+tips[i]);
+    el.classList.toggle('done',!!s[i]);
+    el.classList.toggle('current',!s[i]&&s.slice(0,i).every(Boolean));
+  });
+}
+
+/* ================= 主循环 ================= */
+let lastW=0,lastH=0, scrT=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  resize();
+  loopT+=1/60;
+  scrT+=1/60;
+  if(scrT>0.06){ scrT=0; drawScope(); drawGen(); }
+  controls.update(); renderer.render(scene,camera);
+}
+updPanel(); drawGen(); drawScope(); renderTables(); checkSteps();
+loop();
+</script>
+</body>
+</html>

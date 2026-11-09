@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验18 · 用霍尔位置传感器测定杨氏模量 · 3D交互仿真</title>
+<style>
+  /* ============ 全局（风格对齐范例 32/33） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas#scene { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs .tab { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; text-align: center; }
+  .tabs .tab.on { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .tabBody { display: none; }
+  .tabBody.on { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+  .muted { color: #6fa8dc; font-size: 12px; }
+  .good { color: #69f0ae; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done .box::after { content: '✓'; }
+  .step.done { color: #69f0ae; }
+  .step.current { border-left: 3px solid #29d2ff; background: rgba(41,210,255,0.05); }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; margin: 3px 6px 3px 0; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* 记录表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border: 1px solid #1d3252; padding: 5px 5px; text-align: center;
+    font-variant-numeric: tabular-nums; }
+  th { background: rgba(41, 210, 255, 0.08); color: #7fd7ff; font-weight: 600; }
+  tr.hl td { color: #69f0ae; }
+
+  /* 结论格 */
+  .kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0;
+    color: #a9c6e8; }
+  .kv b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+
+  /* 视口叠加层 */
+  #meterHud { position: absolute; top: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #meterHud .big { font-size: 22px; color: #69f0ae; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; color: #ffd54f; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; max-width: 78%; }
+  #toast.show { display: block; }
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>实验18 · 用霍尔位置传感器测定杨氏模量</h1>
+  <span class="sub">弯曲法 E=ΔMgd³/(4a³bΔy) · 霍尔传感器测微小位移 ΔU=KΔy · 黄铜 E标=1.2×10¹¹ Pa · 冷轧钢 E标=2.45×10¹¹ Pa</span>
+  <button id="btnSample">自动完成全部测量</button>
+  <button id="btnReset">重置实验</button>
+</header>
+<div id="main">
+  <!-- 左侧操作面板 -->
+  <div id="panel">
+    <div class="tabs">
+      <div class="tab on" data-tab="guide">操作引导</div>
+      <div class="tab" data-tab="meas">测量操作</div>
+      <div class="tab" data-tab="data">数据处理</div>
+      <div class="tab" data-tab="theory">原理</div>
+    </div>
+
+    <div class="tabBody on" id="tab-guide">
+      <div class="card">
+        <div class="step" id="st1"><div class="box"></div><div>观察<b>水准器</b>，调节底座脚螺旋使气泡居中（装置处于水平状态）</div></div>
+        <div class="step" id="st2"><div class="box"></div><div><b>米尺</b>测刀口间距 d、<b>游标卡尺</b>测两种试样宽度 b、<b>螺旋测微器</b>测厚度 a（表2.18.1）</div></div>
+        <div class="step" id="st3"><div class="box"></div><div><b>安装黄铜梁</b>穿过铜刀口对称放上两立柱刀口；装杠杆组件，砝码盘<b>预加 20 g</b>；霍尔元件放入磁场，调磁铁高度使元件位于磁场中心，接通数字电压表并<b>调零</b></div></div>
+        <div class="step" id="st4"><div class="box"></div><div>逐次<b>增加 20 g 砝码</b>（共 6 次）：每次调<b>电子测微镜测微头</b>使铜刀口刻度线与液晶屏水平准线<b>重合</b>，记录测微头读数 y 与电压表示数 U（表2.18.2）</div></div>
+        <div class="step" id="st5"><div class="box"></div><div><b>逐差法</b>处理：求霍尔位置传感器灵敏度 <b>K=ΔU/Δy</b> 与黄铜杨氏模量，与 E标=1.2×10¹¹ Pa 比较（&lt;5%）</div></div>
+        <div class="step" id="st6"><div class="box"></div><div><b>换冷轧钢试样</b>重复测量（只需记 U），由 <b>Δy=ΔU/K</b> 求挠度与杨氏模量，与 E标=2.45×10¹¹ Pa 比较（&lt;5%）</div></div>
+      </div>
+      <div class="card">
+        <h3>注意事项（教材 p.121）</h3>
+        <p>① 取放砝码时应<b>轻拿轻放</b>，不能移动刀口（它是产生误差的主要来源）；② 所测材料尽量不要人为折弯；③ 霍尔位置传感器的工作电压应控制在<b>量程之内</b>（可通过传感器的位置和电压微调旋钮控制）；④ 加砝码后须待梁稳定再读数。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-meas">
+      <div class="card">
+        <h3>① 底座调平（水准器）</h3>
+        <div class="slider-row"><div class="lab"><span>调平脚螺旋（右端升降）</span><b id="vFoot">+0.80 mm</b></div>
+          <input type="range" id="sFoot" min="-2" max="2" step="0.05" value="0.8"></div>
+        <p class="muted" id="lvlState">气泡偏离中心，请调节脚螺旋使其居中。</p>
+      </div>
+      <div class="card">
+        <h3>② 外形测量（表2.18.1）</h3>
+        <button class="btn" id="btnMeasure">米尺+卡尺+千分尺测量</button>
+        <p class="muted" id="geoShow">尚未测量</p>
+      </div>
+      <div class="card">
+        <h3>③ 安装与调零</h3>
+        <button class="btn" id="btnInstall">安装黄铜梁+预加20g</button>
+        <div class="slider-row"><div class="lab"><span>磁铁高度调节（霍尔元件入磁场）</span><b id="vMag">0.00 mm</b></div>
+          <input type="range" id="sMag" min="-0.5" max="0.5" step="0.01" value="0"></div>
+        <button class="btn" id="btnZero">电压表调零</button>
+        <p class="muted" id="zeroState">未安装 / 未调零</p>
+      </div>
+      <div class="card">
+        <h3>④ 砝码加载与测量（表2.18.2/3）</h3>
+        <button class="btn" id="btnAdd">增加 20 g 砝码</button>
+        <div class="slider-row"><div class="lab"><span>电子测微镜测微头</span><b id="vMic">0.000 mm</b></div>
+          <input type="range" id="sMic" min="0" max="3" step="0.001" value="0"></div>
+        <button class="btn" id="btnRecord">记录本次数据</button>
+        <button class="btn" id="btnSwap">换冷轧钢试样</button>
+        <p class="muted" id="runState">等待安装</p>
+      </div>
+      <div class="card">
+        <h3>⑤⑥ 逐差法处理</h3>
+        <button class="btn" id="btnFit">逐差法处理数据</button>
+        <p class="muted" id="fitState">未处理。黄铜：K=ΔU/Δy 与 E；冷轧钢：Δy=ΔU/K 与 E。</p>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-data">
+      <div class="card"><h3>表 2.18.1 试样的外形结构数据</h3><div id="tb1" class="muted">尚未完成测量。</div></div>
+      <div class="card"><h3>表 2.18.2 黄铜试样的测量数据（逐差法：第 i+3 与第 i 次之差对应 ΔM=60g）</h3><div id="tb2" class="muted">尚未完成测量。</div></div>
+      <div class="card"><h3>表 2.18.3 冷轧钢试样的测量数据</h3><div id="tb3" class="muted">尚未完成测量。</div></div>
+      <div class="card"><h3>实验结论</h3><div id="concl" class="muted">完成两试样测量与逐差处理后自动给出结论。</div></div>
+    </div>
+
+    <div class="tabBody" id="tab-theory">
+      <div class="card">
+        <h3>弯曲法测杨氏模量（式 2.18.1）</h3>
+        <p>长 l、厚 a、宽 b 的均匀矩形梁水平对称放在相距 d 的两刀口上，砝码对梁中心施加向下的拉力 Mg，梁中心挠度为 y；梁内存在<b>中性面</b>（以上压缩、以下拉伸）。当拉力变化 ΔM g 时挠度变化 Δy，梁的杨氏模量为：</p>
+        <span class="formula">E = ΔM·g·d³ / (4·a³·b·Δy)　(2.18.1)</span>
+        <p>a、b、d 及 ΔM 的测量都很简单，<b>关键在于微小挠度变化量 Δy 的测量</b>。</p>
+      </div>
+      <div class="card">
+        <h3>霍尔位置传感器测 Δy（式 2.18.2~2.18.4）</h3>
+        <p>霍尔元件通过铜刀口上方的<b>杠杆组件</b>伸入两块 <b>N 极相对</b>的磁铁之间，梁的挠度变化转化为霍尔元件在磁场中竖直方向的位置变化：</p>
+        <span class="formula">ΔZ = k·Δy　(2.18.2)　　ΔU_H = k′·ΔZ　(2.18.3)　　ΔU_H = K·Δy　(2.18.4)</span>
+        <p>两 N 极相对磁铁间的磁场沿 Z 轴方向呈<b>均匀梯度</b>变化；工作电流恒定时霍尔电压 U_H∝B，元件沿 Z 轴偏移时输出与位移成正比的电压。<b>K=k′k 称为霍尔位置传感器的灵敏度</b>（V/m），先用黄铜试样（电子测微镜同时测 Δy）定出 K，再用 K 由 ΔU 反推冷轧钢的 Δy——两种测 Δy 方法互相联系。</p>
+      </div>
+      <div class="card">
+        <h3>思考与拓展</h3>
+        <p>【思考】①实验中怎样实现用霍尔位置传感器测杨氏模量？②影响结果的因素有哪些（刀口位置、水准器、磁场梯度均匀性、砝码轻放）？③本实验用了哪几种方法测 Δy？联系是什么？④还可用哪些方法测 Δy（读数显微镜、光杠杆、干涉法等）？<br>【拓展】霍尔传感器结构牢固、体积小、寿命长、频响高（可达 1 MHz）、耐震动与污染，广泛用于位移、力、角速度、速度等工业测量与控制。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧 3D 视口 -->
+  <div id="view">
+    <canvas id="scene"></canvas>
+    <div id="meterHud">
+      <div class="big" id="hudU">0.0 mV</div>
+      <div class="row2" id="hudM">砝码 m = 20 g</div>
+      <div class="row2" id="hudBeam">试样：黄铜梁</div>
+    </div>
+    <canvas id="overlay" width="268" height="230"></canvas>
+    <div id="hint">鼠标左键旋转 · 滚轮缩放 · 点击部件查看说明</div>
+    <div id="toast"></div>
+  </div>
+</div>
+</div>
+<script>
+/* ================= 基础工具 ================= */
+const $=s=>document.querySelector(s);
+const fmt=(v,n=3)=>(+v).toFixed(n);
+function toast(msg){ const t=$('#toast'); t.innerHTML=msg; t.style.display='block';
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display='none',3400); }
+document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabBody').forEach(x=>x.classList.remove('on'));
+  tb.classList.add('on'); $('#tab-'+tb.dataset.tab).classList.add('on');
+});
+
+/* ================= 状态与真值（自洽：Δy 由 E=ΔMgd³/(4a³bΔy) 正推） ================= */
+const TRUE={ E_brass:1.20e11, E_steel:2.45e11, g0:9.80, d:0.2300, K:300 };  // K：传感器+杠杆真值 (V/m)
+const SAMP={ brass:{E:1.20e11,name:'黄铜梁',color:0xc9a227},
+             steel:{E:2.45e11,name:'冷轧钢梁',color:0x9aa5b1} };
+const CFG={ foot:0.8, installed:false, zeroed:false, mag:0,
+  sample:'brass', m:20, mic:0, rows:{brass:[],steel:[]},
+  geo:null, K:null, E:{}, rel:{}, dy60:{}, steps:[false,false,false,false,false,false] };
+const gl={ sag:0 };                                   // 动画：梁挠度可视化量（米制，放大后）
+/* 挠度真值（相对预加载 20g 的累计下沉，mm） */
+function yTrue(smp,m){ const g=CFG.geo; if(!g) return 0;
+  const a=(g[smp].a/1000)**3, b=g[smp].b/1000;
+  return (m-20)/1000*TRUE.g0*Math.pow(TRUE.d,3)/(4*a*b*SAMP[smp].E)*1000; }   // mm
+function uOf(smp,m){ return TRUE.K*yTrue(smp,m)/1000*1000; }                 // mV（K·Δy，mm→m）
+const MIS=[0.35];                                     // 初始失平量 mm（气泡偏移源）
+
+/* ================================================================
+ *  三维场景（真实米制尺度 1单位=1m；建模风格对齐范例 32/33）
+ * ================================================================ */
+const canvas=$('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x05080f);
+scene.fog=new THREE.Fog(0x05080f,6,20);
+const camera=new THREE.PerspectiveCamera(50,1,0.01,100);
+camera.position.set(-0.34,1.09,0.62);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.target.set(0.04,0.905,0.02);
+controls.enableDamping=true; controls.dampingFactor=.08;
+controls.minDistance=0.18; controls.maxDistance=8;
+/* 光照：环境光 + 主点光源 + 冷色补光（r128 传统量纲） */
+scene.add(new THREE.AmbientLight(0x88aacc,0.5));
+const keyLight=new THREE.PointLight(0xffffff,1.0,20); keyLight.position.set(0.7,1.7,1.1); scene.add(keyLight);
+const fillLight=new THREE.PointLight(0x4fc3f7,0.4,14); fillLight.position.set(-1.0,1.2,-0.9); scene.add(fillLight);
+/* 网格地面（范例同款） */
+const grid=new THREE.GridHelper(20,40,0x1d3252,0x122240);
+grid.position.y=-0.032; scene.add(grid);
+
+function M(c,o={}){ return new THREE.MeshStandardMaterial(Object.assign({color:c},o)); }
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h;
+  draw(c.getContext('2d')); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
+/* 点击部件说明卡：pointerdown→pointerup 位移>4px 视为拖拽不弹卡 */
+let downXY=[0,0,0,0];
+canvas.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY,e.clientX,e.clientY]);
+canvas.addEventListener('pointermove',e=>{downXY[2]=e.clientX;downXY[3]=e.clientY;});
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function showInfo(title,text){ toast('<b style="color:#7fd7ff">'+title+'</b>　'+text); }
+function tag(mesh,title,text){ Object.assign(mesh.userData,{title,text}); }   // 合并而非覆盖
+
+/* ---- 自适应宽度发光文字精灵（范例同款） ---- */
+function makeTextSprite(text,color,w=0.3){
+  const fontSize=52,pad=16;
+  const measure=document.createElement('canvas').getContext('2d');
+  measure.font='bold '+fontSize+'px sans-serif';
+  const tw=Math.ceil(measure.measureText(text).width);
+  const cw=Math.min(1024,Math.max(128,tw+pad*2));
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=128;
+  const c=cv.getContext('2d');
+  c.font='bold '+fontSize+'px sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillStyle=color; c.shadowColor=color; c.shadowBlur=14;
+  c.fillText(text,cw/2,66);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
+  sp.scale.set((w/2)*cw/128,w/2,1);
+  return sp;
+}
+
+/* ---- 实验桌 + 底座 ---- */
+const tableTop=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.05,0.7),
+  M(0x1b2436,{metalness:.4,roughness:.6}));
+tableTop.position.y=0.755; scene.add(tableTop);
+tag(tableTop,'实验桌','霍尔位置传感器杨氏模量测定仪、数字电压表与电子测微镜均置于桌面。');
+for(const p of [[-0.7,-0.28],[0.7,-0.28],[-0.7,0.28],[0.7,0.28]]){
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.026,0.73,12),
+    M(0x1a2434,{metalness:.5,roughness:.5}));
+  leg.position.set(p[0],0.365,p[1]); scene.add(leg);
+}
+const base=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.025,0.30),
+  M(0x2c3a4e,{metalness:.6,roughness:.35}));
+base.position.y=0.7925; scene.add(base);
+tag(base,'测定仪底座','铸铁底座，带水准器与调平脚螺旋。取放砝码轻拿轻放，勿移动刀口。');
+/* 调平脚螺旋（3 点支承，六角滚花） */
+for(const p of [[-0.26,0.10],[-0.26,-0.10],[0.26,0]]){
+  const footS=new THREE.Mesh(new THREE.CylinderGeometry(0.010,0.010,0.012,6),
+    M(0xcfa54b,{metalness:.85,roughness:.3}));
+  footS.position.set(p[0],0.786,p[1]); scene.add(footS);
+  tag(footS,'调平脚螺旋','旋转脚螺旋调节底座水平，观察水准器气泡居中即调平完成。');
+}
+
+/* ---- 水准器（气泡随调平移动） ---- */
+const lvl=new THREE.Group(); lvl.position.set(-0.20,0.808,0.10); scene.add(lvl);
+const lvlGlass=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.006,20),
+  new THREE.MeshPhysicalMaterial({color:0x9fd8ff,transparent:true,opacity:.35,
+    roughness:.05,metalness:0,transmission:.6}));
+lvlGlass.position.y=0.003; lvl.add(lvlGlass);
+const lvlRing=new THREE.Mesh(new THREE.TorusGeometry(0.022,0.0025,8,24),M(0xcfa54b,{metalness:.8,roughness:.3}));
+lvlRing.rotation.x=Math.PI/2; lvl.add(lvlRing);
+const bubble=new THREE.Mesh(new THREE.SphereGeometry(0.005,10,8),
+  new THREE.MeshBasicMaterial({color:0x69f0ae,transparent:true,opacity:.9}));
+bubble.position.y=0.008; lvl.add(bubble);
+const bubbleTrail=new THREE.Mesh(new THREE.TorusGeometry(0.011,0.001,6,20),
+  new THREE.MeshBasicMaterial({color:0x69f0ae,transparent:true,opacity:.5}));
+bubbleTrail.rotation.x=Math.PI/2; bubbleTrail.position.y=0.0075; lvl.add(bubbleTrail);
+tag(lvlGlass,'水准器','观察气泡位置，调节底座脚螺旋使气泡居中，装置即处于水平状态。');
+
+/* ---- 双立柱刀口（d=230mm）+ 矩形梁（可弯曲 32 段） ---- */
+const D2=TRUE.d/2, BEAM={ L:0.28, a:0.006, b:0.028, y:0.924 };   // a/b 视觉放大（真实 1mm/23mm）
+for(const s of [-1,1]){
+  const col=new THREE.Mesh(new THREE.BoxGeometry(0.018,0.12,0.018),
+    M(0x37474f,{metalness:.7,roughness:.35}));
+  col.position.set(s*D2,0.8625,0); scene.add(col);
+  const wedge=new THREE.Mesh(new THREE.ConeGeometry(0.006,0.012,4),
+    M(0xcfd8dc,{metalness:.9,roughness:.2}));
+  wedge.rotation.y=Math.PI/4; wedge.rotation.x=Math.PI; wedge.position.set(s*D2,0.927,0);
+  scene.add(wedge);
+  tag(col,'立柱刀口','两立柱刀口间距 d='+(TRUE.d*1000).toFixed(1)+' mm（米尺测），梁对称安放其上。刀口位置不可移动——它是产生误差的主要来源。');
+}
+const beamMat=M(SAMP.brass.color,{metalness:.85,roughness:.3,emissive:SAMP.brass.color,emissiveIntensity:.12});
+const beamGeo=new THREE.BoxGeometry(BEAM.L,BEAM.a,BEAM.b,32,1,1);
+const beam=new THREE.Mesh(beamGeo,beamMat);
+beam.position.y=BEAM.y; scene.add(beam);
+const beamBase=beamGeo.attributes.position.array.slice();        // 静止顶点
+tag(beam,'矩形梁试样','黄铜/冷轧钢梁：b≈23.00 mm（卡尺）、a≈1.000 mm（千分尺），架在相距 d≈230.0 mm 的刀口上受中心载荷弯曲。图中挠度已放大 20 倍显示。');
+const beamLabel=makeTextSprite('黄铜梁 a=1.000mm','#ffcc80',0.075);
+beamLabel.position.set(-0.14,0.972,0.04); scene.add(beamLabel);
+
+/* ---- 中央铜刀口（带刻度线）+ 砝码盘挂杆 + 砝码 ---- */
+const knife=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.008,0.026),
+  M(0xcfa54b,{metalness:.85,roughness:.25,emissive:0x6b4f00,emissiveIntensity:.25}));
+knife.position.set(0,BEAM.y+0.0055,0); scene.add(knife);
+const knifeLine=new THREE.Mesh(new THREE.PlaneGeometry(0.0022,0.006),
+  new THREE.MeshBasicMaterial({color:0x4dd0e1,transparent:true,opacity:.95,
+    blending:THREE.AdditiveBlending,depthWrite:false}));
+knifeLine.position.set(0,BEAM.y+0.0065,0.0131); scene.add(knifeLine);   // 刻度线贴刀口前面（测微镜观察侧）
+tag(knife,'铜刀口（带刻度线）','随梁中心一起下沉，其上的刻度线由电子测微镜读取——直接法测 Δy；同时经杠杆组件推动霍尔元件——间接法测 Δy。');
+const hangRod=new THREE.Mesh(new THREE.CylinderGeometry(0.0012,0.0012,0.05,8),
+  M(0xcfd8dc,{metalness:.9,roughness:.25}));
+hangRod.position.set(0,BEAM.y-0.026,0); scene.add(hangRod);
+const pan=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.022,0.004,20),
+  M(0xcfd8dc,{metalness:.85,roughness:.3}));
+pan.position.set(0,BEAM.y-0.053,0); scene.add(pan);
+const weightMeshes=[];
+for(let i=0;i<6;i++){
+  const w=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,0.007,16),
+    M(0xb08d57,{metalness:.85,roughness:.3,emissive:0x5d4037,emissiveIntensity:.15}));
+  w.position.set(0,BEAM.y-0.0475+i*0.0072,0); w.visible=false; scene.add(w);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.004,0.0008,6,18),
+    M(0xcfa54b,{metalness:.85,roughness:.3}));
+  ring.rotation.x=Math.PI/2; ring.position.y=0.0042; w.add(ring);
+  weightMeshes.push(w);
+}
+tag(pan,'砝码盘（预加 20 g）','对梁中心施加向下的拉力 Mg。预加 20 g 拉直系统，之后逐次增加 20 g（轻拿轻放）。');
+
+/* ---- 杠杆组件 + 霍尔元件 + 磁铁盒（N 极相对）+ 高度调节支架 ---- */
+const lever=new THREE.Mesh(new THREE.BoxGeometry(0.006,0.004,0.092),
+  M(0x90a4ae,{metalness:.75,roughness:.3}));
+lever.position.set(0,BEAM.y+0.026,0.045); lever.rotation.x=Math.atan2(0.036,0.085); scene.add(lever);
+tag(lever,'杠杆组件','把梁中心的挠度变化传递给霍尔元件：ΔZ=k·Δy（式2.18.2），k 为杠杆两臂比例系数。');
+const hall=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.003,0.005),
+  M(0x1a237e,{metalness:.3,roughness:.4,emissive:0x002288,emissiveIntensity:.4}));
+hall.position.set(0,BEAM.y+0.041,0.094); scene.add(hall);   // 元件贴磁铁间隙前口（z=0.093~0.107 间隙中轴）
+tag(hall,'霍尔元件','置于两 N 极相对磁铁间隙的中轴上。工作电流恒定时 U_H∝B；磁场沿 Z 轴均匀梯度变化，元件竖直位移 ΔZ 转化为电压 ΔU_H=k′ΔZ。');
+/* 开口式磁铁盒：背板 + 两侧夹板，磁铁块与霍尔元件清晰可见 */
+const magGrp=new THREE.Group(); magGrp.position.set(0,BEAM.y+0.041,0.10); scene.add(magGrp);
+const magBack=new THREE.Mesh(new THREE.BoxGeometry(0.034,0.056,0.006),
+  M(0x263238,{metalness:.5,roughness:.5}));
+magBack.position.z=-0.011; magGrp.add(magBack);
+for(const sx of [-1,1]){ const side=new THREE.Mesh(new THREE.BoxGeometry(0.004,0.056,0.024),
+    M(0x37474f,{metalness:.6,roughness:.4}));
+  side.position.set(sx*0.016,0,0); magGrp.add(side); }
+const magTop=new THREE.Mesh(new THREE.BoxGeometry(0.026,0.016,0.014),
+  M(0xb71c1c,{metalness:.4,roughness:.4,emissive:0x7f0000,emissiveIntensity:.25}));
+magTop.position.set(0,0.013,0.0); magGrp.add(magTop);
+const magBot=new THREE.Mesh(new THREE.BoxGeometry(0.026,0.016,0.014),
+  M(0xb71c1c,{metalness:.4,roughness:.4,emissive:0x7f0000,emissiveIntensity:.25}));
+magBot.position.set(0,-0.013,0.0); magGrp.add(magBot);
+/* N 极标识（贴两磁铁相对端面发光） */
+for(const s of [0.0046,-0.0046]){
+  const nface=new THREE.Mesh(new THREE.PlaneGeometry(0.024,0.009),
+    new THREE.MeshBasicMaterial({color:0xff8a80,transparent:true,opacity:.55,
+      blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+  nface.position.set(0,s,0.0075); magGrp.add(nface);
+}
+/* 梯度磁场可视化：间隙前口叠加发光条纹（强度随电压变化） */
+const fieldGrp=new THREE.Group(); fieldGrp.position.copy(magGrp.position); scene.add(fieldGrp);
+const fieldPlanes=[];
+for(let i=0;i<4;i++){
+  const p=new THREE.Mesh(new THREE.PlaneGeometry(0.024,0.0016),
+    new THREE.MeshBasicMaterial({color:0x4dd0e1,transparent:true,opacity:.25,
+      blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+  p.position.set(0,-0.008+i*0.0053,-0.0095); fieldGrp.add(p); fieldPlanes.push(p);
+}
+tag(magBack,'磁铁盒（N 极相对）','两块磁铁 N 极相对，间隙磁场沿 Z 轴呈均匀梯度（图2.18.3）。霍尔元件平行于磁铁放在间隙中轴上。');
+const magStand=new THREE.Mesh(new THREE.BoxGeometry(0.014,0.096,0.014),
+  M(0x37474f,{metalness:.7,roughness:.35}));
+magStand.position.set(0,0.8505,0.10); scene.add(magStand);
+const magKnob=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.008,14),
+  M(0xcfa54b,{metalness:.8,roughness:.3}));
+magKnob.rotation.x=Math.PI/2; magKnob.position.set(0,0.845,0.09); scene.add(magKnob);
+tag(magStand,'磁铁高度调节支架','调节磁铁盒高度，使霍尔元件位于磁场中心（电压表近似零偏），随后调零。');
+/* 升降连接柱：支架顶 → 磁铁盒底（高度随 sMag 动态变化） */
+const magLift=new THREE.Mesh(new THREE.BoxGeometry(0.010,1,0.010),
+  M(0x546e7a,{metalness:.7,roughness:.35}));
+magLift.scale.y=0.038; magLift.position.set(0,0.918,0.10); scene.add(magLift);
+const labelMag=makeTextSprite('磁铁盒 N↑↓N','#ff8a80',0.07);
+labelMag.position.set(0.10,0.998,0.11); scene.add(labelMag);
+const labelHall=makeTextSprite('霍尔元件','#82b1ff',0.07);
+labelHall.position.set(-0.075,0.995,0.09); scene.add(labelHall);
+
+/* ---- 数字电压表（LCD 实时 mV + 调零） ---- */
+const voltCanvas=document.createElement('canvas'); voltCanvas.width=192; voltCanvas.height=84;
+const voltTexture=new THREE.CanvasTexture(voltCanvas);
+const voltBox=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.13,0.20),
+  M(0x232f3c,{metalness:.5,roughness:.4}));
+voltBox.position.set(0.42,0.845,-0.17); scene.add(voltBox);
+const voltLcd=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.066),
+  new THREE.MeshBasicMaterial({map:voltTexture}));
+voltLcd.position.set(0.38,0.872,-0.069); scene.add(voltLcd);
+const voltLampM=new THREE.MeshBasicMaterial({color:0x123a24});
+const voltLamp=new THREE.Mesh(new THREE.SphereGeometry(0.005,10,8),voltLampM);
+voltLamp.position.set(0.53,0.902,-0.069); scene.add(voltLamp);
+tag(voltBox,'数字电压表','测量霍尔元件输出电压 ΔU_H（mV 级）。接通后先调零；量程有限，工作电压勿超量程。');
+const labelVolt=makeTextSprite('数字电压表','#69f0ae',0.08);
+labelVolt.position.set(0.44,0.918,-0.17); scene.add(labelVolt);
+function drawVolt(){
+  const g=voltCanvas.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,192,84);
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,186,78);
+  g.fillStyle='#57e389'; g.font='bold 27px Consolas,monospace'; g.textAlign='center'; g.textBaseline='middle';
+  const u=(CFG.installed&&CFG.zeroed)?(uOf(CFG.sample,CFG.m)+hallOffsetMv()):0;
+  g.fillText(CFG.installed?(CFG.zeroed?(u>=0?'':'-')+Math.abs(u).toFixed(1)+' mV':'未调零'):'-- 关 --',96,34);
+  g.font='12px Consolas,monospace'; g.fillStyle='#8bd8a8';
+  g.fillText(CFG.zeroed?('已调零 · K='+(CFG.K?(CFG.K*1000).toFixed(1)+' mV/mm':'—')):'DC · mV',96,62);
+  voltTexture.needsUpdate=true;
+}
+
+/* ---- 电子测微镜（立柱 + 横臂 + 沿 z 正对刀口的镜筒 + 液晶读数屏 + 测微头） ---- */
+const micGrp=new THREE.Group(); scene.add(micGrp);
+const micBase=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.015,0.09),
+  M(0x37474f,{metalness:.6,roughness:.4}));
+micBase.position.set(0.36,0.800,0.16); micGrp.add(micBase);
+const micCol=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.010,0.17,12),
+  M(0x546e7a,{metalness:.75,roughness:.3}));
+micCol.position.set(0.36,0.892,0.16); micGrp.add(micCol);
+const micArm=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.012,0.012),
+  M(0x546e7a,{metalness:.75,roughness:.3}));
+micArm.position.set(0.18,0.968,0.13); micGrp.add(micArm);
+/* 镜筒：轴沿 z，正对铜刀口刻度线（x=0.06 避开磁铁盒视线） */
+const micLens=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.018,0.032,16),
+  M(0x263238,{metalness:.6,roughness:.35}));
+micLens.rotation.x=Math.PI/2; micLens.position.set(0.06,0.9305,0.128); micGrp.add(micLens);
+const micEye=new THREE.Mesh(new THREE.CylinderGeometry(0.010,0.010,0.008,14),
+  M(0x0d2137,{metalness:.3,roughness:.3}));
+micEye.rotation.x=Math.PI/2; micEye.position.set(0.06,0.9305,0.146); micGrp.add(micEye);
+const micHang=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.032,0.012),
+  M(0x546e7a,{metalness:.75,roughness:.3}));
+micHang.position.set(0.06,0.954,0.128); micGrp.add(micHang);
+/* 测微头：微分筒沿 x 旋入推动镜筒，读数越大越深入 */
+const micHead=new THREE.Mesh(new THREE.CylinderGeometry(0.010,0.010,0.026,14),
+  M(0xcfa54b,{metalness:.85,roughness:.25,emissive:0x5d4037,emissiveIntensity:.2}));
+micHead.rotation.z=Math.PI/2; micHead.position.set(0.103,0.9305,0.128); micGrp.add(micHead);
+const micKnurl=new THREE.Mesh(new THREE.CylinderGeometry(0.0115,0.0115,0.012,12,1,true),
+  M(0x8d6e63,{metalness:.7,roughness:.4,side:THREE.DoubleSide}));
+micKnurl.rotation.z=Math.PI/2; micHead.add(micKnurl);
+/* 液晶读数屏（canvas 纹理实时刷新） */
+const micCv=document.createElement('canvas'); micCv.width=160; micCv.height=72;
+const micTex=new THREE.CanvasTexture(micCv);
+function drawMicLcd(){
+  const g=micCv.getContext('2d');
+  g.fillStyle='#0a1626'; g.fillRect(0,0,160,72);
+  g.strokeStyle='#1d3252'; g.strokeRect(2,2,156,68);
+  g.fillStyle='#7fd7ff'; g.font='bold 20px Consolas,monospace'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(CFG.sample==='brass'?'y='+CFG.mic.toFixed(3)+' mm':'——',80,26);
+  g.font='12px "Microsoft YaHei",sans-serif'; g.fillStyle=aligned()?'#69f0ae':'#ffab91';
+  g.fillText(CFG.sample==='brass'?(aligned()?'✔ 准线重合':'未重合'):'冷轧钢不用测微镜',80,52);
+  micTex.needsUpdate=true;
+}
+const micLcd=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.032),
+  new THREE.MeshBasicMaterial({map:micTex}));
+micLcd.position.set(0.12,0.988,0.13); micLcd.rotation.x=-0.45; micGrp.add(micLcd);
+tag(micGrp,'电子测微镜','前后移动使液晶屏清楚看到铜刀口刻度线，调测微头使刻度线与水平准线重合后读数——直接法测 Δy（表2.18.2 的 y 列）。');
+const labelMic=makeTextSprite('电子测微镜','#b39ddb',0.07);
+labelMic.position.set(0.40,0.978,0.17); scene.add(labelMic);
+
+/* ================= 电压表读数模型 ================= */
+/* 零偏（未调零时的磁场中位置偏移）：mag 为磁铁相对升降量 mm，梯度场中 U=K·Δz */
+function hallOffsetMv(){ return CFG.zeroed?TRUE.K*((CFG.mag-CFG.mag0)/1000)*1000:0; }
+function uDisplay(){ return CFG.installed?uOf(CFG.sample,CFG.m)+hallOffsetMv():0; }
+/* 测微镜对齐：刻度线随梁下沉 y_true，测微头跟随 mic；重合判定 |y−mic|<0.01 mm */
+function alignErr(){ return yTrue(CFG.sample,CFG.m)-CFG.mic; }
+function aligned(){ return Math.abs(alignErr())<0.01; }
+
+/* ================= 浮动窗口：数字电压表 + 电子测微镜视野 ================= */
+const scopeC=$('#overlay');
+function drawScope(){
+  const g=scopeC.getContext('2d');
+  g.fillStyle='#05070a'; g.fillRect(0,0,268,230);
+  /* 顶部：数字电压表 */
+  g.strokeStyle='#1d5a38'; g.strokeRect(3,3,262,54);
+  g.fillStyle='#57e389'; g.font='bold 26px Consolas,monospace'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(CFG.installed?(CFG.zeroed?(uDisplay()>=0?'':'-')+Math.abs(uDisplay()).toFixed(1)+' mV':'未调零'):'-- 关 --',120,30);
+  g.fillStyle=CFG.zeroed?'#69f0ae':'#455a64';
+  g.beginPath(); g.arc(252,16,4,0,Math.PI*2); g.fill();
+  g.font='11px "Microsoft YaHei",sans-serif'; g.fillStyle='#8bd8a8';
+  g.fillText(CFG.zeroed?'K = '+(CFG.K?(CFG.K*1000).toFixed(1)+' mV/mm':'待定')+' · 已调零':'请先调零',120,46);
+  /* 下部：电子测微镜圆形视野 */
+  const cx=134, cy=152, R=72;
+  g.save(); g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.clip();
+  g.fillStyle='#000'; g.fillRect(cx-R,cy-R,2*R,2*R);
+  if(CFG.installed&&CFG.sample==='brass'){
+    const err=alignErr(), px=err*90;                    // 1 mm = 90 px
+    const ok=Math.abs(err)<0.01;
+    /* 铜刀口刻度线（随梁下沉移动的竖尺） */
+    g.save(); g.translate(cx,cy+px);
+    g.strokeStyle=ok?'#69f0ae':'#e8dcb0'; g.lineWidth=2; g.shadowColor=g.strokeStyle; g.shadowBlur=ok?8:0;
+    g.beginPath(); g.moveTo(-46,0); g.lineTo(30,0); g.stroke();
+    for(let i=0;i<=6;i++){ const ty=-30+i*10;
+      g.lineWidth=(i%3===0)?1.8:1; g.beginPath(); g.moveTo(-46,ty); g.lineTo(i%3===0?-30:-36,ty); g.stroke(); }
+    g.shadowBlur=0; g.restore();
+    /* 液晶屏水平准线（固定） */
+    g.strokeStyle='rgba(80,200,255,.9)'; g.lineWidth=1.4;
+    g.beginPath(); g.moveTo(cx-R,cy); g.lineTo(cx+R,cy); g.stroke();
+    g.setLineDash([3,3]); g.strokeStyle='rgba(80,200,255,.35)';
+    g.beginPath(); g.moveTo(cx-R,cy-30); g.lineTo(cx+R,cy-30);
+    g.moveTo(cx-R,cy+30); g.lineTo(cx+R,cy+30); g.stroke(); g.setLineDash([]);
+    g.fillStyle=ok?'#69f0ae':'#8b98a9'; g.font='12px "Microsoft YaHei",sans-serif'; g.textAlign='center';
+    g.fillText(ok?'✔ 刻度线与准线重合':'偏差 '+err.toFixed(3)+' mm',cx,cy-R+14);
+  } else {
+    g.fillStyle='#66707f'; g.font='13px "Microsoft YaHei",sans-serif'; g.textAlign='center';
+    g.fillText(CFG.sample==='steel'?'冷轧钢测量无需测微镜':'未安装试样',cx,cy);
+  }
+  g.restore();
+  g.strokeStyle='rgba(80,200,255,.85)'; g.lineWidth=1.2;
+  g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.stroke();
+  /* 底部状态 */
+  g.fillStyle='#ffd54f'; g.font='bold 13px Consolas,monospace';
+  g.fillText('m = '+CFG.m+' g　|　'+(CFG.sample==='brass'?'黄铜':'冷轧钢'),134,215);
+  /* 左上 HUD 同步 */
+  $('#hudU').textContent=(CFG.installed&&CFG.zeroed)?uDisplay().toFixed(1)+' mV':'0.0 mV';
+  $('#hudM').textContent='砝码 m = '+CFG.m+' g';
+  $('#hudBeam').textContent='试样：'+SAMP[CFG.sample].name;
+}
+
+/* ================= 交互 ================= */
+$('#sFoot').oninput=e=>{
+  CFG.foot=+e.target.value; $('#vFoot').textContent=(CFG.foot>=0?'+':'')+CFG.foot.toFixed(2)+' mm';
+  bubble.position.x=CFG.foot*0.03; checkSteps();
+};
+$('#btnMeasure').onclick=()=>{
+  if(CFG.geo){ toast('外形数据已测得并记录，为保持数据一致已锁定'); return; }
+  const n3=(x,s)=>x+s*(Math.random()+Math.random()-1);
+  CFG.geo={ d:TRUE.d*1000+0.5*(Math.random()+Math.random()-1),
+    brass:{ b:n3(23.00,0.02), a:n3(1.000,0.004) },
+    steel:{ b:n3(23.02,0.02), a:n3(1.000,0.004) } };
+  $('#geoShow').innerHTML='d = <b>'+CFG.geo.d.toFixed(1)+' mm</b>（米尺）<br>黄铜：b̄ = <b>'+CFG.geo.brass.b.toFixed(2)+' mm</b>，ā = <b>'+CFG.geo.brass.a.toFixed(3)+' mm</b><br>冷轧钢：b̄ = <b>'+CFG.geo.steel.b.toFixed(2)+' mm</b>，ā = <b>'+CFG.geo.steel.a.toFixed(3)+' mm</b>';
+  toast('外形测量完成：d='+CFG.geo.d.toFixed(1)+' mm（表2.18.1）');
+  checkSteps(); renderData();
+};
+$('#btnInstall').onclick=()=>{
+  if(CFG.installed){ toast('黄铜梁已安装'); return; }
+  CFG.installed=true; CFG.m=20;
+  weightMeshes[0].visible=true;
+  $('#zeroState').textContent='已安装并预加 20 g。请调磁铁高度使霍尔元件入磁场，然后调零';
+  $('#runState').textContent='已安装：m=20 g。调节磁铁高度→调零→开始测量';
+  toast('<b>黄铜梁已安装</b>：穿过铜刀口对称放上两立柱刀口，预加 20 g，霍尔元件一端放入磁场');
+  checkSteps();
+};
+$('#sMag').oninput=e=>{
+  CFG.mag=+e.target.value; $('#vMag').textContent=(CFG.mag>=0?'+':'')+CFG.mag.toFixed(2)+' mm';
+  magGrp.position.y=BEAM.y+0.041+CFG.mag/1000;
+  fieldGrp.position.y=magGrp.position.y;
+};
+$('#btnZero').onclick=()=>{
+  if(!CFG.installed){ toast('请先安装试样'); return; }
+  if(Math.abs(CFG.mag)>0.2){ toast('<b style="color:#ff8a80">霍尔元件偏离磁场中心（|Δz|&gt;0.2 mm）</b>，请调磁铁高度使元件位于磁场中心再调零'); return; }
+  CFG.zeroed=true; CFG.mag0=CFG.mag;
+  voltLampM.color.setHex(0x00ff66);
+  $('#zeroState').innerHTML='<span class="good">✔ 电压表已调零（示数 0.0 mV），磁铁高度已锁定</span>';
+  $('#runState').textContent='已调零。记录 m=20 g 初始读数，然后逐次加 20 g';
+  toast('<b>调零完成</b>：霍尔元件位于磁场中心，电压表示数归零');
+  checkSteps();
+};
+$('#sMic').oninput=e=>{
+  CFG.mic=+e.target.value; $('#vMic').textContent=CFG.mic.toFixed(3)+' mm';
+};
+$('#btnAdd').onclick=()=>{
+  if(!CFG.zeroed){ toast('请先完成安装与调零'); return; }
+  if(CFG.m>=120){ toast('砝码已加至 120 g（6 次）'); return; }
+  const need=(CFG.m-20)/20;
+  if(CFG.rows[CFG.sample].length<need){ toast('<b style="color:#ff8a80">请先记录当前载荷（m='+CFG.m+' g）的数据</b>再增加砝码'); return; }
+  CFG.m+=20;
+  weightMeshes[(CFG.m-20)/20-1].visible=true;
+  toast('已增加 20 g（m='+CFG.m+' g）。梁中心下沉，请重新调测微镜重合后记录');
+  checkSteps();
+};
+$('#btnRecord').onclick=()=>{
+  if(!CFG.zeroed){ toast('请先完成安装与调零'); return; }
+  const rows=CFG.rows[CFG.sample];
+  if(rows.some(r=>r.m===CFG.m)){ toast('该载荷已记录'); return; }
+  const nz=y=>y+0.002*(Math.random()+Math.random()-1);
+  if(CFG.sample==='brass'){
+    if(!aligned()){ toast('<b>刻度线未与准线重合</b>（偏差 '+alignErr().toFixed(3)+' mm），请调节电子测微镜测微头'); return; }
+    rows.push({m:CFG.m,y:nz(CFG.mic),U:uDisplay()+0.5*(Math.random()+Math.random()-1)});
+    $('#runState').textContent='已记录 '+rows.length+'/6（m='+CFG.m+' g）'+(CFG.m<120?'，请增加 20 g 砝码':'，全部完成');
+    toast('记录：m='+CFG.m+' g，y=<b>'+rows[rows.length-1].y.toFixed(3)+' mm</b>，U=<b>'+rows[rows.length-1].U.toFixed(1)+' mV</b>');
+  } else {
+    rows.push({m:CFG.m,U:uDisplay()+0.5*(Math.random()+Math.random()-1)});
+    $('#runState').textContent='已记录 '+rows.length+'/6（m='+CFG.m+' g）'+(CFG.m<120?'，请增加 20 g 砝码':'，全部完成');
+    toast('记录：m='+CFG.m+' g，U=<b>'+rows[rows.length-1].U.toFixed(1)+' mV</b>（冷轧钢只需电压表示数）');
+  }
+  renderData(); checkSteps();
+};
+let steelLabel=null;
+$('#btnSwap').onclick=()=>{
+  if(!(CFG.K&&CFG.sample==='brass')){ toast('须先用黄铜数据逐差求出灵敏度 K（步骤⑤）'); return; }
+  CFG.sample='steel'; CFG.m=20; CFG.mic=0; $('#sMic').value=0; $('#vMic').textContent='0.000 mm';
+  weightMeshes.forEach((w,i)=>w.visible=i===0);
+  beamMat.color.setHex(SAMP.steel.color); beamMat.emissive.setHex(SAMP.steel.color);
+  beamLabel.visible=false;
+  steelLabel=makeTextSprite('冷轧钢梁 a=1.000mm','#b0bec5',0.075);
+  steelLabel.position.copy(beamLabel.position); scene.add(steelLabel);
+  $('#runState').textContent='已换冷轧钢试样：m=20 g。逐次加 20 g，只需记录电压表示数（Δy=ΔU/K）';
+  toast('<b>已换冷轧钢试样</b>（表2.18.3）：不再使用电子测微镜，仅记 U，由 K 反推 Δy');
+  checkSteps();
+};
+/* 逐差法：Δx=mean(x[i+3]−x[i])，对应 ΔM=60 g */
+function meanDiff(arr,f){ let s=0; for(let i=0;i<3;i++) s+=f(arr[i+3])-f(arr[i]); return s/3; }
+$('#btnFit').onclick=()=>{
+  const g=CFG.geo;
+  if(!g){ toast('请先完成外形测量（步骤②）'); return; }
+  const Eof=(smp,dy60mm)=>{ const a=(g[smp].a/1000)**3,b=g[smp].b/1000;
+    return 0.060*TRUE.g0*Math.pow(TRUE.d,3)/(4*a*b*dy60mm/1000); };
+  if(CFG.rows.brass.length>=6&&!CFG.K){
+    const dy=meanDiff(CFG.rows.brass,r=>r.y);          // mm
+    const du=meanDiff(CFG.rows.brass,r=>r.U);          // mV
+    CFG.K=du/dy/1000;                                  // mV/mm → V/m
+    CFG.dy60.brass=dy;
+    CFG.E.brass=Eof('brass',dy);
+    CFG.rel.brass=Math.abs(CFG.E.brass-TRUE.E_brass)/TRUE.E_brass*100;
+    $('#fitState').innerHTML='黄铜：Δy₆₀=<b>'+dy.toFixed(3)+' mm</b>，ΔU₆₀=<b>'+du.toFixed(1)+' mV</b> → K=<b>'+(CFG.K*1000).toFixed(1)+' mV/mm</b>，E=<b>'+(CFG.E.brass/1e10).toFixed(2)+'×10¹⁰ Pa</b>';
+    toast('<b>黄铜逐差完成</b>：K='+(CFG.K*1000).toFixed(1)+' mV/mm，E='+(CFG.E.brass/1e10).toFixed(2)+'×10¹⁰ Pa（相对误差 '+CFG.rel.brass.toFixed(2)+'%）');
+  } else if(CFG.rows.steel.length>=6&&CFG.K){
+    const du=meanDiff(CFG.rows.steel,r=>r.U);
+    const dy=du/CFG.K/1000;                            // mV/(V/m) → mm
+    CFG.dy60.steel=dy;
+    CFG.E.steel=Eof('steel',dy);
+    CFG.rel.steel=Math.abs(CFG.E.steel-TRUE.E_steel)/TRUE.E_steel*100;
+    $('#fitState').innerHTML=$('#fitState').innerHTML+'<br>冷轧钢：ΔU₆₀=<b>'+du.toFixed(1)+' mV</b> → Δy₆₀=ΔU/K=<b>'+dy.toFixed(3)+' mm</b>，E=<b>'+(CFG.E.steel/1e10).toFixed(2)+'×10¹⁰ Pa</b>';
+    toast('<b>冷轧钢逐差完成</b>：Δy₆₀='+dy.toFixed(3)+' mm，E='+(CFG.E.steel/1e10).toFixed(2)+'×10¹⁰ Pa（相对误差 '+CFG.rel.steel.toFixed(2)+'%）');
+  } else if(CFG.sample==='brass'){ toast('黄铜数据不足 6 次，请继续逐次加砝码测量'); }
+  else { toast('冷轧钢数据不足 6 次，请继续加砝码记录电压'); }
+  renderData(); checkSteps();
+};
+
+/* ================= 步骤判定 ================= */
+const TIPS=['装置已调平！','外形数据 d、b、a 已测得！','黄铜梁已安装并调零！','黄铜 6 次测量完成！','K 与黄铜杨氏模量已求出！','冷轧钢测量与逐差完成，实验全部完成！'];
+function checkSteps(){
+  const s=CFG.steps;
+  s[0]=Math.abs(CFG.foot)<=0.1;
+  s[1]=!!CFG.geo;
+  s[2]=CFG.installed&&CFG.zeroed;
+  s[3]=CFG.rows.brass.length>=6;
+  s[4]=s[3]&&CFG.K!=null;
+  s[5]=s[4]&&CFG.rows.steel.length>=6&&CFG.E.steel!=null;
+  s.forEach((v,i)=>{
+    const el=$('#st'+(i+1));
+    if(v&&!el.classList.contains('done')) toast('<b>步骤 '+(i+1)+' 完成</b>　'+TIPS[i]);
+    el.classList.toggle('done',v);
+    el.classList.toggle('current',!v&&s.slice(0,i).every(Boolean));
+  });
+  /* 步骤门控（互不跳步） */
+  $('#btnMeasure').disabled=!!CFG.geo||!s[0];
+  $('#btnInstall').disabled=CFG.installed||!(s[0]&&s[1]);
+  $('#sMag').disabled=!CFG.installed||CFG.zeroed;
+  $('#btnZero').disabled=!CFG.installed||CFG.zeroed;
+  $('#sMic').disabled=!CFG.zeroed||CFG.sample!=='brass';
+  $('#btnAdd').disabled=!CFG.zeroed||CFG.m>=120;
+  $('#btnRecord').disabled=!CFG.zeroed;
+  $('#btnSwap').disabled=!(CFG.K&&CFG.sample==='brass');
+}
+
+/* ================= 数据处理 ================= */
+function renderData(){
+  const g=CFG.geo;
+  $('#tb1').innerHTML=g?`<table><tr><th>试样</th><th>d/cm（米尺）</th><th>b/cm（卡尺）</th><th>a/mm（千分尺）</th></tr>
+    <tr><td>黄铜</td><td rowspan="2" class="good">${(g.d/10).toFixed(2)}</td><td class="good">${(g.brass.b/10).toFixed(3)}</td><td class="good">${g.brass.a.toFixed(3)}</td></tr>
+    <tr><td>冷轧钢</td><td class="good">${(g.steel.b/10).toFixed(3)}</td><td class="good">${g.steel.a.toFixed(3)}</td></tr></table>`:'尚未完成测量。';
+  const rb=CFG.rows.brass;
+  $('#tb2').innerHTML=rb.length?`<table><tr><th>序号</th><th>m/g</th><th>y/mm</th><th>U/mV</th></tr>${
+    rb.map((r,i)=>`<tr><td>${i+1}</td><td>${r.m}</td><td>${r.y.toFixed(3)}</td><td>${r.U.toFixed(1)}</td></tr>`).join('')
+    }${CFG.K?`<tr class="hl"><td colspan="2">逐差 ΔM=60g</td><td>Δy=${CFG.dy60.brass.toFixed(3)}</td><td>K=${(CFG.K*1000).toFixed(1)} mV/mm<br>E=${(CFG.E.brass/1e10).toFixed(2)}×10¹⁰ Pa</td></tr>`:''}</table>`:'尚未完成测量。';
+  const rs=CFG.rows.steel;
+  $('#tb3').innerHTML=rs.length?`<table><tr><th>序号</th><th>m/g</th><th>U/mV</th></tr>${
+    rs.map((r,i)=>`<tr><td>${i+1}</td><td>${r.m}</td><td>${r.U.toFixed(1)}</td></tr>`).join('')
+    }${CFG.E.steel?`<tr class="hl"><td>逐差 ΔM=60g</td><td>ΔU=${meanDiff(rs,r=>r.U).toFixed(1)} mV</td><td>Δy=ΔU/K=${CFG.dy60.steel.toFixed(3)} mm<br>E=${(CFG.E.steel/1e10).toFixed(2)}×10¹⁰ Pa</td></tr>`:''}</table>`:'尚未完成测量。';
+  if(CFG.E.brass!=null){
+    const okB=CFG.rel.brass<5, okS=CFG.rel.steel!=null&&CFG.rel.steel<5;
+    $('#concl').innerHTML=
+      `<div class="kv"><span>霍尔位置传感器灵敏度 K（黄铜定标）</span><b>${(CFG.K*1000).toFixed(1)} mV/mm = ${CFG.K.toFixed(0)} V/m</b></div>`+
+      `<div class="kv"><span>黄铜 Δy₆₀ / E</span><b>${CFG.dy60.brass.toFixed(3)} mm / ${(CFG.E.brass/1e10).toFixed(2)}×10¹⁰ Pa</b></div>`+
+      `<div class="kv"><span>黄铜相对误差（E标=12.0×10¹⁰）</span><b class="${okB?'good':''}">${CFG.rel.brass.toFixed(2)} %</b></div>`+
+      (CFG.E.steel!=null?
+      `<div class="kv"><span>冷轧钢 Δy₆₀=ΔU/K / E</span><b>${CFG.dy60.steel.toFixed(3)} mm / ${(CFG.E.steel/1e10).toFixed(2)}×10¹⁰ Pa</b></div>`+
+      `<div class="kv"><span>冷轧钢相对误差（E标=24.5×10¹⁰）</span><b class="${okS?'good':''}">${CFG.rel.steel.toFixed(2)} %</b></div>`+
+      (okB&&okS?'<div class="good">✔ 两种试样 E 均与标准值在误差范围内一致，实验成功</div>'
+               :'<div style="color:#ff8a80">✘ 偏差偏大：检查刀口是否移动、砝码是否轻放、读数前梁是否稳定</div>')
+      :'<div class="muted">冷轧钢测量完成后给出最终结论。</div>');
+  } else $('#concl').innerHTML='完成两试样测量与逐差处理后自动给出结论。';
+}
+
+/* ================= 示例/重置 ================= */
+$('#btnSample').onclick=()=>{
+  const nz=y=>y+0.002*(Math.random()+Math.random()-1);
+  CFG.foot=0; $('#sFoot').value=0; $('#vFoot').textContent='+0.00 mm'; bubble.position.x=0;
+  $('#btnMeasure').onclick(); CFG.geo.d=230.0; CFG.geo.brass={b:23.00,a:1.000}; CFG.geo.steel={b:23.00,a:1.000};
+  CFG.installed=true; CFG.m=20;
+  $('#btnZero').onclick(); CFG.mag=CFG.mag0=0;
+  $('#sMag').value=0; $('#vMag').textContent='+0.00 mm';
+  magGrp.position.y=BEAM.y+0.041; fieldGrp.position.y=magGrp.position.y;
+  CFG.rows.brass=[];
+  for(let m=20;m<=120;m+=20) CFG.rows.brass.push({m,y:nz(yTrue('brass',m)),U:uOf('brass',m)+0.5*(Math.random()+Math.random()-1)});
+  $('#btnFit').onclick();
+  CFG.sample='steel'; CFG.m=20;
+  beamMat.color.setHex(SAMP.steel.color); beamMat.emissive.setHex(SAMP.steel.color);
+  beamLabel.visible=false;
+  if(!steelLabel){ steelLabel=makeTextSprite('冷轧钢梁 a=1.000mm','#b0bec5',0.075);
+    steelLabel.position.copy(beamLabel.position); scene.add(steelLabel); }
+  weightMeshes.forEach((w,i)=>w.visible=i===0);
+  CFG.rows.steel=[];
+  for(let m=20;m<=120;m+=20) CFG.rows.steel.push({m,U:uOf('steel',m)+0.5*(Math.random()+Math.random()-1)});
+  $('#btnFit').onclick();
+  $('#zeroState').innerHTML='<span class="good">✔ 已安装并调零（示例）</span>';
+  $('#runState').textContent='示例：黄铜 6 次 + 冷轧钢 6 次已记录，逐差处理完成';
+  drawVolt(); checkSteps(); renderData();
+  toast('<b>已自动完成全部测量</b>（外形 + 黄铜定标 + 冷轧钢）。查看「数据处理」页结论。');
+};
+$('#btnReset').onclick=()=>{
+  CFG.foot=0.8; CFG.installed=false; CFG.zeroed=false; CFG.mag=0; CFG.mag0=undefined;
+  CFG.sample='brass'; CFG.m=20; CFG.mic=0;
+  CFG.rows={brass:[],steel:[]}; CFG.geo=null; CFG.K=null; CFG.E={}; CFG.rel={}; CFG.dy60={};
+  gl.sag=0;
+  $('#sFoot').value=0.8; $('#vFoot').textContent='+0.80 mm'; bubble.position.x=0.024;
+  $('#sMag').value=0; $('#vMag').textContent='+0.00 mm';
+  $('#sMic').value=0; $('#vMic').textContent='0.000 mm';
+  magGrp.position.y=BEAM.y+0.041; fieldGrp.position.y=magGrp.position.y;
+  weightMeshes.forEach(w=>w.visible=false);
+  beamMat.color.setHex(SAMP.brass.color); beamMat.emissive.setHex(SAMP.brass.color);
+  beamLabel.visible=true; if(steelLabel){ scene.remove(steelLabel); steelLabel=null; }
+  voltLampM.color.setHex(0x123a24);
+  $('#lvlState').textContent='气泡偏离中心，请调节脚螺旋使其居中。';
+  $('#geoShow').textContent='尚未测量';
+  $('#zeroState').textContent='未安装 / 未调零';
+  $('#runState').textContent='等待安装';
+  $('#fitState').textContent='未处理。黄铜：K=ΔU/Δy 与 E；冷轧钢：Δy=ΔU/K 与 E。';
+  drawVolt(); checkSteps(); renderData();
+  toast('实验已重置');
+};
+
+/* ================= 3D 点击拾取（部件说明卡） ================= */
+canvas.addEventListener('pointerup',e=>{
+  if(Math.hypot(downXY[0]-downXY[2],downXY[1]-downXY[3])>4) return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const pick=[[beam,'矩形梁试样','黄铜/冷轧钢梁 b≈23mm、a≈1mm，架在相距 d≈230mm 的刀口上受中心载荷弯曲。E=ΔMgd³/(4a³bΔy)。'],
+              [knife,'铜刀口（带刻度线）','随梁中心下沉，刻度线由电子测微镜读取（直接法 Δy）；同时经杠杆组件推动霍尔元件（间接法）。'],
+              [lever,'杠杆组件','ΔZ=k·Δy，把梁中心挠度变化传递给霍尔元件。'],
+              [hall,'霍尔元件','位于 N↑↓N 磁铁间隙中轴。U_H∝B，磁场沿 Z 轴均匀梯度 → ΔU=K·Δy。'],
+              [magBack,'磁铁盒（N 极相对）','间隙磁场沿 Z 轴呈均匀梯度（图2.18.3）。'],
+              [magStand,'磁铁高度调节支架','调节磁铁盒高度使霍尔元件位于磁场中心，随后电压表调零。'],
+              [pan,'砝码盘','预加 20 g，逐次增加 20 g（轻拿轻放，勿移动刀口）。'],
+              [voltBox,'数字电压表','测霍尔输出电压 ΔU_H（mV 级），先调零。'],
+              [micGrp,'电子测微镜','调测微头使铜刀口刻度线与液晶屏水平准线重合后读数——直接法测 Δy。'],
+              [lvlGlass,'水准器','气泡居中即装置水平。']];
+  for(const [obj,title,text] of pick){
+    if(ray.intersectObject(obj,true).length){ showInfo(title,text); return; }
+  }
+  if(ray.intersectObjects(scene.children,true).length)
+    showInfo('测定仪底座','带水准器与调平脚螺旋。测量微小挠度，避免震动、勿移动刀口。');
+});
+
+/* ================= 主循环 ================= */
+/* 静态形变仿真：无刚性积分，仅帧率无关的状态渐近动画（等价固定小步长） */
+let lastT=performance.now();          // 时间源：performance.now()（禁 Date.now 混算）
+let lastW=0,lastH=0;
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(w&&h&&(w!==lastW||h!==lastH)){   // CSS 尺寸变化时才重建缓冲
+    lastW=w; lastH=h;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+}
+/* 简支梁中点载荷挠曲线形状：跨内抛物线近似，跨外线性延伸 */
+function sagShape(x){ const ax=Math.abs(x);
+  if(ax<=D2) return 1-(x/D2)*(x/D2);
+  return -(2/D2)*(ax-D2); }
+const AMP=20;                          // 挠度可视化放大 20 倍
+function loop(){
+  requestAnimationFrame(loop);        // 主循环首行，防冻屏
+  resize();
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;                  // 钳制切后台时间跳变
+  /* 梁挠度渐近（相对预加载 20g），米制放大 AMP 倍 */
+  const sagT=CFG.installed?yTrue(CFG.sample,CFG.m)*AMP/1000:0;
+  gl.sag+=(sagT-gl.sag)*Math.min(1,dt*3);
+  if(Math.abs(sagT-gl.sag)>1e-6){
+    const pos=beamGeo.attributes.position.array;
+    for(let i=0;i<pos.length;i+=3) pos[i+1]=beamBase[i+1]+sagShape(beamBase[i])*gl.sag;
+    beamGeo.attributes.position.needsUpdate=true;
+  }
+  /* 中央部件随梁中心同步下沉 */
+  knife.position.y=BEAM.y+0.0055-gl.sag;
+  knifeLine.position.y=BEAM.y+0.0065-gl.sag;
+  hangRod.position.y=BEAM.y-0.026-gl.sag;
+  pan.position.y=BEAM.y-0.053-gl.sag;
+  weightMeshes.forEach((w,i)=>{ w.position.y=BEAM.y-0.0475+i*0.0072-gl.sag; });
+  lever.position.y=BEAM.y+0.026-gl.sag;
+  hall.position.y=BEAM.y+0.041-gl.sag;
+  /* 磁场条纹亮度随 |U| 变化（梯度场中的电压响应可视化） */
+  const umag=CFG.installed&&CFG.zeroed?Math.abs(uDisplay()):0;
+  fieldPlanes.forEach((p,i)=>{ p.material.opacity=.15+.3*Math.min(1,umag/320)+.06*Math.sin(now*0.003+i); });
+  hall.material.emissiveIntensity=.3+.6*Math.min(1,umag/320);
+  /* 磁铁盒升降连接柱：支架顶(0.8985) → 磁铁盒底 */
+  const liftBot=magGrp.position.y-0.028;
+  magLift.position.y=(0.8985+liftBot)/2; magLift.scale.y=Math.max(liftBot-0.8985,0.002);
+  /* 测微头随读数推进 + 微分筒滚花自转 */
+  micHead.position.x=0.103-CFG.mic/1000*0.02;
+  micKnurl.rotation.x+=dt*2.5;
+  /* 仪表 */
+  drawVolt(); drawScope(); drawMicLcd();
+  controls.update(); renderer.render(scene,camera);
+}
+/* 首帧初始化：先渲染有效首帧，再启动主循环 */
+checkSteps(); renderData(); drawVolt(); drawScope();
+bubble.position.x=CFG.foot*0.03;
+resize(); renderer.render(scene,camera);
+loop();
+
+/* 暴露状态供自查脚本轮询（轮询状态变量而非固定 sleep） */
+window.CFG=CFG; window.TRUE=TRUE; window.gl=gl; window.SAMP=SAMP;
+window.yTrue=yTrue; window.uOf=uOf; window.alignErr=alignErr; window.aligned=aligned;
+</script>
+<!-- end of file -->
+</body>
+</html>

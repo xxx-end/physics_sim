@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验 · 光电效应测普朗克常量 · 3D交互仿真</title>
+<style>
+  /* ============ 全局 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #cfe3ff; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* ---------- 顶部标题栏 ---------- */
+  header { min-height: 58px; display: flex; align-items: center; gap: 14px;
+    padding: 0 18px; background: linear-gradient(90deg, #0b1220, #101c36);
+    border-bottom: 1px solid #1d3252; }
+  header h1 { font-size: 17px; color: #7fd7ff; letter-spacing: 1px; white-space: nowrap; }
+  header .sub { font-size: 12px; color: #6fa8dc; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  header .sub b { color: #ffd54f; }
+  header button { background: #14263f; color: #cfe3ff; border: 1px solid #29507a;
+    border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  header button:hover { background: #1d3a5f; border-color: #29d2ff; }
+  header button.warn { background: #4a2a10; border-color: #ff9800; color: #ffd54f; }
+
+  /* ---------- 主体：左侧面板 + 右侧 3D 视口 ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #panel { width: 420px; min-width: 420px; height: 100%; overflow-y: auto;
+    background: #0a111f; border-right: 1px solid #1d3252; padding: 12px 14px 40px; }
+  #view { position: relative; flex: 1; height: 100%; overflow: hidden; }
+  #view canvas.webgl { display: block; width: 100%; height: 100%; }
+
+  /* 标签页 */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 66px; background: #0e1a30; color: #6fa8dc;
+    border: 1px solid #1d3252; border-radius: 8px 8px 0 0; padding: 8px 4px;
+    font-size: 12px; cursor: pointer; }
+  .tabs button.active { background: #14263f; color: #7fd7ff; border-color: #29d2ff;
+    border-bottom: 2px solid #29d2ff; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* 卡片 */
+  .card { background: rgba(21, 101, 192, 0.08); border: 1px solid #1d3252;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #7fd7ff; margin-bottom: 8px; letter-spacing: 1px; }
+  .card p, .card li { font-size: 12px; line-height: 1.8; color: #a9c6e8; }
+  .card ul { padding-left: 18px; }
+  .formula { display: block; text-align: center; color: #7fd7ff;
+    font-family: "Cambria Math", serif; font-size: 14px; margin: 6px 0;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; }
+
+  /* 步骤清单 */
+  .step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 6px;
+    border-bottom: 1px dashed #1d3252; font-size: 12.5px; color: #a9c6e8; }
+  .step:last-child { border-bottom: none; }
+  .step .box { min-width: 18px; height: 18px; border: 1px solid #29507a; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: #69f0ae; }
+  .step.done .box { background: rgba(105, 240, 174, 0.15); border-color: #69f0ae; }
+  .step.done { color: #69f0ae; }
+
+  /* 滑块 */
+  .slider-row { margin: 10px 0; }
+  .slider-row .lab { display: flex; justify-content: space-between; font-size: 12px;
+    color: #9fc3e8; margin-bottom: 4px; }
+  .slider-row .lab b { color: #ffd54f; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, #1565c0, #29d2ff); border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: #ffd54f; cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 213, 79, 0.8); }
+
+  /* 数据格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .data-cell { background: rgba(41, 210, 255, 0.06); border: 1px solid #1d3252;
+    border-radius: 6px; padding: 7px 9px; }
+  .data-cell .k { font-size: 10px; color: #6fa8dc; }
+  .data-cell .v { font-size: 14px; color: #eaf6ff; font-weight: 600; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .data-cell .v.ok { color: #69f0ae; }
+  .data-cell .v.warn { color: #ff9e80; }
+
+  /* 按钮 */
+  .btn { background: #14263f; color: #cfe3ff; border: 1px solid #29507a; border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #1d3a5f; border-color: #29d2ff; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: #0d47a1; border-color: #2979ff; color: #fff; }
+  .btn.green { background: #1b5e20; border-color: #4caf50; color: #c8f7c5; }
+  .btn.film { padding: 6px 10px; }
+  .btn.film.active { background: #00695c; border-color: #1de9b6; color: #a7ffeb; }
+
+  /* 记录表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border: 1px solid #1d3252; padding: 6px 6px; text-align: center;
+    font-variant-numeric: tabular-nums; }
+  th { background: rgba(41, 210, 255, 0.08); color: #7fd7ff; font-weight: 600; }
+  td.empty { color: #4a6a94; }
+
+  /* 视口叠加层 */
+  #meterHud { position: absolute; top: 14px; left: 14px; z-index: 5;
+    background: rgba(10, 16, 28, 0.85); border: 1px solid #1d3252; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #9fc3e8; }
+  #meterHud .big { font-size: 22px; color: #69f0ae; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #meterHud .row2 { margin-top: 4px; color: #ffd54f; font-variant-numeric: tabular-nums; }
+  #overlay { position: absolute; top: 14px; right: 14px; z-index: 5;
+    border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 5; font-size: 12px; color: #6fa8dc; background: rgba(10, 16, 28, 0.7);
+    border: 1px solid #1d3252; border-radius: 16px; padding: 5px 16px; }
+  #toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 9; display: none; background: rgba(20, 40, 60, 0.95);
+    border: 1px solid #29d2ff; border-radius: 8px; padding: 8px 18px;
+    font-size: 13px; color: #eaf6ff; }
+  #toast.show { display: block; }
+  #fitChart { border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ 顶部标题栏 ============ -->
+  <header>
+    <h1>实验 · 光电效应测普朗克常量</h1>
+    <div class="sub">汞灯 + 滤色片（405/436/546/577 nm）｜ 光电管截止电压法测 <b>h</b> ｜ ⚠ 请勿直视强光，换滤色片时保持光源开启</div>
+    <button id="btnAuto" class="warn">⚡ 示例流程一键完成</button>
+    <button id="btnReset">↺ 重置实验</button>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左侧面板（标签页） ============ -->
+    <aside id="panel">
+      <div class="tabs">
+        <button data-p="p1" class="active">操作引导</button>
+        <button data-p="p2">仪器调节</button>
+        <button data-p="p3">测量记录</button>
+        <button data-p="p4">数据处理</button>
+        <button data-p="p5">原理</button>
+      </div>
+
+      <!-- ① 操作引导 -->
+      <div class="pane active" id="p1">
+        <div class="card">
+          <h3>实验步骤（完成后自动打勾）</h3>
+          <div class="step" id="st1"><span class="box"></span><span>① 打开汞灯，预热使其发光稳定</span></div>
+          <div class="step" id="st2"><span class="box"></span><span>② 在光电管窗口装入滤色片（选定波长）</span></div>
+          <div class="step" id="st3"><span class="box"></span><span>③ 调节反向电压 U<sub>A</sub>，使微电流表读数恰好为零</span></div>
+          <div class="step" id="st4"><span class="box"></span><span>④ 按「记录截止电压 Uc」，将数据填入表 1</span></div>
+          <div class="step" id="st5"><span class="box"></span><span>⑤ 依次完成 4 个波长测量，到「数据处理」页查看 Uc–ν 图与 h</span></div>
+        </div>
+        <div class="card">
+          <h3>操作提示</h3>
+          <ul>
+            <li>先用<b>较小光阑</b>观察电流，再逐步增大，避免电流表过载。</li>
+            <li>寻找截止电压时缓慢减小/增大 U<sub>A</sub>，电流刚降为零时即为 Uc。</li>
+            <li>若换上滤色片后始终无电流（ν &lt; ν₀），说明该波长不能引起光电效应。</li>
+            <li>记录完成后到「数据处理」页查看最小二乘拟合结果。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ② 仪器调节 -->
+      <div class="pane" id="p2">
+        <div class="card">
+          <h3>汞灯电源</h3>
+          <button id="btnLamp" class="btn primary">打开汞灯</button>
+          <span id="lampState" style="font-size:12px;color:#6fa8dc;margin-left:10px;">（汞灯未开）</span>
+        </div>
+        <div class="card">
+          <h3>滤色片转轮（点选装入）</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn film" data-nm="405">405 nm</button>
+            <button class="btn film" data-nm="436">436 nm</button>
+            <button class="btn film" data-nm="546">546 nm</button>
+            <button class="btn film" data-nm="577">577 nm</button>
+            <button class="btn film" id="btnNoFilm" data-nm="0">空档（白光）</button>
+          </div>
+          <p id="filmInfo" style="margin-top:8px;">当前未装滤色片，光电管受白光照射（含各波长成分）。</p>
+        </div>
+        <div class="card">
+          <h3>光阑（入射光强）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>光阑直径 d (mm)</span><b id="labAp">4.0</b></div>
+            <input type="range" id="sldAp" min="2" max="8" step="0.5" value="4">
+          </div>
+          <p>光阑越大，饱和光电流越大（不影响截止电压 Uc）。</p>
+        </div>
+        <div class="card">
+          <h3>直流反向电压 U<sub>A</sub>（调零旋钮）</h3>
+          <div class="slider-row">
+            <div class="lab"><span>反向电压 U_A (V)</span><b id="labUA">0.00</b></div>
+            <input type="range" id="sldUA" min="0" max="3" step="0.01" value="0">
+          </div>
+          <p>增大反向电压，光电流减小；电流恰好为零时的电压即为截止电压 Uc。</p>
+        </div>
+      </div>
+
+      <!-- ③ 测量记录 -->
+      <div class="pane" id="p3">
+        <div class="card">
+          <h3>实时读数</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">微电流表</div><div class="v ok" id="rI">--</div></div>
+            <div class="data-cell"><div class="k">反向电压 U_A</div><div class="v" id="rUA">--</div></div>
+            <div class="data-cell"><div class="k">光子能量 hν</div><div class="v" id="rE">--</div></div>
+            <div class="data-cell"><div class="k">理论截止电压 Uc</div><div class="v warn" id="rUc">--</div></div>
+          </div>
+          <p style="margin-top:8px;">"理论 Uc" 仅供教师演示核验，实验时应依据电流表调零读取。</p>
+        </div>
+        <div class="card">
+          <h3>表 1　截止电压记录表</h3>
+          <table>
+            <thead><tr><th>λ (nm)</th><th>ν (×10¹⁴Hz)</th><th>Uc (V)</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div style="margin-top:10px;display:flex;gap:8px;">
+            <button id="btnRec" class="btn green">📋 记录当前 Uc</button>
+            <button id="btnClr" class="btn">清空记录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 数据处理 -->
+      <div class="pane" id="p4">
+        <div class="card">
+          <h3>Uc–ν 关系图（最小二乘拟合）</h3>
+          <canvas id="fitChart" width="388" height="270"></canvas>
+        </div>
+        <div class="card">
+          <h3>拟合结果</h3>
+          <div class="data-grid">
+            <div class="data-cell"><div class="k">斜率 k = h/e</div><div class="v" id="fK">--</div></div>
+            <div class="data-cell"><div class="k">普朗克常量 h</div><div class="v ok" id="fH">--</div></div>
+            <div class="data-cell"><div class="k">截止频率 ν₀</div><div class="v" id="fN0">--</div></div>
+            <div class="data-cell"><div class="k">相对误差 E</div><div class="v warn" id="fE">--</div></div>
+          </div>
+          <p id="fitMsg" style="margin-top:8px;">至少记录 2 个波长数据后即可拟合（建议 4 个）。</p>
+        </div>
+      </div>
+
+      <!-- ⑤ 原理 -->
+      <div class="pane" id="p5">
+        <div class="card">
+          <h3>记录原理：爱因斯坦光电方程（1905）</h3>
+          <p>光子能量 hν 大于金属逸出功 W₀ 时，电子吸收一个光子立即逸出，最大初动能满足：</p>
+          <span class="formula">½mv²<sub>max</sub> = hν − W₀</span>
+          <p>光电子只有克服减速电场做功恰好耗尽动能时，光电流才降为零：</p>
+          <span class="formula">eUc = hν − W₀ ⇒ Uc = (h/e)·ν − W₀/e</span>
+        </div>
+        <div class="card">
+          <h3>测量方法：截止电压法</h3>
+          <p>对 4 个已知波长 λ 分别测出截止电压 Uc，作 Uc–ν 直线：</p>
+          <ul>
+            <li>斜率 k = h/e → <b>h = k·e</b>（e = 1.602×10⁻¹⁹ C）</li>
+            <li>横轴截距 = 截止频率 ν₀ = W₀/h（红限）</li>
+            <li>标准值 h₀ = 6.626×10⁻³⁴ J·s，计算相对误差 E = |h − h₀|/h₀</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>注意事项</h3>
+          <ul>
+            <li>汞灯开启后需数分钟预热，光强稳定后再测量。</li>
+            <li>滤色片不可混入杂光，测量时保持光路对准光电管窗口。</li>
+            <li>微电流表为 nA 级灵敏仪器，读数时避免触碰导线。</li>
+            <li>实验结束依次关闭电压、汞灯电源，罩好光电管暗盒。</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ 右侧 3D 视口 ============ -->
+    <main id="view">
+      <div id="meterHud">
+        微电流表读数
+        <div class="big" id="hudI">0.00 nA</div>
+        <div class="row2" id="hudUA">U_A = 0.00 V</div>
+      </div>
+      <canvas id="overlay"></canvas>
+      <div id="hint">← 左右拖动旋转 · 滚轮缩放 · 观察光电管内光电子 →</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+ *  常量与实验状态机
+ * ================================================================ */
+const E_CHARGE = 1.602e-19;      // 元电荷 C
+const H_PLANCK = 6.626e-34;      // 普朗克常量标准值 J·s
+const WORK_EV  = 2.0;            // 光电管阴极逸出功 eV（演示标定）
+
+// 四块滤色片：波长 → 颜色
+const FILTERS = {
+  405: { color: 0x9d6bff, css: '#9d6bff' },
+  436: { color: 0x4d7bff, css: '#4d7bff' },
+  546: { color: 0x5bff8c, css: '#5bff8c' },
+  577: { color: 0xffd54f, css: '#ffd54f' }
+};
+const ALL_NM = [405, 436, 546, 577];
+
+const state = {
+  lampOn: false,        // 汞灯开关
+  filter: 0,            // 当前装入的滤色片波长（0 = 空档白光）
+  aperture: 4.0,        // 光阑直径 mm
+  UA: 0.0,              // 反向电压 V
+  records: {},          // {nm: Uc(V)} 实验记录
+  t: 0,
+  lastTime: performance.now()   // 时间源：模块加载时刻
+};
+
+/** 光子能量 (eV)：E = 1240/λ(nm) */
+function photonE(nm) { return 1239.84 / nm; }
+/** 理论截止电压：Uc = (hν − W₀)/e，eV/V 数值相等 */
+function UcIdeal(nm) { return Math.max(0, photonE(nm) - WORK_EV); }
+
+/**
+ * 微电流表读数模型 (nA)
+ * I = I₀·(1 − U_A/Uc)，含暗电流与读数噪声；ν≤ν₀ 或汞灯未开时仅剩暗电流
+ */
+function currentNA() {
+  const dark = 0.04 + (Math.random() - 0.5) * 0.05;   // 暗电流+噪声
+  if (!state.lampOn || !state.filter) return Math.max(0, dark);
+  const e = photonE(state.filter);
+  if (e <= WORK_EV + 1e-9) return Math.max(0, dark);  // 红限以下不发射
+  const Uc = UcIdeal(state.filter);
+  const I0 = 6.0 * (state.aperture / 4);              // 饱和光电流 ∝ 光阑面积近似
+  const sig = Math.max(0, 1 - state.UA / Uc);         // 减速电场遏制因子
+  return Math.max(0, I0 * sig + dark + (Math.random() - 0.5) * 0.08);
+}
+
+/* ================================================================
+ *  Three.js 3D 场景：汞灯、滤色轮、光电管、电子流、电流表
+ * ================================================================ */
+const viewEl = document.getElementById('view');
+let scene, camera, renderer, controls;
+let beamMesh, lampLens, filterWheel, glassTube, cathodeMesh, anodeMesh, pztMeter;
+let wheelAngle = 0, wheelTarget = 0;   // 滤色轮旋转动画
+const photons = [], electrons = [];
+
+function makeTextSprite(text, color, w = 0.8) {
+  // 画布宽度随文字实际长度自适应，避免长标注（如"微电流表"）被裁剪
+  const fontSize = 52, pad = 16;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = 'bold ' + fontSize + 'px sans-serif';
+  const tw = Math.ceil(measure.measureText(text).width);
+  const cw = Math.min(1024, Math.max(128, tw + pad * 2));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.font = 'bold ' + fontSize + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.shadowColor = color; c.shadowBlur = 14;
+  c.fillText(text, cw / 2, 66);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  // 精灵高度保持 w/2，宽度按画布宽高比自适应拉伸
+  sp.scale.set((w / 2) * cw / 128, w / 2, 1);
+  return sp;
+}
+
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+  scene.fog = new THREE.Fog(0x05080f, 12, 30);
+
+  camera = new THREE.PerspectiveCamera(50, 2, 0.1, 100);
+  camera.position.set(2.8, 2.2, 5.6);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  viewEl.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('webgl');
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.2, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 2.5; controls.maxDistance = 14;
+
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.5));
+  const pt = new THREE.PointLight(0xffffff, 50, 30);
+  pt.position.set(2, 4, 3); scene.add(pt);
+
+  const grid = new THREE.GridHelper(20, 40, 0x1d3252, 0x122240);
+  grid.position.y = -1.5; scene.add(grid);
+
+  // ---- 汞灯（左侧） ----
+  const lampGroup = new THREE.Group();
+  const lampBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 0.65, 0.65),
+    new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.6, roughness: 0.4 }));
+  lampGroup.add(lampBody);
+  lampLens = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.15, 0.15, 0.08, 24),
+    new THREE.MeshBasicMaterial({ color: 0x334455 }));
+  lampLens.rotation.z = -Math.PI / 2;
+  lampLens.position.set(-0.55, 0, 0);
+  lampGroup.add(lampLens);
+  const lampLabel = makeTextSprite('汞灯', '#b0bec5', 0.7);
+  lampLabel.position.set(0, 0.6, 0); lampGroup.add(lampLabel);
+  lampGroup.position.set(-4.1, 0, 0);
+  scene.add(lampGroup);
+
+  // ---- 滤色片转轮（四色扇区） ----
+  const fc = document.createElement('canvas');
+  fc.width = 256; fc.height = 256;
+  const fx = fc.getContext('2d');
+  const fcols = ['#9d6bff', '#4d7bff', '#5bff8c', '#ffd54f'];
+  fcols.forEach((col, i) => {
+    fx.fillStyle = col;
+    fx.beginPath(); fx.moveTo(128, 128);
+    fx.arc(128, 128, 126, i * Math.PI / 2, (i + 1) * Math.PI / 2); fx.fill();
+  });
+  fx.fillStyle = '#05080f'; fx.beginPath(); fx.arc(128, 128, 24, 0, Math.PI * 2); fx.fill();
+  filterWheel = new THREE.Mesh(
+    new THREE.CircleGeometry(0.48, 48),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(fc),
+      side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+  filterWheel.rotation.y = Math.PI / 2;
+  filterWheel.position.set(-2.6, 0, 0);
+  scene.add(filterWheel);
+  const fwLabel = makeTextSprite('滤色片转轮', '#80d8ff', 1.0);
+  fwLabel.position.set(-2.6, 0.75, 0); scene.add(fwLabel);
+
+  // ---- 入射光束 ----
+  beamMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.2, 2.0, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beamMesh.rotation.z = Math.PI / 2;
+  beamMesh.position.set(-1.75, 0, 0);
+  scene.add(beamMesh);
+
+  // ---- 光电管（暗盒 + 玻璃球壳） ----
+  glassTube = new THREE.Mesh(
+    new THREE.SphereGeometry(1.1, 48, 48),
+    new THREE.MeshPhysicalMaterial({ color: 0xaad4ff, transparent: true, opacity: 0.15,
+      roughness: 0.08, transmission: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+  scene.add(glassTube);
+  cathodeMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(0.55, 40),
+    new THREE.MeshStandardMaterial({ color: 0x6a4fc3, emissive: 0x7c4dff,
+      emissiveIntensity: 0.25, metalness: 0.3, roughness: 0.5, side: THREE.DoubleSide }));
+  cathodeMesh.rotation.y = Math.PI / 2;
+  cathodeMesh.position.x = -0.95;
+  scene.add(cathodeMesh);
+  const kL = makeTextSprite('K', '#b388ff', 0.45); kL.position.set(-1.25, 1.0, 0); scene.add(kL);
+  anodeMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(0.3, 32),
+    new THREE.MeshStandardMaterial({ color: 0xcfd8dc, metalness: 0.9, roughness: 0.25, side: THREE.DoubleSide }));
+  anodeMesh.rotation.y = -Math.PI / 2;
+  anodeMesh.position.x = 0.95;
+  scene.add(anodeMesh);
+  const aL = makeTextSprite('A', '#80d8ff', 0.45); aL.position.set(1.25, 0.9, 0); scene.add(aL);
+
+  // ---- 微电流计（右侧盒子） ----
+  pztMeter = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.7, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x22304d, metalness: 0.5, roughness: 0.4,
+      emissive: 0x0a2036, emissiveIntensity: 0.5 }));
+  pztMeter.position.set(2.7, -0.85, 0); scene.add(pztMeter);
+  const mL = makeTextSprite('微电流表', '#80cbc4', 0.9);
+  mL.position.set(2.7, -0.25, 0); scene.add(mL);
+
+  // 导线：阳极 → 电流表 → 阴极
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0xd84315, metalness: 0.5, roughness: 0.5 });
+  const wire1 = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.95, 0, 0), new THREE.Vector3(1.7, -0.85, 0.3),
+    new THREE.Vector3(2.3, -0.85, 0)]), 24, 0.02, 8);
+  scene.add(new THREE.Mesh(wire1, wireMat));
+  const wire2 = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+    new THREE.Vector3(3.1, -0.85, 0), new THREE.Vector3(3.4, -0.85, -0.5),
+    new THREE.Vector3(-0.6, -1.0, -0.5), new THREE.Vector3(-0.95, -0.4, 0)]), 40, 0.02, 8);
+  scene.add(new THREE.Mesh(wire2, wireMat));
+
+  // ---- 光子粒子池 ----
+  const pg = new THREE.SphereGeometry(0.05, 10, 10);
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.5,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.userData.phase = i / 12; m.visible = false;
+    scene.add(m); photons.push(m);
+  }
+
+  // ---- 光电子粒子池 ----
+  const eg = new THREE.SphereGeometry(0.045, 10, 10);
+  for (let i = 0; i < 36; i++) {
+    const m = new THREE.Mesh(eg, new THREE.MeshBasicMaterial({
+      color: 0x66ffcc, transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.userData = { active: false, x: 0, v: 0, y: 0, z: 0 };
+    m.visible = false;
+    scene.add(m); electrons.push(m);
+  }
+}
+
+const ACC_PER_VOLT = 2.2;   // 场景标定：每伏反向电压对应的减速加速度
+
+/** 3D 每帧更新 */
+function updateScene3D(t) {
+  const lampLit = state.lampOn;
+  const fColor = state.filter ? FILTERS[state.filter].color : 0xffffff;
+  const photonE_eV = state.filter ? photonE(state.filter) : 0;
+  const canEmit = lampLit && state.filter && photonE_eV > WORK_EV;
+  const Irel = canEmit ? Math.max(0, 1 - state.UA / UcIdeal(state.filter)) : 0;
+
+  // 光束：颜色随滤色片，亮度随汞灯与光阑
+  const beamCol = lampLit ? fColor : 0x334455;
+  beamMesh.material.color.setHex(beamCol);
+  lampLens.material.color.setHex(lampLit ? fColor : 0x334455);
+  const pulse = lampLit ? 0.8 + 0.2 * Math.sin(t * Math.PI * 4) : 0.4;
+  beamMesh.material.opacity = lampLit
+    ? (state.filter ? (0.18 + 0.16 * state.aperture / 8) : 0.22) * pulse : 0.05;
+
+  // 滤色轮旋转到位动画（装卸滤色片时）
+  wheelAngle += (wheelTarget - wheelAngle) * 0.08;
+  filterWheel.rotation.z = wheelAngle;
+
+  // 阴极发光
+  cathodeMesh.material.emissiveIntensity =
+    canEmit ? 0.4 + 0.6 * Math.min(1, (photonE_eV - WORK_EV) / 1.2) : (lampLit ? 0.2 : 0.08);
+
+  // 光子：汞灯开且有单色光时可见
+  const pStart = new THREE.Vector3(-3.1, 0, 0), pEnd = new THREE.Vector3(-1.0, 0, 0);
+  photons.forEach((p, i) => {
+    const show = lampLit && state.filter;
+    p.visible = show;
+    if (!show) return;
+    const k = ((t * 0.45 + p.userData.phase) % 1);
+    p.position.lerpVectors(pStart, pEnd, k);
+    p.material.color.setHex(fColor);
+    p.material.opacity = 0.85 * pulse;
+  });
+
+  // 光电子：发射率与初速随光电流/光子能量变化，受 U_A 减速
+  for (const el of electrons) {
+    const ud = el.userData;
+    if (!ud.active) {
+      if (canEmit && Math.random() < 0.02 + 0.05 * Irel) {
+        ud.active = true; ud.x = -0.95;
+        const KE = photonE_eV - WORK_EV;                 // 最大初动能 eV
+        ud.v = Math.sqrt(2 * ACC_PER_VOLT * Math.max(UcIdeal(state.filter), 0.01) * 2.05);
+        const rr = 0.5 * Math.sqrt(Math.random());
+        const aa = Math.random() * Math.PI * 2;
+        ud.y = rr * Math.cos(aa); ud.z = rr * Math.sin(aa);
+      } else { el.visible = false; continue; }
+    }
+    el.visible = true;
+    const a = -ACC_PER_VOLT * state.UA;
+    ud.v += a * 0.016;
+    ud.x += ud.v * 0.016;
+    if (ud.x >= 0.95 || ud.v <= 0 || ud.x <= -1.05) {
+      ud.active = false; el.visible = false;
+    } else {
+      el.position.set(ud.x, ud.y, ud.z);
+      el.material.opacity = 0.5 + 0.5 * Math.min(1, ud.v / 2);
+    }
+  }
+}
+
+/* ================================================================
+ *  视口叠加图：I–U_A 光电伏安特性曲线（Canvas 2D，辅助调零）
+ * ================================================================ */
+const overlayCanvas = document.getElementById('overlay');
+const oDpr = Math.min(window.devicePixelRatio, 2);
+overlayCanvas.width = 340 * oDpr; overlayCanvas.height = 210 * oDpr;
+overlayCanvas.style.width = '340px'; overlayCanvas.style.height = '210px';
+const octx = overlayCanvas.getContext('2d');
+octx.scale(oDpr, oDpr);
+
+function renderCurve(ctx, x, y, w, h, xNow, xMin, xMax, yMax, fn, color, label, opt) {
+  opt = opt || {};
+  if (!(yMax > 0 && isFinite(yMax))) yMax = 1;         // 幅值守卫，兜底 1
+  if (!(xMax > xMin && isFinite(xMax - xMin))) { xMax = xMin + 1; }
+  ctx.fillStyle = 'rgba(10,16,28,0.85)';
+  ctx.strokeStyle = '#1d3252'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(41,210,255,0.12)';
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    ctx.moveTo(x + w * i / 4, y); ctx.lineTo(x + w * i / 4, y + h);
+    ctx.moveTo(x, y + h * i / 4); ctx.lineTo(x + w, y + h * i / 4);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#4a6a94';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h); ctx.stroke();
+  // 320 采样曲线
+  const N = 320;
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.shadowColor = color; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const xv = xMin + (xMax - xMin) * i / N;
+    let yv = fn(xv); if (!isFinite(yv)) yv = 0;
+    yv = Math.max(0, Math.min(yMax, yv));
+    const px = x + w * i / N, py = y + h - (yv / yMax) * h;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke(); ctx.shadowBlur = 0;
+  // 当前 U_A 竖直虚线 + 白色游标点
+  const xn = Math.max(xMin, Math.min(xMax, xNow));
+  const cx = x + w * (xn - xMin) / (xMax - xMin);
+  let cyv = fn(xn); if (!isFinite(cyv)) cyv = 0;
+  cyv = Math.max(0, Math.min(yMax, cyv));
+  const cy = y + h - (cyv / yMax) * h;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx, y + h); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = color; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(label, x + 8, y + 17);
+  ctx.fillStyle = '#6fa8dc'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 4; i++) ctx.fillText((xMin + (xMax - xMin) * i / 4).toFixed(1), x + w * i / 4, y + h + 13);
+  if (opt.xLabel) { ctx.textAlign = 'right'; ctx.fillText(opt.xLabel, x + w, y + h + 24); }
+  if (opt.yLabel) { ctx.textAlign = 'left'; ctx.fillText(opt.yLabel, x + 2, y + 17 + 14); }
+}
+
+function drawOverlay() {
+  octx.clearRect(0, 0, 340, 210);
+  const canEmit = state.lampOn && state.filter && photonE(state.filter) > WORK_EV;
+  const Uc = state.filter ? UcIdeal(state.filter) : 0;
+  const Imax = canEmit ? 6.0 * (state.aperture / 4) : 0;
+  // I–U_A 伏安特性：I = Imax·(1 − U_A/Uc)，游标为当前反向电压
+  renderCurve(octx, 12, 26, 316, 156, state.UA, 0, 3,
+    Math.max(0.2, Imax * 1.15),
+    ua => (canEmit && Uc > 1e-9 ? Math.max(0, 1 - ua / Uc) * Imax : 0),
+    '#4dd0e1',
+    state.filter ? ('I–U_A 特性（λ=' + state.filter + ' nm）') : 'I–U_A 特性（未装滤色片）',
+    { xLabel: 'U_A / V', yLabel: 'I / nA' });
+}
+
+/* ================================================================
+ *  数据处理：最小二乘拟合 Uc–ν，求 h
+ * ================================================================ */
+function drawFit() {
+  const cv = document.getElementById('fitChart');
+  const c = cv.getContext('2d');
+  const W = cv.width, Hh = cv.height;
+  c.clearRect(0, 0, W, Hh);
+  // 面板与网格
+  c.fillStyle = 'rgba(10,16,28,0.6)'; c.strokeStyle = '#1d3252';
+  c.beginPath(); c.rect(0, 0, W, Hh); c.fill(); c.stroke();
+  const px = 46, py = 16, pw = W - 66, ph2 = Hh - 52;
+  c.strokeStyle = 'rgba(41,210,255,0.12)';
+  c.beginPath();
+  for (let i = 0; i <= 5; i++) {
+    c.moveTo(px + pw * i / 5, py); c.lineTo(px + pw * i / 5, py + ph2);
+    c.moveTo(px, py + ph2 * i / 5); c.lineTo(px + pw, py + ph2 * i / 5);
+  }
+  c.stroke();
+  // 坐标轴
+  const nuMin = 4.5e14, nuMax = 8.0e14, uMax = 2.0;
+  c.strokeStyle = '#4a6a94';
+  c.beginPath(); c.moveTo(px, py); c.lineTo(px, py + ph2); c.lineTo(px + pw, py + ph2); c.stroke();
+  c.fillStyle = '#6fa8dc'; c.font = '10px sans-serif'; c.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    c.fillText(((nuMin + (nuMax - nuMin) * i / 5) / 1e14).toFixed(1), px + pw * i / 5, py + ph2 + 14);
+  }
+  c.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) c.fillText((uMax * i / 4).toFixed(1), px - 5, py + ph2 - ph2 * i / 4 + 3);
+  c.textAlign = 'left'; c.fillText('Uc/V', px + 4, py + 12);
+  c.textAlign = 'right'; c.fillText('ν/10¹⁴Hz', px + pw, py + ph2 + 26);
+
+  // 理论直线（虚线参考）：Uc = (hν − W₀)/e
+  c.strokeStyle = 'rgba(255,213,79,0.4)'; c.setLineDash([5, 5]);
+  c.beginPath();
+  [[nuMin, UcIdeal2(nuMin)], [nuMax, UcIdeal2(nuMax)]].forEach(([nu, u], i) => {
+    const X = px + pw * (nu - nuMin) / (nuMax - nuMin);
+    const Y = py + ph2 - Math.max(0, Math.min(uMax, u)) / uMax * ph2;
+    if (i === 0) c.moveTo(X, Y); else c.lineTo(X, Y);
+  });
+  c.stroke(); c.setLineDash([]);
+
+  // 实验数据点 + 最小二乘拟合直线
+  const pts = Object.entries(state.records)
+    .map(([nm, u]) => ({ nu: 3e8 / (+nm * 1e-9), u }))
+    .sort((a, b) => a.nu - b.nu);
+  if (pts.length) {
+    c.fillStyle = '#4dd0e1';
+    pts.forEach(p => {
+      const X = px + pw * (p.nu - nuMin) / (nuMax - nuMin);
+      const Y = py + ph2 - Math.max(0, Math.min(uMax, p.u)) / uMax * ph2;
+      c.beginPath(); c.arc(X, Y, 4.5, 0, Math.PI * 2); c.fill();
+    });
+    if (pts.length >= 2) {
+      // 最小二乘：斜率 k 与截距 b
+      const n = pts.length;
+      const sx = pts.reduce((s, p) => s + p.nu, 0), sy = pts.reduce((s, p) => s + p.u, 0);
+      const sxx = pts.reduce((s, p) => s + p.nu * p.nu, 0), sxy = pts.reduce((s, p) => s + p.nu * p.u, 0);
+      const k = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+      const b = (sy - k * sx) / n;
+      c.strokeStyle = '#4dd0e1'; c.lineWidth = 2;
+      c.beginPath();
+      [[nuMin, k * nuMin + b], [nuMax, k * nuMax + b]].forEach(([nu, u], i) => {
+        const X = px + pw * (nu - nuMin) / (nuMax - nuMin);
+        const Y = py + ph2 - Math.max(0, Math.min(uMax, u)) / uMax * ph2;
+        if (i === 0) c.moveTo(X, Y); else c.lineTo(X, Y);
+      });
+      c.stroke(); c.lineWidth = 1;
+    }
+  }
+}
+/** 理论直线用：Uc(ν) = (hν − W₀)/e（ν 单位 Hz） */
+function UcIdeal2(nu) { return Math.max(0, (H_PLANCK * nu / E_CHARGE - WORK_EV)); }
+
+function updateFitResult() {
+  const pts = Object.entries(state.records)
+    .map(([nm, u]) => ({ nu: 3e8 / (+nm * 1e-9), u }));
+  if (pts.length < 2) {
+    $('fK').textContent = '--'; $('fH').textContent = '--';
+    $('fN0').textContent = '--'; $('fE').textContent = '--';
+    $('fitMsg').textContent = '至少记录 2 个波长数据后即可拟合（建议 4 个）。';
+    return;
+  }
+  const n = pts.length;
+  const sx = pts.reduce((s, p) => s + p.nu, 0), sy = pts.reduce((s, p) => s + p.u, 0);
+  const sxx = pts.reduce((s, p) => s + p.nu * p.nu, 0), sxy = pts.reduce((s, p) => s + p.nu * p.u, 0);
+  const k = (n * sxy - sx * sy) / (n * sxx - sx * sx);   // 斜率 V·s = h/e
+  const b = (sy - k * sx) / n;
+  const h = k * E_CHARGE;                                 // 普朗克常量
+  const n0 = -b / k;                                      // 截止频率（横轴截距）
+  const err = Math.abs(h - H_PLANCK) / H_PLANCK;
+  $('fK').textContent = k.toExponential(3);
+  $('fH').textContent = h.toExponential(3) + ' J·s';
+  $('fN0').textContent = (n0 / 1e14).toFixed(2) + '×10¹⁴ Hz';
+  $('fE').textContent = (err * 100).toFixed(2) + ' %';
+  $('fitMsg').textContent = '已拟合 ' + n + ' 个数据点：h = k·e，与标准值 6.626×10⁻³⁴ J·s 比较。';
+}
+
+/* ================================================================
+ *  UI 逻辑：标签页、步骤打勾、记录表、一键完成/重置
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+const sldUA = $('sldUA'), sldAp = $('sldAp');
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/** 步骤自动打勾状态机 */
+function updateSteps() {
+  const recCount = Object.keys(state.records).length;
+  const curRec = state.filter && state.records[state.filter] !== undefined;
+  $('st1').classList.toggle('done', state.lampOn);
+  $('st2').classList.toggle('done', state.lampOn && !!state.filter);
+  $('st3').classList.toggle('done', state.zeroed === true);   // ③ 电流恰好为零（独立判定）
+  $('st4').classList.toggle('done', curRec);
+  $('st5').classList.toggle('done', recCount >= 4);
+}
+
+function renderTable() {
+  const tb = $('tbody');
+  tb.innerHTML = ALL_NM.map(nm => {
+    const nu = 3e8 / (nm * 1e-9);
+    const rec = state.records[nm];
+    return '<tr><td>' + nm + '</td><td>' + (nu / 1e14).toFixed(2) + '</td><td class="' +
+      (rec === undefined ? 'empty' : '') + '">' + (rec === undefined ? '—' : rec.toFixed(2)) + '</td></tr>';
+  }).join('');
+}
+
+/** 每帧刷新读数类 UI（轻量 DOM 写入） */
+function updateReadouts() {
+  const I = currentNA();
+  /* 步骤③判定：光电流被完全遏制、读数降至暗电流水平（<0.12 nA）即视为"恰好为零" */
+  state.zeroed = state.lampOn && !!state.filter
+    && photonE(state.filter) > WORK_EV && I < 0.12;
+  updateSteps();
+  $('hudI').textContent = I.toFixed(2) + ' nA';
+  $('hudUA').textContent = 'U_A = ' + state.UA.toFixed(2) + ' V';
+  $('rI').textContent = I.toFixed(2) + ' nA';
+  $('rI').className = 'v ' + (I > 0.15 ? 'ok' : 'warn');
+  $('rUA').textContent = state.UA.toFixed(2) + ' V';
+  $('rE').textContent = state.filter ? photonE(state.filter).toFixed(3) + ' eV' : '—';
+  $('rUc').textContent = state.filter
+    ? (UcIdeal(state.filter) > 0 ? UcIdeal(state.filter).toFixed(3) + ' V' : '不发射')
+    : '—';
+}
+
+// 标签页切换
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    $(btn.dataset.p).classList.add('active');
+  });
+});
+
+// 汞灯开关
+$('btnLamp').addEventListener('click', () => {
+  state.lampOn = !state.lampOn;
+  $('btnLamp').textContent = state.lampOn ? '关闭汞灯' : '打开汞灯';
+  $('btnLamp').classList.toggle('primary', !state.lampOn);
+  $('lampState').textContent = state.lampOn ? '（汞灯已点亮，预热中…）' : '（汞灯未开）';
+  updateSteps();
+  toast(state.lampOn ? '汞灯已开启，请装入滤色片' : '汞灯已关闭');
+});
+
+// 滤色片装卸（切换时转轮旋转到位）
+document.querySelectorAll('.btn.film').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const nm = +btn.dataset.nm;
+    state.filter = nm;
+    document.querySelectorAll('.btn.film').forEach(b => b.classList.toggle('active', b === btn));
+    wheelTarget += Math.PI / 2;                       // 转轮旋转一格的动画
+    $('filmInfo').textContent = nm === 0
+      ? '当前未装滤色片，光电管受白光照射（含各波长成分）。'
+      : '已装入 ' + nm + ' nm 滤色片，光子能量 hν = ' + photonE(nm).toFixed(3) +
+        ' eV' + (photonE(nm) > WORK_EV ? ' > W₀，可发生光电效应。' : ' ≤ W₀，不能发生光电效应。');
+    updateSteps();
+  });
+});
+
+// 光阑与反向电压滑块
+sldAp.addEventListener('input', () => {
+  state.aperture = +sldAp.value;
+  $('labAp').textContent = state.aperture.toFixed(1);
+});
+sldUA.addEventListener('input', () => {
+  state.UA = +sldUA.value;
+  $('labUA').textContent = state.UA.toFixed(2);
+});
+
+// 记录当前 Uc（读取当前反向电压，含仪表量化误差）
+$('btnRec').addEventListener('click', () => {
+  if (!state.lampOn) { toast('⚠ 请先打开汞灯'); return; }
+  if (!state.filter) { toast('⚠ 请先装入滤色片'); return; }
+  if (photonE(state.filter) <= WORK_EV) { toast('⚠ 该波长 hν ≤ W₀，无光电流，无法测 Uc'); return; }
+  const val = +(state.UA + (Math.random() - 0.5) * 0.008).toFixed(2);
+  state.records[state.filter] = val;
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('✓ 已记录 λ=' + state.filter + ' nm 的 Uc = ' + val.toFixed(2) + ' V');
+});
+$('btnClr').addEventListener('click', () => {
+  state.records = {};
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('已清空记录');
+});
+
+// 示例流程一键完成
+$('btnAuto').addEventListener('click', () => {
+  state.lampOn = true;
+  $('btnLamp').textContent = '关闭汞灯';
+  $('lampState').textContent = '（汞灯已点亮）';
+  ALL_NM.forEach(nm => {
+    const u = +(UcIdeal(nm) + (Math.random() - 0.5) * 0.012).toFixed(2);
+    state.records[nm] = u;
+  });
+  // 默认停在 405 nm 并把电压停在对应 Uc 附近供观察
+  state.filter = 405;
+  state.UA = state.records[405];
+  sldUA.value = state.UA.toFixed(2); $('labUA').textContent = state.UA.toFixed(2);
+  document.querySelectorAll('.btn.film').forEach(b =>
+    b.classList.toggle('active', +b.dataset.nm === 405));
+  wheelTarget += Math.PI / 2;
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('⚡ 示例流程已完成：4 个波长数据已记录，请到「数据处理」查看');
+});
+
+// 重置实验
+$('btnReset').addEventListener('click', () => {
+  state.lampOn = false; state.filter = 0; state.UA = 0;
+  state.records = {};
+  sldUA.value = 0; $('labUA').textContent = '0.00';
+  sldAp.value = 4; $('labAp').textContent = '4.0'; state.aperture = 4;
+  $('btnLamp').textContent = '打开汞灯'; $('btnLamp').classList.add('primary');
+  $('lampState').textContent = '（汞灯未开）';
+  document.querySelectorAll('.btn.film').forEach(b => b.classList.remove('active'));
+  $('filmInfo').textContent = '当前未装滤色片，光电管受白光照射（含各波长成分）。';
+  renderTable(); updateSteps(); drawFit(); updateFitResult();
+  toast('实验已重置');
+});
+
+/* ================================================================
+ *  ⚠ 防"冻屏"主循环：模块顶层，首行必为 requestAnimationFrame
+ * ================================================================ */
+function animate() {
+  requestAnimationFrame(animate);   // 必须为函数体首行，保证主循环永不中断
+  const now = performance.now();    // 每帧重新取时间源
+  let dt = (now - state.lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;           // 钳制时间跳变
+  state.lastTime = now;
+  state.t += dt;
+  if (state.t > 1e6) state.t = 0;
+
+  updateScene3D(state.t);
+  controls.update();
+  renderer.render(scene, camera);
+  drawOverlay();
+  updateReadouts();
+}
+
+/* ================================================================
+ *  首帧初始化：先出有效画面，再启动 animate()
+ * ================================================================ */
+function onResize() {
+  let w = viewEl.clientWidth, h = viewEl.clientHeight;
+  if (w === 0 || h === 0) { w = window.innerWidth - 420; h = window.innerHeight; }  // 兜底
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+buildScene();
+window.addEventListener('resize', onResize);
+onResize();
+updateScene3D(0);
+renderer.render(scene, camera);
+drawOverlay();
+renderTable();
+updateSteps();
+updateFitResult();
+animate();
+</script>
+<!-- end of file -->
+</html>
