@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>10.5 螺绕环管内磁场 · 交互仿真</title>
+<style>
+:root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--violet:#b98bff;--teal:#36f0c4;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+#app{display:flex;height:100vh;width:100vw;}
+#sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+#sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+.title{font-size:16px;font-weight:700;margin:0 0 2px;}
+.subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+.sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+.card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+.kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+.kv .v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;}
+.kv .u{font-size:10px;color:var(--dim);margin-left:2px;font-weight:400;}
+.ctl{margin-bottom:12px;}
+.ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+.ctl .name{font-size:12px;color:#cfe0f8;}
+.ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+.formula{font-size:11.5px;line-height:1.7;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+.formula b{color:var(--teal);font-weight:600;}
+.hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+#view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+#chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+#toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+.btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+.btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+.btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+#legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+#recDot{position:absolute;top:20px;right:210px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+#recDot.active{animation:breath 1.05s ease-in-out infinite;}
+@keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">10.5 螺绕环管内磁场</h1>
+  <p class="subtitle">用<b>安培环路定理</b>求环形螺线管（螺绕环）的磁场：管内 B=μ₀NI/(2πρ) 随半径略有变化（内强外弱），管外 B=0——磁化的完美闭环。</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">中心 B(ρ=R)</div><div class="v" id="outB0">—</div></div>
+    <div class="kv"><div class="k">内侧 B(R−r)</div><div class="v" id="outBin">—</div></div>
+    <div class="kv"><div class="k">外侧 B(R+r)</div><div class="v" id="outBout">—</div></div>
+    <div class="kv"><div class="k">管外磁场</div><div class="v" style="color:#8ea3c4">恒为 0（环路定理）</div></div>
+    <div class="kv"><div class="k">观察点 ρ 处 B</div><div class="v" id="outBx">—</div></div>
+    <div class="kv"><div class="k">不均匀度 (B内−B外)/B中</div><div class="v" id="outUneq" style="color:#ffa726">—</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">环平均半径 R</span><span class="val" id="lblR">0.20 m</span></div>
+    <input type="range" id="sldR" min="0.10" max="0.40" step="0.01" value="0.20"/></div>
+  <div class="ctl"><div class="row"><span class="name">管截面半径 r</span><span class="val" id="lblRr">0.04 m</span></div>
+    <input type="range" id="sldRr" min="0.02" max="0.10" step="0.005" value="0.04"/></div>
+  <div class="ctl"><div class="row"><span class="name">总匝数 N</span><span class="val" id="lblN">200 匝</span></div>
+    <input type="range" id="sldN" min="50" max="800" step="50" value="200"/></div>
+  <div class="ctl"><div class="row"><span class="name">电流 I</span><span class="val" id="lblI">2.0 A</span></div>
+    <input type="range" id="sldI" min="0.2" max="6" step="0.1" value="2"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      安培环路定理：<b>∮B·dl=μ₀ΣI</b><br/>
+      取半径 ρ 的同心圆环路（管内）：2πρ·B=μ₀NI<br/>
+      <b>B(ρ)=μ₀NI/(2πρ)</b>（R−r &lt; ρ &lt; R+r）<br/>
+      环路不包围电流（ρ&lt;R−r 或 ρ&gt;R+r）：<b>B=0</b><br/>
+      R≫r 时近似均匀：<b>B≈μ₀nI</b>，n=N/2πR
+    </div>
+    <div class="hint">3D：铜色螺绕环绕线电流珠沿环流动，红/蓝探测珠在管内沿切向移动显示 B；底部图表 B–ρ 曲线显示管内 1/ρ 衰减与管外零场。</div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#e8a25a"></i>螺绕环绕线（电流珠流动）</div>
+    <div><i style="background:#ffd54f"></i>管内 B 矢量（切向，长∝B）</div>
+    <div><i style="background:#ff4d5e"></i>探测点（ρ 可调）</div>
+    <div><i style="background:#63e8ff"></i>B–ρ 曲线（管外=0）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const MU0=4*Math.PI*1e-7;
+const state={t:0,playing:true,R:0.20,r:0.04,N:200,I:2,rho:0.20,phase:0,probeTh:0};
+const Brho=rho=>(rho>=state.R-state.r&&rho<=state.R+state.r)?MU0*state.N*state.I/(2*Math.PI*rho):0;
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function supStr(n){return String(n).split('').map(c=>SUP[c]!==undefined?SUP[c]:c).join('');}
+function sci(x,d=2){if(!isFinite(x))return '—';if(x===0)return '0';
+  const a=Math.abs(x);if(a>=0.01&&a<10000)return x.toFixed(d);
+  const e=Math.floor(Math.log10(a)),m=x/Math.pow(10,e);return m.toFixed(d)+'×10'+supStr(e);}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outB0=$('outB0'),outBin=$('outBin'),outBout=$('outBout'),outBx=$('outBx'),outUneq=$('outUneq');
+const lblR=$('lblR'),lblRr=$('lblRr'),lblN=$('lblN'),lblI=$('lblI');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,50,180);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(7,6,9);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,1.6,0);
+controls.minDistance=3;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.85));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+const dl2=new THREE.DirectionalLight(0x4a7dff,0.5);dl2.position.set(-12,-8,-10);scene.add(dl2);
+scene.add(new THREE.GridHelper(18,18,0x1e3a63,0x14243c));
+/* --- 通用优化：柔光地面 + 部件标签 --- */
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color,parent){
+  const g=new THREE.Group();(parent||scene).add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.07,.2,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.14);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+/* 螺绕环主体（Torus） */
+const torus=new THREE.Mesh(new THREE.TorusGeometry(2.6,.5,18,72),new THREE.MeshPhongMaterial({color:0x2c4a6e,metalness:.5,roughness:.4,transparent:true,opacity:.9}));
+torus.rotation.x=Math.PI/2;torus.position.y=1.6;scene.add(torus);
+/* --- 优化：底座支柱 + 标签 --- */
+const base18=new THREE.Mesh(new THREE.BoxGeometry(2.6,.3,2.6),new THREE.MeshPhongMaterial({color:0x24303f,metalness:.45,roughness:.6}));
+base18.position.y=.15;scene.add(base18);
+const pillar18=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,1.12,12),new THREE.MeshPhongMaterial({color:0x546e7a,metalness:.6,roughness:.4}));
+pillar18.position.y=.71;scene.add(pillar18);
+makeLabel('螺绕环 N 匝','#e8a25a',0,3.7,0,1.5);
+makeLabel('探测点 ρ','#ff4d5e',3.6,2.5,0,1.25);
+/* --- 精确标注：R / ρ 尺寸线 --- */
+const rDim18=makeDim('#63e8ff');
+const rLbl18=makeLabel('R=20 cm','#63e8ff',1.5,1.8,1.5,1.5);
+const rhoDim18=makeDim('#ff4d5e');
+const rhoLbl18=makeLabel('ρ=20 cm','#ff4d5e',-0.4,1.8,-1.5,1.5);
+function updateDims(){
+  const s=state.R*13,rv=state.rho*13;
+  setDim(rDim18,0,1.62,0,s*0.92,1.62,0);
+  updateLabel(rLbl18,'R='+(state.R*100).toFixed(0)+' cm（平均半径）','#63e8ff');
+  rLbl18.position.set(s*0.72,1.88,s*0.15);
+  setDim(rhoDim18,0,1.62,0,0,1.62,rv);
+  updateLabel(rhoLbl18,'ρ='+(state.rho*100).toFixed(0)+' cm','#ff4d5e');
+  rhoLbl18.position.set(-s*0.3,1.88,rv*0.72);
+}
+/* 绕线：细 Torus 环沿大环排布 */
+const wires=[];
+const NW=30;
+for(let i=0;i<NW;i++){
+  const th=Math.PI*2*i/NW;
+  const w=new THREE.Mesh(new THREE.TorusGeometry(.5,.06,8,28),new THREE.MeshPhongMaterial({color:0xe8a25a,emissive:0x5a3210,metalness:.7,roughness:.3}));
+  const rr=2.6;
+  w.position.set(Math.cos(th)*rr,1.6,Math.sin(th)*rr);
+  w.rotation.y=-th;
+  scene.add(w);wires.push(w);
+}
+/* 电流珠沿绕线流动 */
+const beads=[];
+for(let i=0;i<34;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.085,10,8),new THREE.MeshBasicMaterial({color:0xffd54f,depthTest:false}));
+  m.renderOrder=5;scene.add(m);beads.push(m);
+}
+/* 探测点 + B 切向箭头 */
+const probe=new THREE.Mesh(new THREE.SphereGeometry(.11,12,10),new THREE.MeshBasicMaterial({color:0xff4d5e}));
+probe.position.y=1.6;scene.add(probe);
+const arrowB=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(2.6,1.6,0),1.6,0xffd54f,.26,.16);
+scene.add(arrowB);
+const inCircle=new THREE.Mesh(new THREE.TorusGeometry(1,0.02,6,64),new THREE.MeshBasicMaterial({color:0xff4d5e,transparent:true,opacity:.6}));
+inCircle.rotation.x=Math.PI/2;inCircle.position.y=1.6;scene.add(inCircle);
+function updateReadouts(){
+  const Bi=Brho(state.R-state.r),Bo=Brho(state.R+state.r),Bc=Brho(state.R);
+  outB0.innerHTML=sci(Bc*1e3,2)+'<span class="u">mT</span>';
+  outBin.innerHTML=sci(Bi*1e3,2)+'<span class="u">mT</span>';
+  outBout.innerHTML=sci(Bo*1e3,2)+'<span class="u">mT</span>';
+  outBx.innerHTML=sci(Brho(state.rho)*1e3,2)+'<span class="u">mT</span>';
+  outUneq.textContent=((Bi-Bo)/Bc*100).toFixed(1)+' %';
+  lblR.textContent=state.R.toFixed(2)+' m';
+  lblRr.textContent=state.r.toFixed(3)+' m';
+  lblN.textContent=state.N+' 匝';
+  lblI.textContent=state.I.toFixed(1)+' A';
+}
+function updateScene3D(dt){
+  state.phase=(state.phase+dt*(0.35+state.I*0.1))%1;
+  const S=state.R*13;
+  torus.scale.set(S/2.6,(state.r*13)/0.5,(state.r*13)/0.5);
+  const wireR=(state.r*13)/0.5;
+  wires.forEach((w,i)=>{
+    const th=Math.PI*2*i/NW;
+    w.position.set(Math.cos(th)*S,1.6,Math.sin(th)*S);
+    w.scale.setScalar(wireR);
+  });
+  beads.forEach((m,i)=>{
+    const th=Math.PI*2*((state.phase+i/34)%1);
+    const rr=state.R*13;
+    m.position.set(Math.cos(th)*rr,1.6,Math.sin(th)*rr);
+  });
+  state.probeTh+=dt*0.5;
+  const rhoVis=state.rho*13;
+  probe.position.set(Math.cos(state.probeTh)*rhoVis,1.6,Math.sin(state.probeTh)*rhoVis);
+  const tangent=new THREE.Vector3(-Math.sin(state.probeTh),0,Math.cos(state.probeTh));
+  arrowB.position.copy(probe.position);
+  arrowB.setDirection(tangent);
+  const inside=state.rho>state.R-state.r&&state.rho<state.R+state.r;
+  arrowB.visible=inside;
+  arrowB.setLength(THREE.MathUtils.clamp(Brho(state.rho)/Bref*1.8,0.3,3.0),.26,.16);
+  inCircle.scale.setScalar(rhoVis);
+  inCircle.visible=inside;
+}
+const Bref=MU0*800*6/(2*Math.PI*0.10);
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  const rhoMin=Math.max(0.01,state.R-state.r-0.04),rhoMax=state.R+state.r+0.04;
+  const bMax=Brho(state.R-state.r);
+  ctx.beginPath();
+  let started=false;
+  for(let i=0;i<240;i++){
+    const rho=rhoMin+(rhoMax-rhoMin)*i/239;
+    const b=Brho(rho);
+    const X=x0+(rho-rhoMin)/(rhoMax-rhoMin)*w;
+    if(b>0){
+      const Y=y0+h-4-b/bMax*(h-8);
+      if(!started){ctx.moveTo(X,Y);started=true;}else ctx.lineTo(X,Y);
+    }else if(started){ctx.lineTo(X,y0+h-4);}
+  }
+  ctx.strokeStyle='#63e8ff';ctx.lineWidth=1.8;ctx.stroke();
+  const bx=x0+(state.rho-rhoMin)/(rhoMax-rhoMin)*w;
+  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(bx,y0);ctx.lineTo(bx,y0+h);ctx.stroke();ctx.setLineDash([]);
+  const bCur=Brho(state.rho);
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText('B–ρ 分布（管内 1/ρ 衰减，管外为 0）',x0,y0-10);
+  ctx.fillStyle=bCur>0?'#63e8ff':'#ff4d5e';
+  ctx.fillText('ρ='+state.rho.toFixed(3)+' m → '+(bCur>0?sci(bCur*1e3,2)+' mT':'管外 B=0'),x0+8,y0+16);
+  ctx.fillText('ρ →',x0+w-30,y0+h+16);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+/* ---- WebM 录制器（1920×1080 隐藏画布 + captureStream(60)，合成 70/30） ---- */
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='toroid_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    ctx.fillStyle='#0b1220';ctx.fillRect(bw,0,W-bw,H);
+    ctx.strokeStyle='#1b2a44';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(bw+1,0);ctx.lineTo(bw+1,H);ctx.stroke();
+    this.hud(ctx,bw,0,W-bw,H);
+  }
+  hud(ctx,x,y,w,h){
+    const pad=36;let cy=y+74;
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#e8eefc';ctx.font='bold 38px "Microsoft YaHei",sans-serif';
+    ctx.fillText('10.5 螺绕环管内磁场',x+pad,cy);cy+=40;
+    ctx.strokeStyle='#1e3a63';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=52;
+    const rows=[
+      ['R / r / N / I',state.R.toFixed(2)+' / '+state.r.toFixed(3)+' m / '+state.N+' / '+state.I.toFixed(1)+' A','#e8eefc'],
+      ['B(R) 管中心',sci(Brho(state.R)*1e3,2)+' mT','#ffd54f'],
+      ['B(R−r) 内侧',sci(Brho(state.R-state.r)*1e3,2)+' mT','#63e8ff'],
+      ['管外磁场','恒为 0','#8ea3c4'],
+      ['环路定理','∮B·dl = μ₀NI','#36f0c4']
+    ];
+    for(const [n,v,c] of rows){
+      ctx.fillStyle='#8ea3c4';ctx.font='19px "Microsoft YaHei",sans-serif';ctx.fillText(n,x+pad,cy);
+      ctx.fillStyle=c;ctx.font='bold 21px Consolas,monospace';ctx.textAlign='right';
+      ctx.fillText(v,x+w-pad,cy);ctx.textAlign='left';cy+=38;
+    }
+    cy+=14;ctx.strokeStyle='#1e3a63';
+    ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=46;
+    ctx.fillStyle='#c3d5ef';ctx.font='18px "Microsoft YaHei",sans-serif';
+    ctx.fillText('B(ρ)=μ₀NI/2πρ（管内），管外环路不包电流',x+pad,cy);cy+=26;
+    ctx.fillText('磁场完美约束在环内——磁屏蔽天然结构',x+pad,cy);cy+=46;
+    const pulse=0.35+0.65*Math.abs(Math.sin(performance.now()/380));
+    ctx.beginPath();ctx.arc(x+w-pad-8,h-pad-6,9,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,77,94,'+pulse.toFixed(3)+')';ctx.fill();
+    ctx.fillStyle='#ffb3bb';ctx.font='bold 18px Consolas,monospace';
+    ctx.textAlign='right';ctx.fillText('REC',x+w-pad-26,h-pad);ctx.textAlign='left';
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+/* --- PNG 截图：3D 画面 + 底部曲线合成下载 --- */
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+    try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  }
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){
+  state.phase=0;
+  updateReadouts();updateScene3D(0);
+  renderer.render(scene,camera);drawDomChart();
+}
+$('sldR').addEventListener('input',e=>{state.R=parseFloat(e.target.value);if(state.rho<state.R-state.r)state.rho=state.R;resetSim();});
+$('sldRr').addEventListener('input',e=>{state.r=parseFloat(e.target.value);resetSim();});
+$('sldN').addEventListener('input',e=>{state.N=parseFloat(e.target.value);resetSim();});
+$('sldI').addEventListener('input',e=>{state.I=parseFloat(e.target.value);resetSim();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;resetSim();
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+/* ---- 动画主循环（顶层定义，防冻屏） ---- */
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  if(state.playing)state.t+=dt;
+  updateScene3D(dt);
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateScene3D(0);
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>
+<!-- end of file -->

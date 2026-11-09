@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>9.7.4 范德格拉夫起电机 · 交互仿真</title>
+<style>
+:root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--violet:#b98bff;--teal:#36f0c4;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+#app{display:flex;height:100vh;width:100vw;}
+#sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+#sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+.title{font-size:16px;font-weight:700;margin:0 0 2px;}
+.subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+.sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+.card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+.kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+.kv .v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;}
+.kv .u{font-size:10px;color:var(--dim);margin-left:2px;font-weight:400;}
+.ctl{margin-bottom:12px;}
+.ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+.ctl .name{font-size:12px;color:#cfe0f8;}
+.ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+.formula{font-size:11.5px;line-height:1.7;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+.formula b{color:var(--teal);font-weight:600;}
+.hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+#view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+#chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+#toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+.btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+.btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+.btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+#legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+#recDot{position:absolute;top:20px;right:210px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+#recDot.active{animation:breath 1.05s ease-in-out infinite;}
+@keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">9.7.4 范德格拉夫起电机</h1>
+  <p class="subtitle">绝缘带把电荷从底部电刷送到大金属球壳<b>内壁</b>，电荷全部分布到外表面，球壳电势 U=kQ/R 持续升高——静电加速器的高压核心。</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">球壳电荷 Q</div><div class="v" id="outQ">—</div></div>
+    <div class="kv"><div class="k">球壳电势 U=kQ/R</div><div class="v" id="outU">—</div></div>
+    <div class="kv"><div class="k">表面场强 E=kQ/R²</div><div class="v" id="outE">—</div></div>
+    <div class="kv"><div class="k">充电电流 I</div><div class="v" id="outRate">—</div></div>
+    <div class="kv"><div class="k">击穿预警（E&gt;3MV/m）</div><div class="v" id="outBrk" style="color:#3ddc84">安全</div></div>
+    <div class="kv"><div class="k">壳内场强</div><div class="v" style="color:#8ea3c4">恒为 0（高斯定理）</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">球壳半径 R</span><span class="val" id="lblR">0.50 m</span></div>
+    <input type="range" id="sldR" min="0.3" max="1.2" step="0.05" value="0.5"/></div>
+  <div class="ctl"><div class="row"><span class="name">输运电流 I</span><span class="val" id="lblI">2.0 μC/s</span></div>
+    <input type="range" id="sldI" min="0.5" max="8" step="0.5" value="2"/></div>
+  <div class="ctl"><div class="row"><span class="name">皮带速度</span><span class="val" id="lblV">1.0×</span></div>
+    <input type="range" id="sldV" min="0.3" max="3" step="0.1" value="1"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      高斯定理：电荷全在<b>外表面</b>，壳内 E≡0<br/>
+      球壳电势 <b>U=kQ/R</b>；表面场强 <b>E=kQ/R²</b><br/>
+      空气击穿 <b>E_max≈3×10⁶ V/m</b> → 电晕放电封顶 U<br/>
+      U_max ∝ R（R 越大可达电压越高）
+    </div>
+    <div class="hint">3D：绿色电荷珠沿皮带向上（底部电刷 → 顶部电刷 → 注入壳内壁），红色外表面电荷层随 Q 增厚；接近击穿时球面出现蓝色电晕辉光并开始泄漏。</div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#c9404f"></i>大金属球壳 + 外壁电荷层</div>
+    <div><i style="background:#3ddc84"></i>皮带上的电荷珠（+）</div>
+    <div><i style="background:#ff4d5e"></i>电刷（底部电晕区）</div>
+    <div><i style="background:#63e8ff"></i>球外电场箭头（长度∝E）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const KQ=8.99e9,EBREAK=3e6;
+const state={t:0,playing:true,R:0.5,I:2e-6,v:1,Q:0,beltPhase:0,beads:[]};
+const Ushell=()=>KQ*state.Q/state.R;
+const Esurf=()=>KQ*state.Q/(state.R*state.R);
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function supStr(n){return String(n).split('').map(c=>SUP[c]!==undefined?SUP[c]:c).join('');}
+function sci(x,d=2){if(!isFinite(x))return '—';if(x===0)return '0';
+  const a=Math.abs(x);if(a>=0.01&&a<10000)return x.toFixed(d);
+  const e=Math.floor(Math.log10(a)),m=x/Math.pow(10,e);return m.toFixed(d)+'×10'+supStr(e);}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outQ=$('outQ'),outU=$('outU'),outE=$('outE'),outRate=$('outRate'),outBrk=$('outBrk');
+const lblR=$('lblR'),lblI=$('lblI'),lblV=$('lblV');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,140);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(5.5,4.5,8);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,2.2,0);
+controls.minDistance=3;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.8));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+const dl2=new THREE.DirectionalLight(0x4a7dff,0.5);dl2.position.set(-12,-8,-10);scene.add(dl2);
+const shell=new THREE.Mesh(new THREE.SphereGeometry(1,48,36),new THREE.MeshPhongMaterial({color:0xd7dee8,metalness:.9,roughness:.18}));
+shell.position.y=4.6;scene.add(shell);
+const chargeLayer=new THREE.Mesh(new THREE.SphereGeometry(1.04,40,30),new THREE.MeshBasicMaterial({color:0xff4d5e,transparent:true,opacity:0}));
+chargeLayer.position.y=4.6;scene.add(chargeLayer);
+const corona=new THREE.Mesh(new THREE.SphereGeometry(1.15,32,24),new THREE.MeshBasicMaterial({color:0x9fd8ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+/* --- 精确标注：球壳 R 尺寸线 --- */
+const rDim13=makeDim('#63e8ff');
+const rLbl13=makeLabel('R=0.50 m','#63e8ff',1.3,5.6,0.4,1.3);
+function updateDims(){
+  const cy=shell.position.y,rv=shell.scale.y;
+  setDim(rDim13,0,cy,0,0,cy+rv,0);
+  updateLabel(rLbl13,'R='+state.R.toFixed(2)+' m','#63e8ff');
+  rLbl13.position.set(0.55,cy+rv*0.62,0.3);
+}
+corona.position.y=4.6;scene.add(corona);
+const column=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3.4,16),new THREE.MeshPhongMaterial({color:0x8a5a2b,roughness:.6}));
+column.position.set(0.9,1.9,0);scene.add(column);
+const pulTop=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.24,20),new THREE.MeshPhongMaterial({color:0x546e7a,metalness:.7,roughness:.4}));
+pulTop.rotation.z=Math.PI/2;pulTop.position.set(0,3.2,.5);scene.add(pulTop);
+const pulBot=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.24,20),new THREE.MeshPhongMaterial({color:0x546e7a,metalness:.7,roughness:.4}));
+pulBot.rotation.z=Math.PI/2;pulBot.position.set(0,0.35,.5);scene.add(pulBot);
+const belt=new THREE.Mesh(new THREE.BoxGeometry(.03,2.9,.3),new THREE.MeshPhongMaterial({color:0x2b3a4e,roughness:.7}));
+belt.position.set(-0.2,1.78,.5);scene.add(belt);
+const belt2=new THREE.Mesh(new THREE.BoxGeometry(.03,2.9,.3),new THREE.MeshPhongMaterial({color:0x2b3a4e,roughness:.7}));
+belt2.position.set(0.2,1.78,.5);scene.add(belt2);
+const brushTop=new THREE.Mesh(new THREE.ConeGeometry(.14,.4,12),new THREE.MeshPhongMaterial({color:0xff4d5e,emissive:0x7f1f28}));
+brushTop.position.set(0,3.85,.5);brushTop.rotation.x=Math.PI;scene.add(brushTop);
+const brushBot=new THREE.Mesh(new THREE.ConeGeometry(.14,.4,12),new THREE.MeshPhongMaterial({color:0xff4d5e,emissive:0x7f1f28}));
+brushBot.position.set(0,0.7,.5);scene.add(brushBot);
+const supply=new THREE.Mesh(new THREE.BoxGeometry(.8,.5,.6),new THREE.MeshPhongMaterial({color:0x263238,metalness:.6,roughness:.4}));
+supply.position.set(1.3,0.35,.5);scene.add(supply);
+const wire=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.2,8),new THREE.MeshBasicMaterial({color:0xcfa54b}));
+wire.position.set(0.65,0.7,.5);wire.rotation.z=Math.PI/4;scene.add(wire);
+for(let i=0;i<7;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.05,10,8),new THREE.MeshBasicMaterial({color:0x3ddc84}));
+  scene.add(m);state.beads.push(m);
+}
+const eArrows=[];
+for(let i=0;i<10;i++){
+  const th=Math.PI*2*i/10;
+  const a=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1,0x63e8ff,.2,.1);
+  scene.add(a);eArrows.push({a:a,dir:new THREE.Vector3(Math.cos(th),0,Math.sin(th))});
+}
+const inArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(0,4.6,0),.02,0x8ea3c4,.1,.05);
+scene.add(inArrow);
+scene.add(new THREE.GridHelper(16,16,0x1e3a63,0x14243c));
+/* --- 通用优化：柔光地面 + 部件标签 --- */
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color,parent){
+  const g=new THREE.Group();(parent||scene).add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.07,.2,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.14);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+function updateReadouts(){
+  outQ.innerHTML=sci(state.Q*1e6,2)+'<span class="u">μC</span>';
+  outU.innerHTML=sci(Ushell()/1e3,2)+'<span class="u">kV</span>';
+  outE.innerHTML=sci(Esurf()/1e3,2)+'<span class="u">kV/m</span>';
+  outRate.innerHTML=sci(state.I*1e6,1)+'<span class="u">μC/s</span>';
+  const br=Esurf()>EBREAK;
+  outBrk.textContent=br?'⚠ 电晕放电泄漏！':'安全';
+  outBrk.style.color=br?'#ff4d5e':'#3ddc84';
+  lblR.textContent=state.R.toFixed(2)+' m';
+  lblI.textContent=(state.I*1e6).toFixed(1)+' μC/s';
+  lblV.textContent=state.v.toFixed(1)+'×';
+}
+function updateScene3D(dt){
+  const RV=state.R*3;
+  shell.scale.setScalar(RV);chargeLayer.scale.setScalar(RV);corona.scale.setScalar(RV);
+  const sigQ=state.Q/(4*Math.PI*state.R*state.R);
+  chargeLayer.material.opacity=Math.min(.55,sigQ/8e-6*.5);
+  const brk=Esurf()>EBREAK;
+  corona.material.opacity=brk?0.25+0.2*Math.sin(state.t*9):0;
+  for(const it of eArrows){
+    const r=RV+0.3;
+    it.a.position.set(it.dir.x*r,4.6,it.dir.z*r);
+    it.a.setDirection(it.dir);
+    it.a.setLength(THREE.MathUtils.clamp(.3+Esurf()/4e5,.3,2.2),.2,.1);
+    it.a.setColor(new THREE.Color(brk?0x9fd8ff:0x63e8ff));
+    it.a.visible=Esurf()>1e3;
+  }
+  state.beltPhase+=dt*state.v*0.8;
+  state.beads.forEach((m,i)=>{
+    const ph=(state.beltPhase+i/7)%1;
+    m.position.set(0,0.35+ph*2.85,.35);
+    m.material.color.setHex(ph>0.96?0xff4d5e:0x3ddc84);
+    m.scale.setScalar(ph>0.96?0.6:1);
+  });
+  pulTop.rotation.y+=dt*state.v*3;pulBot.rotation.y+=dt*state.v*3;
+  shell.rotation.y+=dt*0.15;
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  ctx.strokeStyle='rgba(120,170,230,0.55)';
+  ctx.beginPath();ctx.moveTo(x0,y0+h/2);ctx.lineTo(x0+w,y0+h/2);ctx.stroke();
+  const N=200,qMax=8e-6;
+  const Uat=q=>KQ*q/state.R,Eat=q=>KQ*q/(state.R*state.R);
+  ctx.beginPath();
+  for(let i=0;i<N;i++){
+    const X=x0+w*i/(N-1),Y=y0+h-4-Uat(qMax*i/(N-1))/Uat(qMax)*(h-8);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#ffd54f';ctx.lineWidth=1.8;ctx.stroke();
+  ctx.beginPath();
+  for(let i=0;i<N;i++){
+    const X=x0+w*i/(N-1),Y=y0+h-4-Eat(qMax*i/(N-1))/Eat(qMax)*(h-8);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#63e8ff';ctx.lineWidth=1.8;ctx.stroke();
+  const Qcr=EBREAK*state.R*state.R/KQ;
+  if(Qcr<qMax){
+    const X=x0+Qcr/qMax*w;
+    ctx.strokeStyle='rgba(255,77,94,.6)';ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(X,y0);ctx.lineTo(X,y0+h);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#ff4d5e';ctx.font='11px "Microsoft YaHei",sans-serif';ctx.textAlign='center';
+    ctx.fillText('击穿 Q='+sci(Qcr*1e6,1)+'μC',X,y0+14);
+  }
+  const cx=x0+Math.min(1,state.Q/qMax)*w;
+  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(cx,y0);ctx.lineTo(cx,y0+h);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText('U=kQ/R 与 E=kQ/R² — Q（0~8 μC）',x0,y0-10);
+  const items=[['U','#ffd54f'],['E','#63e8ff']];
+  let lx=x0+w-130;
+  for(const [t,c] of items){ctx.fillStyle=c;ctx.fillRect(lx,y0-18,9,9);ctx.fillStyle='#cfe0f8';ctx.font='11px "Microsoft YaHei",sans-serif';ctx.fillText(t,lx+14,y0-10);lx+=50;}
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+/* ---- WebM 录制器（1920×1080 隐藏画布 + captureStream(60)，合成 70/30） ---- */
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='vandeGraaff_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    ctx.fillStyle='#0b1220';ctx.fillRect(bw,0,W-bw,H);
+    ctx.strokeStyle='#1b2a44';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(bw+1,0);ctx.lineTo(bw+1,H);ctx.stroke();
+    this.hud(ctx,bw,0,W-bw,H);
+  }
+  hud(ctx,x,y,w,h){
+    const pad=36;let cy=y+74;
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#e8eefc';ctx.font='bold 38px "Microsoft YaHei",sans-serif';
+    ctx.fillText('9.7.4 范德格拉夫起电机',x+pad,cy);cy+=40;
+    ctx.strokeStyle='#1e3a63';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=52;
+    const rows=[
+      ['Q',sci(state.Q*1e6,2)+' μC','#3ddc84'],
+      ['U = kQ/R',sci(Ushell()/1e3,2)+' kV','#ffd54f'],
+      ['E = kQ/R²',sci(Esurf()/1e3,2)+' kV/m','#63e8ff'],
+      ['壳内 E','恒为 0','#8ea3c4'],
+      ['击穿状态',Esurf()>EBREAK?'电晕放电泄漏':'安全',Esurf()>EBREAK?'#ff4d5e':'#3ddc84']
+    ];
+    for(const [n,v,c] of rows){
+      ctx.fillStyle='#8ea3c4';ctx.font='19px "Microsoft YaHei",sans-serif';ctx.fillText(n,x+pad,cy);
+      ctx.fillStyle=c;ctx.font='bold 21px Consolas,monospace';ctx.textAlign='right';
+      ctx.fillText(v,x+w-pad,cy);ctx.textAlign='left';cy+=38;
+    }
+    cy+=14;ctx.strokeStyle='#1e3a63';
+    ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=46;
+    ctx.fillStyle='#c3d5ef';ctx.font='18px "Microsoft YaHei",sans-serif';
+    ctx.fillText('电荷注入内壁 → 全部分布到外表面',x+pad,cy);cy+=26;
+    ctx.fillText('U_max ∝ R（E≈3MV/m 击穿封顶）',x+pad,cy);cy+=46;
+    const pulse=0.35+0.65*Math.abs(Math.sin(performance.now()/380));
+    ctx.beginPath();ctx.arc(x+w-pad-8,h-pad-6,9,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,77,94,'+pulse.toFixed(3)+')';ctx.fill();
+    ctx.fillStyle='#ffb3bb';ctx.font='bold 18px Consolas,monospace';
+    ctx.textAlign='right';ctx.fillText('REC',x+w-pad-26,h-pad);ctx.textAlign='left';
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+/* --- PNG 截图：3D 画面 + 底部曲线合成下载 --- */
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+    try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  }
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){state.Q=0;state.beltPhase=0;updateReadouts();updateScene3D(0);renderer.render(scene,camera);drawDomChart();}
+$('sldR').addEventListener('input',e=>{state.R=parseFloat(e.target.value);resetSim();});
+$('sldI').addEventListener('input',e=>{state.I=parseFloat(e.target.value)*1e-6;resetSim();});
+$('sldV').addEventListener('input',e=>{state.v=parseFloat(e.target.value);updateReadouts();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;resetSim();
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+/* ---- 动画主循环（顶层定义，防冻屏） ---- */
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  if(state.playing){
+    state.t+=dt;
+    const leak=Esurf()>EBREAK?(Esurf()-EBREAK)/EBREAK*state.I:0;
+    state.Q=Math.max(0,state.Q+(state.I-leak)*dt*0.3);
+  }
+  updateScene3D(dt);
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateScene3D(0);
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>
+<!-- end of file -->

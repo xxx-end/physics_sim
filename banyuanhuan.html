@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>习题9.3.6 均匀带电半圆环环心场强 · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--panel:#0b1220;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;
+    --cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--violet:#b98bff;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220 0%,#070b13 100%);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}
+  #sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;letter-spacing:.5px;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);letter-spacing:.5px;margin-bottom:3px;}
+  .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .kv .u{font-size:10px;color:var(--dim);margin-left:2px;font-weight:400;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0) 0%,rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:210px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">习题 9.3.6 均匀带电半圆环</h1>
+  <p class="subtitle">半径 R 的均匀带电半圆环（上半平面），线电荷密度 λ。求环心 O 点的场强。对称性：垂直分量相消，只剩指向 −y 的合成场。</p>
+
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">环心场强 E_O</div><div class="v" id="outE">—<span class="u">N/C</span></div></div>
+    <div class="kv"><div class="k">方向</div><div class="v" id="outDir">−y<span class="u">（沿对称轴）</span></div></div>
+    <div class="kv"><div class="k">总电量 Q = λπR</div><div class="v" id="outQ">—<span class="u">nC</span></div></div>
+    <div class="kv"><div class="k">环心处测试电荷受力</div><div class="v" id="outF">—<span class="u">N</span></div></div>
+  </div>
+
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">线电荷密度 λ</span><span class="val" id="lblLam">+2.0 nC/m</span></div>
+    <input type="range" id="sldLam" min="-5" max="5" step="0.1" value="2"/></div>
+  <div class="ctl"><div class="row"><span class="name">半径 R</span><span class="val" id="lblR">1.00 m</span></div>
+    <input type="range" id="sldR" min="0.5" max="2" step="0.05" value="1"/></div>
+  <div class="ctl"><div class="row"><span class="name">测试电荷 q₀（环心）</span><span class="val" id="lblQ0">+1.0 nC</span></div>
+    <input type="range" id="sldQ0" min="-3" max="3" step="0.1" value="1"/></div>
+
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      电荷元 dQ = λR·dθ，在环心产生 dE = k·dQ/R²<br/>
+      对称性：垂直分量相消，只余沿对称轴的分量<br/>
+      <b>E_O = ∫ kλ/R²·sinθ·dθ = 2kλ/R = λ/(2πε₀R)</b><br/>
+      方向由 λ 符号决定：λ&gt;0 指向 −y（背离环）
+    </div>
+    <div class="hint">
+      λ&gt;0 时环心场强指向 −y（背离带正电的环），λ&lt;0 时反向。
+      环上电荷元随时间流动（黄色高亮点巡行），环心测试电荷受力箭头实时更新。
+    </div>
+  </div>
+</aside>
+
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#ffa726"></i>带电半圆环（λ&gt;0 红 / λ&lt;0 蓝）</div>
+    <div><i style="background:#ffd54f"></i>巡行电荷元 dQ 与 dE</div>
+    <div><i style="background:#36f0c4"></i>环心 O 与测试电荷 q₀</div>
+    <div><i style="background:#63e8ff"></i>环心总场强 E_O（合成箭头）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const KQ=8.99e9, EPS0=8.854e-12;
+const state={t:0,playing:true,lam:2e-9,R:1,q0:1e-9};
+
+/* 环心场强（解析解）：E = λ/(2πε₀R)，方向 −ŷ·sign(λ) */
+function eCenter(){ return state.lam/(2*Math.PI*EPS0*state.R); }
+const totalQ=()=>state.lam*Math.PI*state.R;
+
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function supStr(n){return String(n).split('').map(c=>SUP[c]!==undefined?SUP[c]:c).join('');}
+function sci(x,d=2){if(!isFinite(x))return '—';if(x===0)return '0';
+  const a=Math.abs(x);if(a>=0.01&&a<10000)return x.toFixed(d);
+  const e=Math.floor(Math.log10(a)),m=x/Math.pow(10,e);return m.toFixed(d)+'×10'+supStr(e);}
+
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outE=$('outE'),outDir=$('outDir'),outQ=$('outQ'),outF=$('outF');
+const lblLam=$('lblLam'),lblR=$('lblR'),lblQ0=$('lblQ0');
+const sldLam=$('sldLam'),sldR=$('sldR'),sldQ0=$('sldQ0');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,120);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(5,4.5,7.5);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,1.2,0);
+controls.minDistance=3;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.75));
+/* --- 通用优化：柔光地面 + 部件标签 --- */
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color,parent){
+  const g=new THREE.Group();(parent||scene).add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.07,.2,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.14);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+const dl1=new THREE.DirectionalLight(0xffffff,1.15);dl1.position.set(14,20,16);scene.add(dl1);
+const dl2=new THREE.DirectionalLight(0x4a7dff,0.6);dl2.position.set(-16,-12,-14);scene.add(dl2);
+
+/* 半圆环（上半平面，xy 平面内，从 θ=0 到 π） */
+const ringG=new THREE.Group();scene.add(ringG);
+const arcPts=[];
+for(let i=0;i<=80;i++){const th=Math.PI*i/80;arcPts.push(new THREE.Vector3(Math.cos(th),Math.sin(th),0));}
+const arcGeo=new THREE.BufferGeometry().setFromPoints(arcPts);
+const arcLine=new THREE.Line(arcGeo,new THREE.LineBasicMaterial({color:0xffa726,transparent:true,opacity:.9}));
+ringG.add(arcLine);
+/* 环上电荷珠（密度示意） */
+const beads=[];
+for(let i=0;i<24;i++){const th=Math.PI*(i+0.5)/24;
+  const b=new THREE.Mesh(new THREE.SphereGeometry(.045,12,10),new THREE.MeshBasicMaterial({color:0xffa726}));
+  b.userData.th=th;ringG.add(b);beads.push(b);}
+/* 环心 O 与测试电荷 */
+const center=new THREE.Mesh(new THREE.SphereGeometry(.14,18,14),new THREE.MeshPhongMaterial({color:0x36f0c4,emissive:0x0e5a4a,shininess:80}));
+/* --- 精确标注：圆心 O / R --- */
+const oLbl3=makeLabel('圆心 O','#3ddc84',0,0.6,0,1.0);
+const rLbl3=makeLabel('R=1.00 m','#63e8ff',3.0,0.5,0,1.3);
+function updateDims(){
+  oLbl3.position.set(center.position.x,center.position.y+0.6,center.position.z);
+  updateLabel(rLbl3,'R='+state.R.toFixed(2)+' m','#63e8ff');
+}
+center.position.set(0,0,0);scene.add(center);
+const testQ=new THREE.Mesh(new THREE.SphereGeometry(.18,20,16),new THREE.MeshPhongMaterial({color:0xffd54f,emissive:0x6b5500,shininess:90}));
+testQ.position.set(0,0.42,0);scene.add(testQ);
+/* 环心场强箭头（合成） */
+const eArrow=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,0),1.6,0x63e8ff,.32,.16);
+scene.add(eArrow);
+/* 测试电荷受力箭头 */
+const fArrow=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0.42,0),1.4,0x3ddc84,.28,.14);
+scene.add(fArrow);
+/* 巡行 dQ 高亮 + 其 dE 矢量（从环心指向，示意） */
+const dqMark=new THREE.Mesh(new THREE.SphereGeometry(.09,14,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+ringG.add(dqMark);
+const dqArrow=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,0),1.1,0xffd54f,.24,.12);
+scene.add(dqArrow);
+const grid=new THREE.GridHelper(12,12,0x1e3a63,0x14243c);grid.position.y=-1.4;scene.add(grid);
+/* 对称轴虚线（−y 合成方向） */
+const symGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,1.4,0),new THREE.Vector3(0,-1.4,0)]);
+const symLine=new THREE.Line(symGeo,new THREE.LineDashedMaterial({color:0x3b5d8c,dashSize:.25,gapSize:.2,transparent:true,opacity:.7}));
+symLine.computeLineDistances();scene.add(symLine);
+
+const _v1=new THREE.Vector3();
+function updateReadouts(){
+  outE.innerHTML=sci(Math.abs(eCenter()),2)+'<span class="u">N/C</span>';
+  outDir.firstChild.textContent=eCenter()>=0?'−y':'＋y';
+  outQ.innerHTML=sci(totalQ()*1e9,2)+'<span class="u">nC</span>';
+  outF.innerHTML=sci(Math.abs(eCenter()*state.q0),2)+'<span class="u">N</span>';
+  lblLam.textContent=(state.lam>=0?'+':'')+ (state.lam*1e9).toFixed(1)+' nC/m';
+  lblR.textContent=state.R.toFixed(2)+' m';
+  lblQ0.textContent=(state.q0>=0?'+':'')+(state.q0*1e9).toFixed(1)+' nC';
+}
+function applyRing(){
+  const Rv=state.R;                                  // 视觉 1:1 米
+  ringG.scale.setScalar(Rv);
+  const c=eCenter()>=0?0xff4d5e:0x4a90ff;
+  arcLine.material.color.setHex(c);
+  for(const b of beads)b.material.color.setHex(c);
+}
+function updateScene3D(dt){
+  applyRing();
+  /* 巡行电荷元：θ 随时间流动 */
+  const thDq=(state.t*1.2)%(Math.PI)+0.0;
+  const th=Math.PI*0.5+Math.sin(state.t*0.9)*1.2;    // 往返巡行更直观
+  const px=Math.cos(th),py=Math.sin(th);
+  dqMark.position.set(px,py,0);
+  /* dE 方向：λ>0 时从电荷元指向环心 */
+  _v1.set(-px,-py,0).normalize();
+  dqArrow.position.set(0,0,0.0);
+  dqArrow.setDirection(_v1);
+  dqArrow.setLength(state.R*0.85,.24*state.R,.12*state.R);
+  /* 合成场箭头（环心，沿 ±y） */
+  const E=eCenter(),sgn=E>=0?-1:1;
+  _v1.set(0,sgn,0).normalize();
+  eArrow.position.set(0,0,0);
+  eArrow.setDirection(_v1);
+  eArrow.setLength(THREE.MathUtils.clamp(.4+Math.abs(E)/2,.45,2.4)*state.R,.3*state.R,.15*state.R);
+  /* 测试电荷受力：F=q₀E */
+  const F=eCenter()*state.q0;
+  fArrow.setDirection(_v1.set(0,F>=0?-1:1,0).normalize());
+  fArrow.setLength(THREE.MathUtils.clamp(.4+Math.abs(F)/2,.4,2.2)*state.R,.26*state.R,.13*state.R);
+  /* 电荷珠脉动 */
+  const pu=1+0.15*Math.sin(state.t*3+th*4);
+  dqMark.scale.setScalar(pu);
+}
+/* 曲线：E_O(λ) 线性 + E_O(R) 双曲线 */
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  ctx.strokeStyle='rgba(120,170,230,0.55)';
+  ctx.beginPath();ctx.moveTo(x0,y0+h/2);ctx.lineTo(x0+w,y0+h/2);ctx.stroke();
+  /* E_O(λ)：λ∈[−5,5]nC/m 线性；固定 R */
+  const N=320;const lamMax=5e-9;
+  let yM=Math.abs(2*lamMax/(2*Math.PI*EPS0*state.R));
+  if(!(yM>0)||!isFinite(yM))yM=1;
+  ctx.beginPath();
+  for(let i=0;i<N;i++){
+    const lam=-2*lamMax+2*lamMax*i/(N-1)*2/2*1;      // 全域 −5~5
+    const lamF=-lamMax+2*lamMax*i/(N-1);
+    const E=lamF/(2*Math.PI*EPS0*state.R);
+    const X=x0+w*i/(N-1),Y=y0+h/2-E/yM*(h/2-6);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#63e8ff';ctx.lineWidth=1.8;ctx.stroke();
+  /* 当前 λ 游标 */
+  const frac=(state.lam/lamMax+1)/2;
+  const cx=x0+Math.max(0,Math.min(1,frac))*w;
+  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(cx,y0);ctx.lineTo(cx,y0+h);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(cx,y0+h/2-eCenter()/yM*(h/2-6),4.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  ctx.fillText('+'+sci(yM,1),x0-8,y0+6);ctx.fillText('0',x0-8,y0+h/2);
+  ctx.fillText('-'+sci(yM,1),x0-8,y0+h-6);
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('E_O — λ 线性（R 固定）　E_O = λ/(2πε₀R)',x0,y0-10);
+  ctx.fillStyle='#63e8ff';ctx.fillRect(x0+w-90,y0-18,9,9);
+  ctx.fillStyle='#cfe0f8';ctx.font='11px "Microsoft YaHei",sans-serif';ctx.fillText('E_O(λ)',x0+w-76,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+
+/* ---- WebM 录制器（骨架同款） ---- */
+class WebMRecorder{
+  constructor(){this.canvas=document.createElement('canvas');this.canvas.width=1920;this.canvas.height=1080;
+    this.ctx=this.canvas.getContext('2d');this.recorder=null;this.chunks=[];this.recording=false;this.stream=null;}
+  start(){
+    if(this.recording)return;
+    const types=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    let mime='';for(const t of types){if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.canvas.captureStream(60);
+    const opts=mime?{mimeType:mime,videoBitsPerSecond:9000000}:{};
+    try{this.recorder=new MediaRecorder(this.stream,opts);}catch(e){this.recorder=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.recorder.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='half_ring_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;
+      btnPlay.textContent='暂停';btnRec.classList.remove('on');btnRec.textContent='● 录制';
+      recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.recorder.start();this.recording=true;
+  }
+  /* 双画布合成：左 70% 三维画面，右 30% 纯 Canvas 2D HUD */
+  drawFrame(){
+    if(!this.recording)return;
+    const ctx=this.ctx,W=this.canvas.width,H=this.canvas.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const boxW=Math.round(W*0.70);
+    const src=renderer.domElement,srcW=src.width||1,srcH=src.height||1,sa=srcW/srcH;
+    let dw=boxW,dh=boxW/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(boxW-dw)/2,(H-dh)/2,dw,dh);
+    ctx.fillStyle='#0b1220';ctx.fillRect(boxW,0,W-boxW,H);
+    ctx.strokeStyle='#1b2a44';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(boxW+1,0);ctx.lineTo(boxW+1,H);ctx.stroke();
+    drawRecordHud(ctx,boxW,0,W-boxW,H);
+  }
+  stop(){if(!this.recording)return;this.recording=false;
+    try{if(this.recorder&&this.recorder.state!=='inactive')this.recorder.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+function drawRecordHud(ctx,x,y,w,h){
+  const pad=36;let cy=y+74;
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#e8eefc';ctx.font='bold 38px "Microsoft YaHei",sans-serif';
+  ctx.fillText('习题 9.3.6',x+pad,cy);cy+=46;
+  ctx.fillText('均匀带电半圆环环心场强',x+pad,cy);cy+=40;
+  ctx.strokeStyle='#1e3a63';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=52;
+  const rows=[
+    ['λ',sci(state.lam,2)+' nC/m','#ffa726'],
+    ['R',state.R.toFixed(2)+' m','#8ea3c4'],
+    ['Q = λπR',sci(totalQ()*1e9,2)+' nC','#8ea3c4'],
+    ['E_O = λ/(2πε₀R)',sci(Math.abs(eCenter()),2)+' N/C','#63e8ff']
+  ];
+  for(const [n,v,c] of rows){
+    ctx.fillStyle='#8ea3c4';ctx.font='19px "Microsoft YaHei",sans-serif';ctx.fillText(n,x+pad,cy);
+    ctx.fillStyle=c;ctx.font='bold 21px Consolas,monospace';ctx.textAlign='right';
+    ctx.fillText(v,x+w-pad,cy);ctx.textAlign='left';cy+=38;
+  }
+  cy+=14;ctx.strokeStyle='#1e3a63';
+  ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=46;
+  ctx.fillStyle='#c3d5ef';ctx.font='18px "Microsoft YaHei",sans-serif';
+  ctx.fillText('对称性：垂直分量相消',x+pad,cy);cy+=26;
+  ctx.fillText('合成方向沿对称轴（−y 当 λ>0）',x+pad,cy);cy+=46;
+  ctx.fillStyle='#36f0c4';ctx.font='bold 22px Consolas,monospace';
+  ctx.fillText('E_O = '+sci(Math.abs(eCenter()),2)+' N/C',x+pad,cy);
+  const pulse=0.35+0.65*Math.abs(Math.sin(performance.now()/380));
+  ctx.beginPath();ctx.arc(x+w-pad-8,h-pad-6,9,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,77,94,'+pulse.toFixed(3)+')';ctx.fill();
+  ctx.fillStyle='#ffb3bb';ctx.font='bold 18px Consolas,monospace';
+  ctx.textAlign='right';ctx.fillText('REC',x+w-pad-26,h-pad);ctx.textAlign='left';
+}
+const recorder=new WebMRecorder();
+/* --- PNG 截图：3D 画面 + 底部曲线合成下载 --- */
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+    try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  }
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+
+function resetSim(){updateReadouts();updateScene3D(0);renderer.render(scene,camera);drawDomChart();}
+sldLam.addEventListener('input',()=>{state.lam=parseFloat(sldLam.value)*1e-9;resetSim();});
+sldR.addEventListener('input',()=>{state.R=parseFloat(sldR.value);resetSim();});
+sldQ0.addEventListener('input',()=>{state.q0=parseFloat(sldQ0.value)*1e-9;resetSim();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.recording){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+
+/* ---- 动画主循环（顶层定义，防冻屏） ---- */
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;                               // 钳制
+  if(state.playing)state.t+=dt;
+  updateScene3D(dt);
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.recording)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateScene3D(0);
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>
+<!-- end of file -->

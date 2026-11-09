@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>习题9.3.21 同心薄金属球壳（多过程） · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--panel:#0b1220;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;
+    --cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--violet:#b98bff;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220 0%,#070b13 100%);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}
+  #sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;letter-spacing:.5px;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);letter-spacing:.5px;margin-bottom:3px;}
+  .kv .v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .kv .u{font-size:10px;color:var(--dim);margin-left:2px;font-weight:400;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0) 0%,rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 12px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(99,232,255,.16);border-color:var(--cyan);color:#c8f4ff;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:210px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">习题 9.3.21 同心薄金属球壳</h1>
+  <p class="subtitle">内球壳 R₁ 带 +q，外球壳 R₂。三阶段：①初始 ②外壳接地后断开 ③内壳再接地。点击按钮切换，电荷与电势即时重算。</p>
+  <div class="sec-label">当前阶段结果</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">内球壳电荷 q₁</div><div class="v" id="outQ1">—</div></div>
+    <div class="kv"><div class="k">外壳电荷 q₂内+外</div><div class="v" id="outQ2">—</div></div>
+    <div class="kv"><div class="k">内球壳电势 U₁</div><div class="v" id="outU1">—</div></div>
+    <div class="kv"><div class="k">外球壳电势 U₂</div><div class="v" id="outU2">—</div></div>
+  </div>
+  <div class="sec-label">阶段解答</div>
+  <div class="card"><div class="formula" id="outAns">点击下方按钮切换阶段</div></div>
+  <div class="sec-label">阶段切换</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="btn" id="btnS1">① 初始</button>
+    <button class="btn" id="btnS2">② 外壳接地→断开</button>
+    <button class="btn" id="btnS3">③ 内壳再接地</button>
+  </div>
+  <div class="ctl"><div class="row"><span class="name">内球壳电荷 q</span><span class="val" id="lblQ">+6.0 nC</span></div>
+    <input type="range" id="sldQ" min="1" max="12" step="0.5" value="6"/></div>
+  <div class="ctl"><div class="row"><span class="name">内球壳半径 R₁</span><span class="val" id="lblR1">1.0 m</span></div>
+    <input type="range" id="sldR1" min="0.5" max="1.5" step="0.05" value="1"/></div>
+  <div class="ctl"><div class="row"><span class="name">外球壳半径 R₂</span><span class="val" id="lblR2">2.0 m</span></div>
+    <input type="range" id="sldR2" min="1.6" max="3" step="0.1" value="2"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      高斯定理：<b>E = kQ_enc/r²</b>（Q_enc 为包围的电荷）<br/>
+      球壳电势：<b>U = k(q内+k…)/R</b> 由各层电荷叠加<br/>
+      ① U₁=kq/R₁，U₂=kq/R₂（外壳内 −q 外 +q）<br/>
+      ② 外壳接地 U₂=0：外表面电荷入地；U₁=kq(1/R₁−1/R₂)<br/>
+      ③ 内壳接地 U₁=0：解出 <b>q₁′=qR₁/R₂</b>，外壳外表面 = −q+q₁′
+    </div>
+    <div class="hint">接地 = 令该球壳电势为零；断开后电荷守恒。E(r) 曲线随阶段即时刷新。</div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#ff4d5e"></i>内球壳（着色∝电荷符号与量）</div>
+    <div><i style="background:#4a90ff"></i>外球壳</div>
+    <div><i style="background:#63e8ff"></i>壳外电场箭头（长度∝E）</div>
+    <div><i style="background:#3ddc84"></i>接地线（绿 = 该壳接地）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const KQ=8.99e9;
+const state={t:0,playing:true,stage:1,q:6e-9,R1:1,R2:2};
+/* 三阶段解（静电平衡 + 电荷守恒 + 接地条件） */
+function solve(){
+  const {q,R1,R2}=state;
+  if(state.stage===1){
+    return {q1:q,q2in:-q,q2out:q,U1:KQ*q/R1,U2:KQ*q/R2,
+      ans:'① 内壳 +q；外壳内表面 −q、外表面 +q（外壳总电荷 0）。U₁=kq/R₁，U₂=kq/R₂。壳间 E=kq/r²，壳外 E=kq/r²（由外表面 +q）。'};
+  }
+  if(state.stage===2){
+    return {q1:q,q2in:-q,q2out:0,U1:KQ*q*(1/R1-1/R2),U2:0,
+      ans:'② 外壳接地：外表面电荷入地（U₂=0），内表面保持 −q；断开后锁定。U₁=kq(1/R₁−1/R₂)。壳外 E=0。'};
+  }
+  const q1p=q*R1/R2, q2in=-q1p, q2out=-q+q1p;
+  return {q1:q1p,q2in,q2out,U1:0,U2:KQ*(q2in+q2out)/R2,
+    ans:'③ 内壳接地（U₁=0）解出 q₁′=qR₁/R₂>0。外壳内表面 −q₁′，外表面 −q+q₁′（仍负）。U₂ 变为负值（相对②改变了）。壳外 E 由外表面电荷决定。'};
+}
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function supStr(n){return String(n).split('').map(c=>SUP[c]!==undefined?SUP[c]:c).join('');}
+function sci(x,d=2){if(!isFinite(x))return '—';if(x===0)return '0';
+  const a=Math.abs(x);if(a>=0.01&&a<10000)return x.toFixed(d);
+  const e=Math.floor(Math.log10(a)),m=x/Math.pow(10,e);return m.toFixed(d)+'×10'+supStr(e);}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outQ1=$('outQ1'),outQ2=$('outQ2'),outU1=$('outU1'),outU2=$('outU2'),outAns=$('outAns');
+const lblQ=$('lblQ'),lblR1=$('lblR1'),lblR2=$('lblR2');
+const sldQ=$('sldQ'),sldR1=$('sldR1'),sldR2=$('sldR2');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const btnS1=$('btnS1'),btnS2=$('btnS2'),btnS3=$('btnS3');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,140);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(6.5,5,9);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,2,0);
+controls.minDistance=3;controls.maxDistance=80;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.75));
+const dl1=new THREE.DirectionalLight(0xffffff,1.15);dl1.position.set(14,20,16);scene.add(dl1);
+const dl2=new THREE.DirectionalLight(0x4a7dff,0.6);dl2.position.set(-16,-12,-14);scene.add(dl2);
+const shell1=new THREE.Mesh(new THREE.SphereGeometry(1,40,30),
+  new THREE.MeshPhongMaterial({color:0xff4d5e,transparent:true,opacity:.30,shininess:70,side:THREE.DoubleSide}));
+const shell1W=new THREE.Mesh(new THREE.SphereGeometry(1,24,18),new THREE.MeshBasicMaterial({color:0xff4d5e,wireframe:true,transparent:true,opacity:.22}));
+const shell2=new THREE.Mesh(new THREE.SphereGeometry(2,48,36),
+
+  new THREE.MeshPhongMaterial({color:0x4a90ff,transparent:true,opacity:.10,shininess:60,side:THREE.DoubleSide}));
+const shell2W=new THREE.Mesh(new THREE.SphereGeometry(2,28,20),new THREE.MeshBasicMaterial({color:0x4a90ff,wireframe:true,transparent:true,opacity:.16}));
+for(const m of [shell1,shell1W,shell2,shell2W]){m.position.y=2;scene.add(m);}
+const eArrows=[];
+for(let i=0;i<12;i++){
+  const th=Math.PI*2*i/12;
+  const a=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1,0x63e8ff,.2,.1);
+  scene.add(a);eArrows.push({arrow:a,dir:new THREE.Vector3(Math.cos(th),0,Math.sin(th))});
+}
+/* 接地线（绿色） */
+const earth2=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.4,10),new THREE.MeshBasicMaterial({color:0x3ddc84}));
+earth2.position.set(2,1.3,0);scene.add(earth2);earth2.visible=false;
+const earth1=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.9,10),new THREE.MeshBasicMaterial({color:0x3ddc84}));
+earth1.position.set(1,1.05,0);scene.add(earth1);earth1.visible=false;
+scene.add(new THREE.GridHelper(16,16,0x1e3a63,0x14243c));
+/* --- 通用优化：柔光地面 + 部件标签 --- */
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color,parent){
+  const g=new THREE.Group();(parent||scene).add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.07,.2,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.14);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+/* --- 精确标注：内壳 R₁ / 外壳 R₂ --- */
+const lblNei6=makeLabel('内壳 R₁','#ff8a9a',0,2.0,1.1,1.3);
+const lblWai6=makeLabel('外壳 R₂','#63a8ff',0,3.4,2.1,1.3);
+const rDim6=makeDim('#63e8ff');
+function updateDims(){
+  const s1=shell1.scale.x,s2=shell2.scale.x;
+  lblNei6.position.set(0,1.6+s1+0.3,1.1);
+  lblWai6.position.set(0,1.6+s2+0.3,2.1);
+  updateLabel(lblNei6,'内壳 R₁='+(state.R1*100).toFixed(0)+' cm','#ff8a9a');
+  updateLabel(lblWai6,'外壳 R₂='+(state.R2*100).toFixed(0)+' cm','#63a8ff');
+  setDim(rDim6,0,1.6,0,0,1.6,Math.max(s2*0.985,0.15));
+}
+function updateReadouts(){
+  const s=solve();
+  outQ1.innerHTML=(s.q1>=0?'+':'')+(s.q1*1e9).toFixed(2)+' nC';
+  outQ2.innerHTML=((s.q2in+s.q2out)>=0?'+':'')+((s.q2in+s.q2out)*1e9).toFixed(2)+' nC';
+  outU1.innerHTML=sci(s.U1/1e3,2)+' kV';
+  outU2.innerHTML=sci(s.U2/1e3,2)+' kV';
+  outAns.innerHTML=s.ans.replace(/\n/g,'<br>');
+  lblQ.textContent=(state.q>=0?'+':'')+(state.q*1e9).toFixed(1)+' nC';
+  lblR1.textContent=state.R1.toFixed(2)+' m';
+  lblR2.textContent=state.R2.toFixed(2)+' m';
+  btnS1.classList.toggle('on',state.stage===1);
+  btnS2.classList.toggle('on',state.stage===2);
+  btnS3.classList.toggle('on',state.stage===3);
+  earth2.visible=state.stage===2;
+  earth1.visible=state.stage===3;
+  const qmax=state.q;
+  shell1.material.opacity=.10+.25*Math.min(1,Math.abs(s.q1)/qmax);
+  const c1=s.q1>=0?0xff4d5e:0x4a90ff;
+  shell1.material.color.setHex(c1);shell1W.material.color.setHex(c1);
+  const q2t=s.q2in+s.q2out;
+  shell2.material.opacity=.06+.16*Math.min(1,Math.abs(q2t)/(qmax||1));
+  const c2=q2t>=0?0xff4d5e:0x4a90ff;
+  shell2.material.color.setHex(c2);shell2W.material.color.setHex(c2);
+}
+function fieldAt(r){
+  const s=solve();
+  if(r<state.R1)return 0;
+  if(r<state.R2)return KQ*Math.abs(s.q1)/(r*r);
+  return KQ*Math.abs(s.q2in+s.q2out)/(r*r);
+}
+function updateScene3D(dt){
+  shell1.scale.setScalar(state.R1);shell1W.scale.setScalar(state.R1);
+  shell2.scale.setScalar(state.R2);shell2W.scale.setScalar(state.R2);
+  for(const it of eArrows){
+    const r=state.R2+0.55;
+    it.arrow.position.set(it.dir.x*r,2.4,it.dir.z*r);
+    it.arrow.setDirection(it.dir);
+    const E=fieldAt(r);
+    it.arrow.setLength(THREE.MathUtils.clamp(.4+E/800,.35,2.2),.22,.11);
+    it.arrow.visible=E>1e-12;
+  }
+  shell1.rotation.y+=dt*0.2;shell2.rotation.y-=dt*0.12;
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  ctx.strokeStyle='rgba(120,170,230,0.55)';
+  ctx.beginPath();ctx.moveTo(x0,y0+h/2);ctx.lineTo(x0+w,y0+h/2);ctx.stroke();
+  const N=320;let yMax=0;
+  const r0=0.3,r1=state.R2+1.2,arr=[];
+  for(let i=0;i<N;i++){
+    const E=fieldAt(r0+(r1-r0)*i/(N-1));
+    arr.push(E);yMax=Math.max(yMax,E);
+  }
+  if(!(yMax>0)||!isFinite(yMax))yMax=1;
+  yMax*=1.15;
+  ctx.beginPath();
+  for(let i=0;i<N;i++){
+    let ny=arr[i]/yMax;if(!isFinite(ny))ny=0;
+    const X=x0+w*i/(N-1),Y=y0+h-4-ny*(h-8);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#63e8ff';ctx.lineWidth=1.8;ctx.stroke();
+  for(const [rr,t] of [[state.R1,'R₁'],[state.R2,'R₂']]){
+    const X=x0+(rr-r0)/(r1-r0)*w;
+    ctx.strokeStyle='rgba(255,213,79,.5)';ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(X,y0);ctx.lineTo(X,y0+h);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#ffd54f';ctx.font='11px Consolas,monospace';ctx.textAlign='center';
+    ctx.fillText(t,X,y0+12);
+  }
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  ctx.fillText(sci(yMax/1.15,1),x0-8,y0+6);ctx.fillText('0',x0-8,y0+h-4);
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('|E(r)| — 阶段 '+['① 初始','② 外壳接地后断开','③ 内壳再接地'][state.stage-1],x0,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+/* ---- WebM 录制器（1920×1080 隐藏画布 + captureStream(60)） ---- */
+class WebMRecorder{
+  constructor(){this.canvas=document.createElement('canvas');this.canvas.width=1920;this.canvas.height=1080;
+    this.ctx=this.canvas.getContext('2d');this.recorder=null;this.chunks=[];this.recording=false;this.stream=null;}
+  start(){
+    if(this.recording)return;
+    const types=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    let mime='';for(const t of types){if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.canvas.captureStream(60);
+    const opts=mime?{mimeType:mime,videoBitsPerSecond:9000000}:{};
+    try{this.recorder=new MediaRecorder(this.stream,opts);}catch(e){this.recorder=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.recorder.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='concentric_shells_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;
+      btnPlay.textContent='暂停';btnRec.classList.remove('on');btnRec.textContent='● 录制';
+      recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.recorder.start();this.recording=true;
+  }
+  /* 双画布合成：左 70% 三维画面，右 30% 纯 Canvas 2D HUD */
+  drawFrame(){
+    if(!this.recording)return;
+    const ctx=this.ctx,W=this.canvas.width,H=this.canvas.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const boxW=Math.round(W*0.70);
+    const src=renderer.domElement,srcW=src.width||1,srcH=src.height||1,sa=srcW/srcH;
+    let dw=boxW,dh=boxW/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(boxW-dw)/2,(H-dh)/2,dw,dh);
+    ctx.fillStyle='#0b1220';ctx.fillRect(boxW,0,W-boxW,H);
+    ctx.strokeStyle='#1b2a44';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(boxW+1,0);ctx.lineTo(boxW+1,H);ctx.stroke();
+    drawRecordHud(ctx,boxW,0,W-boxW,H);
+  }
+  stop(){if(!this.recording)return;this.recording=false;
+    try{if(this.recorder&&this.recorder.state!=='inactive')this.recorder.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+function drawRecordHud(ctx,x,y,w,h){
+  const s=solve();
+  const pad=36;let cy=y+74;
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#e8eefc';ctx.font='bold 38px "Microsoft YaHei",sans-serif';
+  ctx.fillText('习题 9.3.21',x+pad,cy);cy+=46;
+  ctx.fillText('同心球壳·阶段 '+state.stage,x+pad,cy);cy+=40;
+  ctx.strokeStyle='#1e3a63';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=52;
+  const rows=[
+    ['q₁（内壳）',(s.q1>=0?'+':'')+(s.q1*1e9).toFixed(2)+' nC','#ff4d5e'],
+    ['q₂（外壳总）',((s.q2in+s.q2out)>=0?'+':'')+((s.q2in+s.q2out)*1e9).toFixed(2)+' nC','#4a90ff'],
+    ['U₁',sci(s.U1/1e3,2)+' kV','#ffd54f'],
+    ['U₂',sci(s.U2/1e3,2)+' kV','#ffd54f']
+  ];
+  for(const [n,v,c] of rows){
+    ctx.fillStyle='#8ea3c4';ctx.font='19px "Microsoft YaHei",sans-serif';ctx.fillText(n,x+pad,cy);
+    ctx.fillStyle=c;ctx.font='bold 21px Consolas,monospace';ctx.textAlign='right';
+    ctx.fillText(v,x+w-pad,cy);ctx.textAlign='left';cy+=38;
+  }
+  cy+=14;ctx.strokeStyle='#1e3a63';
+  ctx.beginPath();ctx.moveTo(x+pad,cy);ctx.lineTo(x+w-pad,cy);ctx.stroke();cy+=46;
+  ctx.fillStyle='#c3d5ef';ctx.font='17px "Microsoft YaHei",sans-serif';
+  for(const ln of s.ans.split('\n').slice(0,3)){ctx.fillText(ln.slice(0,32),x+pad,cy);cy+=28;}
+  const pulse=0.35+0.65*Math.abs(Math.sin(performance.now()/380));
+  ctx.beginPath();ctx.arc(x+w-pad-8,h-pad-6,9,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,77,94,'+pulse.toFixed(3)+')';ctx.fill();
+  ctx.fillStyle='#ffb3bb';ctx.font='bold 18px Consolas,monospace';
+  ctx.textAlign='right';ctx.fillText('REC',x+w-pad-26,h-pad);ctx.textAlign='left';
+}
+const recorder=new WebMRecorder();
+/* --- PNG 截图：3D 画面 + 底部曲线合成下载 --- */
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+    try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  }
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){updateReadouts();updateScene3D(0);renderer.render(scene,camera);drawDomChart();}
+btnS1.addEventListener('click',()=>{state.stage=1;resetSim();});
+btnS2.addEventListener('click',()=>{state.stage=2;resetSim();});
+btnS3.addEventListener('click',()=>{state.stage=3;resetSim();});
+sldQ.addEventListener('input',()=>{state.q=parseFloat(sldQ.value)*1e-9;resetSim();});
+sldR1.addEventListener('input',()=>{state.R1=parseFloat(sldR1.value);resetSim();});
+sldR2.addEventListener('input',()=>{state.R2=parseFloat(sldR2.value);resetSim();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.stage=1;state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.recording){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+/* ---- 动画主循环（顶层定义，防冻屏） ---- */
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;                               // 钳制
+  if(state.playing)state.t+=dt;
+  updateScene3D(dt);
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.recording)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateScene3D(0);
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>
+<!-- end of file -->

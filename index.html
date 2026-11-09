@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>物理下册电磁学交互仿真 · 实验总览</title>
+<style>
+  :root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--violet:#b98bff;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1280px;margin:0 auto;padding:36px 28px 60px;}
+  h1{font-size:24px;margin:0 0 6px;}
+  .sub{font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:30px;}
+  .sec{font-size:12px;color:var(--dim);letter-spacing:3px;margin:28px 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  .card{display:block;background:linear-gradient(160deg,#0d1626,#0a0f1a);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+    color:var(--txt);text-decoration:none;transition:.18s;position:relative;overflow:hidden;}
+  .card:hover{border-color:var(--cyan);transform:translateY(-2px);box-shadow:0 8px 24px rgba(30,80,140,.28);}
+  .card .no{position:absolute;top:10px;right:14px;font-size:26px;font-weight:800;color:rgba(99,232,255,.12);}
+  .card .t{font-size:14.5px;font-weight:700;margin-bottom:6px;padding-right:34px;}
+  .card .d{font-size:11.5px;color:var(--dim);line-height:1.6;}
+  .tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;margin-top:10px;margin-right:5px;}
+  .tag.e{background:rgba(99,232,255,.12);color:var(--cyan);border:1px solid rgba(99,232,255,.25);}
+  .tag.m{background:rgba(255,167,38,.12);color:var(--orange);border:1px solid rgba(255,167,38,.25);}
+  .tag.f{background:rgba(61,220,132,.12);color:var(--green);border:1px solid rgba(61,220,132,.25);}
+  .foot{margin-top:40px;font-size:11px;color:#5a7096;line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>物理下册 · 电磁学交互仿真</h1>
+  <p class="sub">19 个交互实验，覆盖《大学物理》下册第 9 章（静电场）与第 10 章（稳恒磁场）。每个实验含 3D 可旋转模型、实时物理量、参数滑块、公式卡片与曲线图表，右上角支持 <b>● 录制</b>（WebM 视频）与 <b>✚ 截图</b>（PNG 图片）一键导出。</p>
+
+  <div class="sec">第 9 章 · 静电场与电介质（13 个）</div>
+  <div class="grid">
+    <a class="card" href="dioujizi.html"><span class="no">01</span><div class="t">例9.1 电偶极子的电场</div><div class="d">±q 电荷与场点 A，E 分解与轴线/中垂线分布</div><span class="tag e">静电场</span><span class="tag f">场矢量</span></a>
+    <a class="card" href="dioujizi_liju.html"><span class="no">02</span><div class="t">例9.4 电偶极子在均匀场中的力矩</div><div class="d">θ 角旋转、M=pE·sinθ，稳定平衡演示</div><span class="tag e">力矩</span><span class="tag f">动态</span></a>
+    <a class="card" href="banyuanhuan.html"><span class="no">03</span><div class="t">9.3.6 半圆环圆心处的电场</div><div class="d">线电荷密度 λ 半圆环，圆心 E 分解积分</div><span class="tag e">积分</span></a>
+    <a class="card" href="zhengfangxian.html"><span class="no">04</span><div class="t">9.3.7 正方形细线中心的电场</div><div class="d">四边叠加与 P 点场强，对称抵消演示</div><span class="tag e">对称性</span></a>
+    <a class="card" href="kongqiangqiu.html"><span class="no">05</span><div class="t">9.3.12 均匀带电球内的空腔（补偿法）</div><div class="d">大球+反向补偿小球，腔内匀强场 E=ρa/3ε₀</div><span class="tag e">补偿法</span><span class="tag f">空腔</span></a>
+    <a class="card" href="tongxinqiuke.html"><span class="no">06</span><div class="t">习题9.3.21 同心薄金属球壳</div><div class="d">三阶段切换：充电/外壳接地/内壳接地</div><span class="tag e">三阶段</span><span class="tag f">感应</span></a>
+    <a class="card" href="jiediudaoti.html"><span class="no">07</span><div class="t">例9.16 接地导体球附近的点电荷</div><div class="d">镜像电荷 q′=−qR/l，感应珠实时分布</div><span class="tag e">镜像法</span></a>
+    <a class="card" href="jiediudaoti_3R.html"><span class="no">08</span><div class="t">习题9.3.22 接地球 l=3R</div><div class="d">固定距离比情形的镜像电荷与感应分布</div><span class="tag e">镜像法</span></a>
+    <a class="card" href="sanpingxingban.html"><span class="no">09</span><div class="t">习题9.3.20 三块平行金属板</div><div class="d">A 板夹在接地板 B/C 之间，电荷反比分配 d₁/d₂ 独立可调</div><span class="tag e">感应</span><span class="tag f">双滑块</span></a>
+    <a class="card" href="jiezhizhiqiuqiao.html"><span class="no">10</span><div class="t">例9.17 介质球壳中的导体球</div><div class="d">D、E、U 三曲线分层对比（真空/介质/真空）</div><span class="tag e">介质</span><span class="tag f">三曲线</span></a>
+    <a class="card" href="pingxingban_jiezhi.html"><span class="no">11</span><div class="t">例9.18 平行板电容器插入介质</div><div class="d">介质厚度 t、εᵣ 滑块，E/D/P 分层与 U 变化</div><span class="tag e">介质</span></a>
+    <a class="card" href="shuangjiezhi_yuanzhu.html"><span class="no">12</span><div class="t">例9.19 双介质圆柱电容器（+9.7.2）</div><div class="d">平行板/圆柱双模式，两介质串联分压</div><span class="tag e">双模式</span><span class="tag m">含9.7.2</span></a>
+    <a class="card" href="fandegelafu.html"><span class="no">13</span><div class="t">9.7.4 范德格拉夫起电机</div><div class="d">传送带输电、球壳电荷积累、电晕放电与击穿</div><span class="tag e">起电机</span><span class="tag f">击穿</span></a>
+  </div>
+
+  <div class="sec">第 10 章 · 稳恒磁场（6 个）</div>
+  <div class="grid">
+    <a class="card" href="fangxing_huilu.html"><span class="no">14</span><div class="t">例10.1 正方形载流回路与圆电流</div><div class="d">中心 B 对比，B方/B圆=8√2/π²≈1.146，可开关圆电流</div><span class="tag m">磁场</span><span class="tag f">对比</span></a>
+    <a class="card" href="xuanzhuan_yuanpan.html"><span class="no">15</span><div class="t">例10.2 旋转带电圆盘的磁场</div><div class="d">盘心 B=μ₀σωR/2，轴上 B(x) 分布，电流珠随盘旋转</div><span class="tag m">磁场</span><span class="tag f">旋转</span></a>
+    <a class="card" href="haimuohuozi.html"><span class="no">16</span><div class="t">亥姆霍兹线圈均匀磁场</div><div class="d">d=R 时中心 ±R/4 区均匀度波动 &lt;1%，间距实时可调</div><span class="tag m">磁场</span><span class="tag f">均匀区</span></a>
+    <a class="card" href="luoxianguan.html"><span class="no">17</span><div class="t">载流直螺线管轴线上的磁场</div><div class="d">B=½μ₀nI(cosθ₁−cosθ₂)，端点/中心比→0.5</div><span class="tag m">磁场</span><span class="tag f">细密绕线</span></a>
+    <a class="card" href="luoraohuan.html"><span class="no">18</span><div class="t">螺绕环管内的磁场</div><div class="d">B=μ₀NI/2πρ，管内 1/ρ 分布、管外为零，探测环安培环路</div><span class="tag m">磁场</span><span class="tag f">安培环路</span></a>
+    <a class="card" href="yuanzhu_pingban.html"><span class="no">19</span><div class="t">无限长圆柱与导体平板（安培环路）</div><div class="d">柱内线性/柱外 1/r 与平板 B=½μ₀K 双模式切换</div><span class="tag m">磁场</span><span class="tag f">双模式</span></a>
+  </div>
+
+  <div class="foot">
+    使用说明：打开任一实验 → 拖动左侧滑块观察物理量与曲线变化 → 右上角 <b>✚ 截图</b> 导出当前画面 PNG（含 3D 视图与底部曲线）、<b>● 录制</b> 录制交互过程为 WebM 视频。<br/>
+    模型支持鼠标左键旋转、滚轮缩放、右键平移。所有实验为单文件 HTML，离线可用（首次加载需联网获取 Three.js 库）。
+  </div>
+</div>
+</body>
+</html>
