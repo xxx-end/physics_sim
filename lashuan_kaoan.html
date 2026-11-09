@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>例2.9 岸上恒力拉船靠岸 · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+  .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:270px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">例 2.9 岸上恒力拉船靠岸</h1>
+  <p class="subtitle">在离水面高 H 的岸上，人用大小不变的力 F 拉绳使船靠岸。求船从离岸 x₁ 移到 x₂ 的过程中，力 F 对船所做的功。力方向随绳角持续改变——不是恒力做功！</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">累计做功 W</div><div class="v" id="outW">—</div></div>
+    <div class="kv"><div class="k">当前绳角水平分量</div><div class="v" id="outFx">—</div></div>
+    <div class="kv"><div class="k">绳长 L=√(x²+H²)</div><div class="v" id="outL">—</div></div>
+    <div class="kv"><div class="k">理论功 F(L₁−L₂)</div><div class="v" id="outWT">—</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">恒力 F</span><span class="val" id="lblF">100 N</span></div>
+    <input type="range" id="sldF" min="20" max="300" step="5" value="100"/></div>
+  <div class="ctl"><div class="row"><span class="name">岸高 H</span><span class="val" id="lblH">3.0 m</span></div>
+    <input type="range" id="sldH" min="1.5" max="6" step="0.1" value="3"/></div>
+  <div class="ctl"><div class="row"><span class="name">起始距离 x₁</span><span class="val" id="lblX1">8.0 m</span></div>
+    <input type="range" id="sldX1" min="4" max="12" step="0.5" value="8"/></div>
+  <div class="ctl"><div class="row"><span class="name">结束距离 x₂</span><span class="val" id="lblX2">4.0 m</span></div>
+    <input type="range" id="sldX2" min="1" max="8" step="0.5" value="4"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      元功：dW = F·cosθ·dx，cosθ = x/√(x²+H²)<br/>
+      W = ∫ F·x/√(x²+H²) dx<br/>
+      = F·√(x²+H²) 从 x₂ 到 x₁<br/>
+      <b>W = F(L₁ − L₂) = F·(绳长缩短量)</b><br/>
+      恒力方向功不等于 F·(x₁−x₂)！<br/>
+      夹角越大（船越远）有效功分量越小
+    </div>
+    <div class="hint">
+      直觉误区：W=Fx 对不对？不对！只有力始终沿位移方向才行。这里力沿绳方向，水平分量 F·cosθ 随船靠近不断增大。做功恰等于"绳长的缩短×F"。
+    </div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#4a90ff"></i>水面与船</div>
+    <div><i style="background:#63e8ff"></i>绳（方向持续变化）</div>
+    <div><i style="background:#ff4d5e"></i>拉力 F 矢量（沿绳）</div>
+    <div><i style="background:#3ddc84"></i>岸上拉绳人（高 H）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const state={t:0,playing:true,F:100,H:3,x1:8,x2:4,x:8,W:0,v:0.8};
+function calc(){
+  const L1=Math.hypot(state.x1,state.H),L2=Math.hypot(state.x2,state.H);
+  return {L1:L1,L2:L2,W:state.F*(L1-L2)};
+}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outW=$('outW'),outFx=$('outFx'),outL=$('outL'),outWT=$('outWT');
+const lblF=$('lblF'),lblH=$('lblH'),lblX1=$('lblX1'),lblX2=$('lblX2');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,140);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(9,4.5,12);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(3,1.5,0);
+controls.minDistance=3;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.8));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+scene.add(new THREE.GridHelper(18,18,0x1e3a63,0x14243c));
+/* 水面 */
+const water=new THREE.Mesh(new THREE.BoxGeometry(30,.06,10),new THREE.MeshPhongMaterial({color:0x14314d,transparent:true,opacity:.85}));
+water.position.set(4,.03,0);scene.add(water);
+/* 岸（悬崖） */
+const cliff=new THREE.Mesh(new THREE.BoxGeometry(3,4,8),new THREE.MeshPhongMaterial({color:0x3a3226}));
+cliff.position.set(-1.5,2,0);scene.add(cliff);
+/* 岸顶人 */
+const man=new THREE.Group();
+const mBody=new THREE.Mesh(new THREE.CapsuleGeometry(.16,.7,4,10),new THREE.MeshPhongMaterial({color:0x3ddc84}));
+const mHead=new THREE.Mesh(new THREE.SphereGeometry(.13,12,10),new THREE.MeshPhongMaterial({color:0xffd9a0}));
+mHead.position.y=.72;man.add(mBody,mHead);scene.add(man);
+/* 船 */
+const boat=new THREE.Group();
+const hull=new THREE.Mesh(new THREE.BoxGeometry(1.5,.4,.7),new THREE.MeshPhongMaterial({color:0x8a5a2b}));
+const deck=new THREE.Mesh(new THREE.BoxGeometry(1.2,.1,.5),new THREE.MeshPhongMaterial({color:0xa9743f}));
+deck.position.y=.25;boat.add(hull,deck);scene.add(boat);
+/* 绳 */
+const ropeMat=new THREE.LineBasicMaterial({color:0x63e8ff});
+const ropeG=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+scene.add(new THREE.Line(ropeG,ropeMat));
+/* 拉力矢量（沿绳作用在船上） */
+const fArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1,0xff4d5e,.2,.12);
+scene.add(fArrow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color){
+  const g=new THREE.Group();scene.add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.06,.18,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.12);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+const lblMan=makeLabel('拉绳人','#7fe0a8',0,0,0,1.1);
+const lblBoat=makeLabel('船','#7fb3ff',0,0,0,0.7);
+const lbFvec=makeLabel('F 恒定','#ff8a9a',0,0,0,1.0);
+const hDim=makeDim('#ffb3bd'),xDim=makeDim('#63e8ff');
+function updateDims(){
+  man.position.set(-0.4,4+state.H,0.6);
+  lblMan.position.set(-0.4,4+state.H+1.0,0.6);
+  boat.position.set(state.x,0.35,0);
+  lblBoat.position.set(state.x,1.1,0);
+  const anchor=new THREE.Vector3(-0.3,4+state.H-0.35,0.4);
+  const bp=new THREE.Vector3(state.x+0.6,0.55,0);
+  const p=ropeG.attributes.position;
+  p.setXYZ(0,bp.x,bp.y,bp.z);p.setXYZ(1,anchor.x,anchor.y,anchor.z);p.needsUpdate=true;
+  const dir=anchor.clone().sub(bp).normalize();
+  fArrow.position.set(bp.x,bp.y,bp.z);
+  fArrow.setDirection(dir);
+  fArrow.setLength(Math.min(1+state.F/120,2.4),.22,.12);
+  lbFvec.position.set(bp.x+dir.x*1.6,bp.y+dir.y*1.6+0.4,0);
+  setDim(hDim,-0.9,0.1,1.8,-0.9,4+state.H,1.8);
+  updateLabel(hDim.lbl||(hDim.lbl=makeLabel('H','#ffb3bd',0,0,0,0.8)),'H='+state.H.toFixed(1)+' m','#ffb3bd');
+  hDim.lbl.position.set(-0.9,2+state.H/2,1.8);
+  setDim(xDim,-0.4,0.08,-2.6,state.x,0.08,-2.6);
+  updateLabel(xDim.lbl||(xDim.lbl=makeLabel('x','#63e8ff',0,0,0,0.9)),'x='+state.x.toFixed(2)+' m','#63e8ff');
+  xDim.lbl.position.set((state.x-0.4)/2,0.45,-2.6);
+}
+function updateReadouts(){
+  const c=calc();
+  const fx=state.F*state.x/Math.hypot(state.x,state.H);
+  outW.innerHTML=(state.W/1000).toFixed(3)+' kJ';
+  outFx.innerHTML=fx.toFixed(1)+' N';
+  outL.innerHTML=Math.hypot(state.x,state.H).toFixed(2)+' m';
+  outWT.innerHTML=(c.W/1000).toFixed(3)+' kJ';
+  lblF.textContent=state.F.toFixed(0)+' N';
+  lblH.textContent=state.H.toFixed(1)+' m';
+  lblX1.textContent=state.x1.toFixed(1)+' m';
+  lblX2.textContent=state.x2.toFixed(1)+' m';
+}
+function step(dt){
+  if(state.x<=state.x2){state.x=state.x1;state.W=0;return;}
+  state.x-=state.v*dt;
+  state.W+=state.F*(state.x/Math.hypot(state.x,state.H))*state.v*dt;
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  /* Fcosθ(x) 与恒力对照 */
+  const fMax=state.F*1.05;
+  ctx.beginPath();
+  for(let i=0;i<140;i++){
+    const xx=1+(state.x1)*i/139;
+    const fx=state.F*xx/Math.hypot(xx,state.H);
+    const X=x0+xx/12*w,Y=y0+h-4-fx/fMax*(h-8);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#ff4d5e';ctx.lineWidth=1.8;ctx.stroke();
+  /* 恒力线 F·(x) 平移功对照 */
+  const yF=y0+h-4-state.F/fMax*(h-8);
+  ctx.setLineDash([4,4]);ctx.strokeStyle='#4a7dbd';
+  ctx.beginPath();ctx.moveTo(x0,yF);ctx.lineTo(x0+w,yF);ctx.stroke();ctx.setLineDash([]);
+  const X=x0+state.x/12*w;
+  ctx.strokeStyle='rgba(255,213,79,.5)';ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(X,y0);ctx.lineTo(X,y0+h);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.fillText('x=1m',x0,y0+h+16);ctx.textAlign='right';ctx.fillText('x=12m',x0+w,y0+h+16);ctx.textAlign='left';
+  ctx.fillStyle='#ff4d5e';ctx.fillText('— 有效水平分力 F·cosθ(x)',x0+w-230,y0+12);
+  ctx.fillStyle='#4a7dbd';ctx.fillText('--- 若误当恒力水平 F',x0+w-230,y0+26);
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('船越近 cosθ 越大、有效分力越大：W=F(L₁−L₂) 而非 F(x₁−x₂)',x0,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='pull_boat_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+      try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+    }
+    ctx.fillStyle='#e8eefc';ctx.font='bold 40px "Microsoft YaHei",sans-serif';
+    ctx.fillText('例2.9 拉船靠岸 · W=F(L₁−L₂)=F·绳缩短量',36,64);
+    ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+    ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){state.t=0;state.x=state.x1;state.W=0;updateReadouts();updateDims();renderer.render(scene,camera);drawDomChart();}
+$('sldF').addEventListener('input',e=>{state.F=parseFloat(e.target.value);resetSim();});
+$('sldH').addEventListener('input',e=>{state.H=parseFloat(e.target.value);resetSim();});
+$('sldX1').addEventListener('input',e=>{state.x1=parseFloat(e.target.value);resetSim();});
+$('sldX2').addEventListener('input',e=>{state.x2=parseFloat(e.target.value);resetSim();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  if(state.playing){state.t+=dt;step(dt);updateReadouts();}
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateDims();
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>

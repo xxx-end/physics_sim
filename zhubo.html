@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>6.1 驻波模型（入射波+反射波） · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+  .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:270px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">波动模型 6.1 驻波模型</h1>
+  <p class="subtitle">振幅、频率相同的两列相干波沿相反方向传播，叠加形成驻波：y = 2A·cos(2πx/λ)·cos(ωt)。波节永远静止（间隔 λ/2），波腹振幅最大——没有波形传播，只有分段"呼吸"。</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">波长 λ</div><div class="v" id="outL">—</div></div>
+    <div class="kv"><div class="k">波节间距 λ/2</div><div class="v" id="outL2">—</div></div>
+    <div class="kv"><div class="k">弦上波节数</div><div class="v" id="outN">—</div></div>
+    <div class="kv"><div class="k">波腹最大振幅</div><div class="v" id="outA">—</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">波长 λ</span><span class="val" id="lblL">2.0 m</span></div>
+    <input type="range" id="sldL" min="0.8" max="4" step="0.1" value="2"/></div>
+  <div class="ctl"><div class="row"><span class="name">入射波振幅 A</span><span class="val" id="lblA">0.30 m</span></div>
+    <input type="range" id="sldA" min="0.1" max="0.6" step="0.05" value="0.3"/></div>
+  <div class="ctl"><div class="row"><span class="name">弦长 L（固定端弦）</span><span class="val" id="lblLen">6.0 m</span></div>
+    <input type="range" id="sldLen" min="2" max="12" step="0.5" value="6"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      入射：y₁=A cos(ωt−kx)，反射（固定端）：y₂=A cos(ωt+kx+π)<br/>
+      合成：<b>y = 2A·cos(kx+π/2)·cos(ωt)</b><br/>
+      波节：cos 分量=0 → <b>x = (2k+1)λ/4</b>（间隔 λ/2）<br/>
+      波腹：|cos|=1 → x = kλ/2<br/>
+      固定端弦：L = n·λ/2（只有分立频率驻留）<br/>
+      相邻波节间所有点<b>同相振动</b>，跨节点反相
+    </div>
+    <div class="hint">
+      直觉误区：驻波"不传播"但能量并非不流动——两波各携能量反向流动，净通量为零。切换显示模式看"入射波/反射波/合成波"三条线同时动画。
+    </div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#ff4d5e"></i>合成驻波（红色包络）</div>
+    <div><i style="background:#63e8ff"></i>入射波（向右传播）</div>
+    <div><i style="background:#3ddc84"></i>反射波（向左传播）</div>
+    <div><i style="background:#ffa726"></i>波节 N / 波腹 A 标记</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+    <button class="btn" id="btnMode">显示：合成</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const state={t:0,playing:true,lm:2,A:0.3,L:6,mode:'all'};
+const WX=2.0, WW=2*Math.PI*WX/2;
+const NX=160;
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outL=$('outL'),outL2=$('outL2'),outN=$('outN'),outA=$('outA');
+const lblL=$('lblL'),lblA=$('lblA'),lblLen=$('lblLen');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),btnMode=$('btnMode'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,140);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(5,2.2,9);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,1.2,0);
+controls.minDistance=3;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.8));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+scene.add(new THREE.GridHelper(14,14,0x1e3a63,0x14243c));
+/* 弦（两个固定端 + 动态顶点线） */
+const rodG=new THREE.Group();scene.add(rodG);
+const endL=new THREE.Mesh(new THREE.BoxGeometry(.12,1.6,.12),new THREE.MeshPhongMaterial({color:0x1e3252}));
+const endR=endL.clone();
+rodG.add(endL,endR);
+const railBar=new THREE.Mesh(new THREE.BoxGeometry(13,.05,.05),new THREE.MeshBasicMaterial({color:0x1a2a44,transparent:true,opacity:.7}));
+railBar.position.y=1.2;rodG.add(railBar);
+const stringG=new THREE.BufferGeometry();
+const stringArr=new Float32Array((NX+1)*3);
+stringG.setAttribute('position',new THREE.BufferAttribute(stringArr,3));
+const strLine=new THREE.Line(stringG,new THREE.LineBasicMaterial({color:0xff4d5e}));
+rodG.add(strLine);
+/* 入射波虚线 */
+const incG=new THREE.BufferGeometry();
+const incArr=new Float32Array((NX+1)*3);
+incG.setAttribute('position',new THREE.BufferAttribute(incArr,3));
+const incLine=new THREE.Line(incG,new THREE.LineBasicMaterial({color:0x63e8ff,transparent:true,opacity:.65}));
+rodG.add(incLine);
+/* 反射波虚线 */
+const refG=new THREE.BufferGeometry();
+const refArr=new Float32Array((NX+1)*3);
+refG.setAttribute('position',new THREE.BufferAttribute(refArr,3));
+const refLine=new THREE.Line(refG,new THREE.LineBasicMaterial({color:0x3ddc84,transparent:true,opacity:.65}));
+rodG.add(refLine);
+/* 包络（双抛物线包络线） */
+const envG=new THREE.BufferGeometry();
+const envArr=new Float32Array((NX+1)*3);
+envG.setAttribute('position',new THREE.BufferAttribute(envArr,3));
+const envMat=new THREE.LineBasicMaterial({color:0xffa726,transparent:true,opacity:.5});
+const envLine=new THREE.Line(envG,envMat);
+rodG.add(envLine);
+/* 波节点标记 */
+const nodes=[];
+for(let i=0;i<30;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.06,10,8),new THREE.MeshBasicMaterial({color:0xffa726}));
+  scene.add(m);nodes.push(m);
+}
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color){
+  const g=new THREE.Group();scene.add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.05,.16,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.1);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.08).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.08).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+const lblS=makeLabel('驻波','#ff8a9a',0,0,0,1.0);
+const lblI=makeLabel('入射→','#63e8ff',0,0,0,1.1);
+const lblR=makeLabel('←反射','#3ddc84',0,0,0,1.1);
+const lamDim=makeDim('#ffd54f');
+function updateDims(){
+  const L=state.L,lm=state.lm,A=state.A;
+  endL.position.set(-L/2,1.2,0);
+  endR.position.set(L/2,1.2,0);
+  railBar.scale.x=(L+0.6)/13;
+  const k=2*Math.PI/lm;
+  const w=2*Math.PI/lm*WX/2*2;
+  const wt=WW*state.t*2;
+  for(let i=0;i<=NX;i++){
+    const x=-L/2+L*i/NX;
+    const y1=A*Math.cos(wt-k*x);
+    const y2=-A*Math.cos(wt+k*x);
+    const y=y1+y2;
+    stringArr[i*3]=x;stringArr[i*3+1]=1.2+y;stringArr[i*3+2]=0;
+    incArr[i*3]=x;incArr[i*3+1]=1.2+y1;incArr[i*3+2]=0;
+    refArr[i*3]=x;refArr[i*3+1]=1.2+y2;refArr[i*3+2]=0;
+    const env=2*A*Math.abs(Math.cos(k*x));
+    envArr[i*3]=x;envArr[i*3+1]=1.2+env;envArr[i*3+2]=0;
+  }
+  stringG.attributes.position.needsUpdate=true;
+  incG.attributes.position.needsUpdate=true;
+  refG.attributes.position.needsUpdate=true;
+  envG.attributes.position.needsUpdate=true;
+  const show=state.mode;
+  incLine.visible=(show==='all'||show==='inc');
+  refLine.visible=(show==='all'||show==='ref');
+  envLine.visible=(show==='env');
+  /* 波节：x=(2k+1)λ/4，位于 [-L/2,L/2] */
+  let ni=0;
+  for(let q=-6;q<=6;q++){
+    const xn=(2*q+1)*lm/4;
+    if(xn>-L/2+0.01&&xn<L/2-0.01&&ni<nodes.length){
+      nodes[ni].visible=true;
+      nodes[ni].position.set(xn,1.2,0);
+      ni++;
+    }
+  }
+  for(let i=ni;i<nodes.length;i++)nodes[i].visible=false;
+  lblS.position.set(-L/2-0.9,2.6,0);
+  lblI.position.set(L/2*0.5,1.2-A*3-0.5,0);
+  lblR.position.set(-L/2*0.5,1.2-A*3-0.5,0);
+  /* λ 尺寸线 */
+  const xA=lm/2,xB=lm/2+lm;
+  if(xB<L/2-0.1){
+    setDim(lamDim,xA,1.2-A*2-0.35,0,xB,1.2-A*2-0.35,0);
+    if(!lamDim.lbl){lamDim.lbl=makeLabel('','#ffd54f',0,0,0,0.9);scene.add(lamDim.lbl);}
+    updateLabel(lamDim.lbl,'λ='+lm.toFixed(1)+' m','#ffd54f');
+    lamDim.lbl.position.set((xA+xB)/2,1.2-A*2-0.75,0);
+    lamDim.g.visible=true;
+  }else{
+    lamDim.g.visible=false;
+    if(lamDim.lbl)lamDim.lbl.visible=false;
+  }
+}
+function updateReadouts(){
+  const l=state.lm,L=state.L;
+  const nNodes=Math.floor(L/(l/2))+1;
+  outL.innerHTML=l.toFixed(1)+' m';
+  outL2.innerHTML=(l/2).toFixed(2)+' m';
+  outN.innerHTML=nNodes+' 个';
+  outA.innerHTML=(2*state.A).toFixed(2)+' m';
+  lblL.textContent=l.toFixed(1)+' m';
+  lblA.textContent=state.A.toFixed(2)+' m';
+  lblLen.textContent=L.toFixed(1)+' m';
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  /* 包络 ±2A|cos(kx)| 与当前波形 */
+  const L=state.L,lm=state.lm,A=state.A,k=2*Math.PI/lm;
+  const wt=WW*state.t*2;
+  const y0l=1.2;
+  ctx.beginPath();
+  for(let i=0;i<160;i++){
+    const x=-L/2+L*i/159;
+    const X=x0+i/159*w,Y=y0+h/2+2*A*Math.cos(k*x)/(2.6)*(h/2-10);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#63e8ff';ctx.stroke();
+  ctx.beginPath();
+  for(let i=0;i<160;i++){
+    const x=-L/2+L*i/159;
+    const X=x0+i/159*w,Y=y0+h/2-2*A*Math.cos(k*x)/(2.6)*(h/2-10);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#3ddc84';ctx.stroke();
+  ctx.beginPath();
+  for(let i=0;i<160;i++){
+    const x=-L/2+L*i/159;
+    const X=x0+i/159*w,Y=y0+h/2-(A*Math.cos(wt-k*x)-A*Math.cos(wt+k*x))/(2.6)*(h/2-10);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#ff4d5e';ctx.lineWidth=1.8;ctx.stroke();
+  ctx.fillStyle='#63e8ff';ctx.fillText('— 包络上沿',x0+w-220,y0+12);
+  ctx.fillStyle='#ff4d5e';ctx.fillText('— 当前波形 y(x,t)',x0+w-110,y0+12);
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('包络=±2A·cos(kx)：波形"原地呼吸"，波节永久静止',x0,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='standing_wave_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+      try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+    }
+    ctx.fillStyle='#e8eefc';ctx.font='bold 40px "Microsoft YaHei",sans-serif';
+    ctx.fillText('6.1 驻波 · y=2A·cos(kx)·cos(ωt)，波节间距 λ/2',30,64);
+    ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+    ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){state.t=0;updateReadouts();updateDims();renderer.render(scene,camera);drawDomChart();}
+$('sldL').addEventListener('input',e=>{state.lm=parseFloat(e.target.value);resetSim();});
+$('sldA').addEventListener('input',e=>{state.A=parseFloat(e.target.value);resetSim();});
+$('sldLen').addEventListener('input',e=>{state.L=parseFloat(e.target.value);resetSim();});
+btnMode.addEventListener('click',()=>{
+  state.mode=state.mode==='all'?'env':(state.mode==='env'?'inc':'all');
+  btnMode.textContent='显示：'+(state.mode==='all'?'合成':(state.mode==='env'?'包络':'入射'));
+});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  if(state.playing)state.t+=dt;
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateDims();
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>

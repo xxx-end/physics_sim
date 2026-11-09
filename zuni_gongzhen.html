@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>5.1 阻尼振动·受迫振动与共振 · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+  .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:270px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">振动模型 5.1 阻尼振动 · 受迫振动与共振</h1>
+  <p class="subtitle">阻尼振子受简谐驱动力 F₀cos(ωd·t) 作用：暂态衰减后进入稳态，稳态频率=驱动频率（≠固有频率）。ωd→ω₀ 时振幅极大——共振。求稳态解与共振曲线。</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">稳态振幅 A(ωd)</div><div class="v" id="outA">—</div></div>
+    <div class="kv"><div class="k">共振峰位置 ωr</div><div class="v" id="outWr">—</div></div>
+    <div class="kv"><div class="k">品质因数 Q</div><div class="v" id="outQv">—</div></div>
+    <div class="kv"><div class="k">当前位移 x(t)</div><div class="v" id="outX">—</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">固有频率 ω₀</span><span class="val" id="lblW0">2.0 rad/s</span></div>
+    <input type="range" id="sldW0" min="1" max="4" step="0.1" value="2"/></div>
+  <div class="ctl"><div class="row"><span class="name">阻尼系数 β</span><span class="val" id="lblB">0.30 1/s</span></div>
+    <input type="range" id="sldB" min="0.05" max="1.5" step="0.05" value="0.3"/></div>
+  <div class="ctl"><div class="row"><span class="name">驱动频率 ωd</span><span class="val" id="lblWd">2.0 rad/s</span></div>
+    <input type="range" id="sldWd" min="0" max="5" step="0.05" value="2"/></div>
+  <div class="ctl"><div class="row"><span class="name">驱动力幅 F₀/m</span><span class="val" id="lblF">1.0 m/s²</span></div>
+    <input type="range" id="sldF" min="0" max="3" step="0.1" value="1"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      ẍ + 2βẋ + ω₀²x = (F₀/m)cos(ωd t)<br/>
+      稳态解：<b>x = A·cos(ωd t − φ)</b><br/>
+      <b>A = (F₀/m) / √( (ω₀²−ωd²)² + 4β²ωd² )</b><br/>
+      tanφ = 2βωd/(ω₀²−ωd²)<br/>
+      共振峰：<b>ωr = √(ω₀² − 2β²)</b><br/>
+      品质因数 Q = ω₀/2β
+    </div>
+    <div class="hint">
+      直觉误区：①稳态振动频率=驱动频率，不是固有频率；②阻尼越大共振峰越矮越宽、峰位左移；③β→0 时 ωr→ω₀ 且 A→∞。底部曲线是幅频特性 A(ωd)。
+    </div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#ff4d5e"></i>振子 m（弹簧振子）</div>
+    <div><i style="background:#63e8ff"></i>弹簧 k（ω₀=√(k/m)）</div>
+    <div><i style="background:#b98bff"></i>驱动机构（频率 ωd）</div>
+    <div><i style="background:#ffa726"></i>阻尼器（β）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const state={t:0,playing:true,w0:2,beta:0.3,wd:2,F0:1,x:0,v:0};
+function amp(wd){
+  return state.F0/Math.sqrt((state.w0**2-wd**2)**2+4*state.beta**2*wd**2);
+}
+function calc(){
+  const A=amp(state.wd);
+  const wr=state.w0*state.w0>2*state.beta*state.beta?Math.sqrt(state.w0**2-2*state.beta**2):0;
+  const Q=state.w0/(2*state.beta);
+  const ph=Math.atan2(2*state.beta*state.wd,state.w0**2-state.wd**2);
+  return {A:A,wr:wr,Q:Q,ph:ph};
+}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outA=$('outA'),outWr=$('outWr'),outQv=$('outQv'),outX=$('outX');
+const lblW0=$('lblW0'),lblB=$('lblB'),lblWd=$('lblWd'),lblF=$('lblF');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,40,140);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(3.2,2.2,7.5);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,1.4,0);
+controls.minDistance=2.5;controls.maxDistance=60;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.8));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(8,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+scene.add(new THREE.GridHelper(12,12,0x1e3a63,0x14243c));
+/* 水平轨道 */
+const rail=new THREE.Mesh(new THREE.BoxGeometry(8,.08,.3),new THREE.MeshPhongMaterial({color:0x1e3252}));
+rail.position.set(0,0.9,0);scene.add(rail);
+/* 左壁（驱动端） */
+const wall=new THREE.Mesh(new THREE.BoxGeometry(.2,1.6,.6),new THREE.MeshPhongMaterial({color:0x2a3f63}));
+wall.position.set(-3.6,1.4,0);scene.add(wall);
+/* 驱动滑块 */
+const driver=new THREE.Mesh(new THREE.BoxGeometry(.3,.3,.3),new THREE.MeshPhongMaterial({color:0xb98bff}));
+driver.position.set(-3.4,2.2,0);scene.add(driver);
+const pushRod=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,1),new THREE.MeshPhongMaterial({color:0xb98bff}));
+scene.add(pushRod);
+/* 弹簧（螺旋管） */
+const spring=new THREE.Mesh(new THREE.TorusKnotGeometry(.001,.001,8,8),new THREE.MeshBasicMaterial({color:0x63e8ff}));
+scene.add(spring);
+const springMesh=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1,8,1,true),new THREE.MeshBasicMaterial({color:0x63e8ff,wireframe:true}));
+scene.add(springMesh);
+/* 阻尼器（活塞缸） */
+const dashpot=new THREE.Group();scene.add(dashpot);
+const cyl=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.7,14),new THREE.MeshPhongMaterial({color:0xffa726,transparent:true,opacity:.6}));
+cyl.rotation.z=Math.PI/2;
+dashpot.add(cyl);
+/* 振子 */
+const mass=new THREE.Mesh(new THREE.BoxGeometry(.42,.42,.42),new THREE.MeshPhongMaterial({color:0xc9404f,metalness:.4,roughness:.3}));
+scene.add(mass);
+/* 速度矢量 */
+const vArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1,0x3ddc84,.16,.09);
+scene.add(vArrow);
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color){
+  const g=new THREE.Group();scene.add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.06,.18,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.12);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.1).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.1).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+const lblMass=makeLabel('m','#ff8a9a',0,0,0,0.6);
+const lblDrv=makeLabel('驱动 ωd','#b98bff',0,0,0,1.2);
+const lblDash=makeLabel('阻尼 β','#ffc077',0,0,0,1.0);
+const w0Dim=makeDim('#63e8ff');
+function updateDims(){
+  const xb=state.x*0.5;
+  mass.position.set(xb,1.35,0);
+  lblMass.position.set(xb,2.0,0);
+  /* 驱动端运动 x_d = Ad*sin(wd t) */
+  const c=calc();
+  const Ad=state.F0*0.15;
+  const xd=-3.4+Ad*Math.sin(state.wd*state.t)*0.4;
+  driver.position.set(xd,2.2,0);
+  lblDrv.position.set(-3.4,2.7,0);
+  pushRod.position.set((xd+xb)/2+0.2,1.35,0);
+  pushRod.scale.x=Math.abs(xb-xd-0.25)*0.7;
+  /* 弹簧：从驱动端到振子 */
+  const len=Math.abs(xb-(-3.15));
+  springMesh.scale.x=len/2;
+  springMesh.rotation.z=Math.PI/2;
+  springMesh.position.set((-3.15+xb)/2,1.35,0);
+  /* 阻尼器连振子 */
+  dashpot.position.set(xb+0.65,1.35,0);
+  lblDash.position.set(xb+0.65,0.55,0);
+  vArrow.position.set(xb+.25,1.35,0);
+  vArrow.setDirection(new THREE.Vector3(Math.sign(state.v)||1,0,0));
+  vArrow.setLength(Math.min(.3+Math.abs(state.v)*.2,1.2),.15,.09);
+  setDim(w0Dim,0,2.5,0,0,2.5+Math.min(state.w0*0.3,1.2),0);
+  updateLabel(w0Dim.lbl||(w0Dim.lbl=makeLabel('ω₀','#63e8ff',0,0,0,0.9)),'ω₀='+state.w0.toFixed(1),'#63e8ff');
+  w0Dim.lbl.position.set(0.6,2.5+Math.min(state.w0*0.15,0.6),0);
+}
+function updateReadouts(){
+  const c=calc();
+  outA.innerHTML=c.A.toFixed(3)+' m';
+  outWr.innerHTML=c.wr.toFixed(3)+' rad/s';
+  outQv.innerHTML=c.Q.toFixed(1);
+  outX.innerHTML=state.x.toFixed(3)+' m';
+  lblW0.textContent=state.w0.toFixed(1)+' rad/s';
+  lblB.textContent=state.beta.toFixed(2)+' 1/s';
+  lblWd.textContent=state.wd.toFixed(2)+' rad/s';
+  lblF.textContent=state.F0.toFixed(1)+' m/s²';
+}
+function step(dt){
+  /* 数值积分：x''+2βx'+ω0²x = F0 cos(wd t) */
+  const acc=state.F0*Math.cos(state.wd*state.t)-2*state.beta*state.v-state.w0*state.w0*state.x;
+  state.v+=acc*dt;
+  state.x+=state.v*dt;
+  if(Math.abs(state.x)>1.4){state.x*=0.9;}
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  /* 幅频曲线 A(ω) */
+  const c=calc();
+  let aMax=0.01;
+  for(let i=0;i<=120;i++){const ww=5*i/119;aMax=Math.max(aMax,amp(ww));}
+  ctx.beginPath();
+  for(let i=0;i<120;i++){
+    const ww=5*i/119;
+    const X=x0+ww/5*w,Y=y0+h-4-amp(ww)/aMax*(h-8)*0.88;
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+  }
+  ctx.strokeStyle='#63e8ff';ctx.lineWidth=1.8;ctx.stroke();
+  /* ω0 虚线 与 ωd 当前位置 */
+  const X0=x0+state.w0/5*w;
+  ctx.setLineDash([3,3]);ctx.strokeStyle='rgba(255,167,38,.55)';
+  ctx.beginPath();ctx.moveTo(X0,y0);ctx.lineTo(X0,y0+h);ctx.stroke();
+  const Xd=x0+state.wd/5*w;
+  ctx.strokeStyle='rgba(255,77,94,.7)';
+  ctx.beginPath();ctx.moveTo(Xd,y0);ctx.lineTo(Xd,y0+h);ctx.stroke();ctx.setLineDash([]);
+  if(c.wr>0){
+    const Xr=x0+c.wr/5*w;
+    ctx.fillStyle='#3ddc84';ctx.font='10px Consolas,monospace';ctx.textAlign='center';
+    ctx.fillText('ωr',Xr,y0+12);
+  }
+  const Yd=y0+h-4-amp(state.wd)/aMax*(h-8)*0.88;
+  ctx.fillStyle='#ff4d5e';ctx.beginPath();ctx.arc(Xd,Yd,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#8ea3c4';ctx.font='11px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='left';
+  ctx.fillText('0',x0-10,y0+h-4);ctx.fillText('ωd → 5',x0+w-45,y0+h+16);
+  ctx.fillStyle='#ffa726';ctx.fillText('┆ω₀',X0-8,y0+12);
+  ctx.fillStyle='#ff4d5e';ctx.fillText('●当前 ωd',Math.min(Xd+8,x0+w-60),Yd-6);
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('幅频特性 A(ωd)：β 越小峰越尖；峰位 ωr=√(ω₀²−2β²)＜ω₀',x0,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='resonance_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+      try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+    }
+    ctx.fillStyle='#e8eefc';ctx.font='bold 40px "Microsoft YaHei",sans-serif';
+    ctx.fillText('5.1 受迫振动共振 · A=F₀/√((ω₀²−ωd²)²+4β²ωd²)',30,64);
+    ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+    ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){state.t=0;state.x=0;state.v=0;updateReadouts();updateDims();renderer.render(scene,camera);drawDomChart();}
+$('sldW0').addEventListener('input',e=>{state.w0=parseFloat(e.target.value);updateReadouts();});
+$('sldB').addEventListener('input',e=>{state.beta=parseFloat(e.target.value);updateReadouts();});
+$('sldWd').addEventListener('input',e=>{state.wd=parseFloat(e.target.value);updateReadouts();});
+$('sldF').addEventListener('input',e=>{state.F0=parseFloat(e.target.value);updateReadouts();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  /* 子步进提高数值稳定性 */
+  if(state.playing){for(let i=0;i<4;i++){state.t+=dt/4;step(dt/4);}}
+  updateDims();
+  updateReadouts();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  updateDims();
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>

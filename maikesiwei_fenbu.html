@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>7.1 麦克斯韦速率分布律 · 交互仿真</title>
+<style>
+  :root{--bg:#070b13;--line:#1b2a44;--txt:#e8eefc;--dim:#8ea3c4;--cyan:#63e8ff;--green:#3ddc84;--orange:#ffa726;--red:#ff4d5e;--teal:#36f0c4;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex;height:100vh;width:100vw;}
+  #sidebar{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;
+    background:linear-gradient(180deg,#0b1220,#070b13);border-right:1px solid var(--line);padding:14px 14px 48px;}
+  #sidebar::-webkit-scrollbar{width:8px;}#sidebar::-webkit-scrollbar-thumb{background:#1e3a63;border-radius:4px;}
+  .title{font-size:16px;font-weight:700;margin:0 0 2px;}
+  .subtitle{font-size:11px;color:var(--dim);margin:0 0 14px;line-height:1.5;}
+  .sec-label{font-size:11px;color:var(--dim);letter-spacing:2px;margin:16px 0 8px;text-transform:uppercase;}
+  .card{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .kv{background:rgba(20,32,54,.72);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .kv .k{font-size:10px;color:var(--dim);margin-bottom:3px;}
+  .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+  .ctl .name{font-size:12px;color:#cfe0f8;}
+  .ctl .val{font-size:12px;color:var(--cyan);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#1b2a44;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(99,232,255,.8);}
+  .formula{font-size:11.5px;line-height:1.75;color:#b9cdea;font-family:"Cambria Math",Georgia,serif;}
+  .formula b{color:var(--teal);font-weight:600;}
+  .hint{font-size:10.5px;color:#6f88ab;line-height:1.6;margin-top:6px;}
+  #view{position:relative;flex:1 1 auto;min-width:0;height:100%;overflow:hidden;}
+  #chart{position:absolute;z-index:5;left:0;bottom:0;width:100%;height:170px;display:block;pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,11,19,0),rgba(7,11,19,.85) 45%);}
+  #toolbar{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:20;}
+  .btn{background:rgba(20,32,54,.9);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:8px 14px;
+    border-radius:8px;cursor:pointer;transition:.18s;user-select:none;font-family:inherit;}
+  .btn:hover{background:rgba(38,60,96,.95);border-color:#2f5d96;}
+  .btn.on{background:rgba(255,77,94,.16);border-color:var(--red);color:#ffb3bb;}
+  #legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(11,18,32,.78);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;font-size:11px;line-height:1.85;color:#c3d5ef;}
+  #legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  #recDot{position:absolute;top:20px;right:270px;width:11px;height:11px;border-radius:50%;background:var(--red);opacity:0;z-index:21;}
+  #recDot.active{animation:breath 1.05s ease-in-out infinite;}
+  @keyframes breath{0%,100%{opacity:.2;}50%{opacity:1;box-shadow:0 0 14px 4px rgba(255,77,94,.6);}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="title">热学模型 7.1 麦克斯韦速率分布律</h1>
+  <p class="subtitle">平衡态理想气体分子速率服从 f(v)=4πv²(m/2πkT)^(3/2)·e^(−mv²/2kT)。温度升高曲线变宽变矮、峰值右移——"中间多、两头少"。实时粒子云按速度着色。</p>
+  <div class="sec-label">实时物理量</div>
+  <div class="grid2">
+    <div class="kv"><div class="k">最概然速率 vp</div><div class="v" id="outVp">—</div></div>
+    <div class="kv"><div class="k">平均速率 v̄</div><div class="v" id="outVb">—</div></div>
+    <div class="kv"><div class="k">方均根速率 √v̄²</div><div class="v" id="outVr">—</div></div>
+    <div class="kv"><div class="k">峰值 f(vp)</div><div class="v" id="outFm">—</div></div>
+  </div>
+  <div class="sec-label">参数调节</div>
+  <div class="ctl"><div class="row"><span class="name">温度 T</span><span class="val" id="lblT">300 K</span></div>
+    <input type="range" id="sldT" min="100" max="1200" step="10" value="300"/></div>
+  <div class="ctl"><div class="row"><span class="name">气体种类 m</span><span class="val" id="lblM">H₂ (2u)</span></div>
+    <input type="range" id="sldM" min="1" max="5" step="1" value="1"/></div>
+  <div class="sec-label">核心公式</div>
+  <div class="card">
+    <div class="formula">
+      <b>f(v) = 4πv²·(m/2πkT)^(3/2)·e^(−mv²/2kT)</b><br/>
+      归一化：∫f(v)dv = 1<br/>
+      <b>v_p = √(2kT/m)</b>（最概然）<br/>
+      <b>v̄ = √(8kT/πm)</b>（平均）<br/>
+      <b>√v̄² = √(3kT/m)</b>（方均根）<br/>
+      比例：v_p : v̄ : √v̄² = 1 : 1.128 : 1.225
+    </div>
+    <div class="hint">
+      直觉误区：温度升高曲线整体右移但<b>高度降低</b>——因为曲线下面积恒为 1。三种速率都 ∝√T、∝1/√m，氢气比氧气"跑得快"4倍（m 比 16）。
+    </div>
+  </div>
+</aside>
+<main id="view">
+  <div id="legend">
+    <div><i style="background:#63e8ff"></i>慢分子（v &lt; vp）</div>
+    <div><i style="background:#3ddc84"></i>中速分子（vp 附近）</div>
+    <div><i style="background:#ff4d5e"></i>快分子（v ≫ vp）</div>
+    <div><i style="background:#ffa726"></i> vp 标记（最概然速率）</div>
+  </div>
+  <div id="toolbar">
+    <button class="btn" id="btnPlay">暂停</button>
+    <button class="btn" id="btnReset">重置</button>
+    <button class="btn" id="btnRec">● 录制</button>
+    <button class="btn" id="btnShot">✚ 截图</button>
+  </div>
+  <div id="recDot"></div>
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const KB=1.38e-23,AMU=1.66e-27;
+const GASES=['H₂ (2u)','He (4u)','N₂ (28u)','O₂ (32u)','Ar (40u)'];
+const MASS=[2,4,28,32,40];
+const state={t:0,playing:true,T:300,mIdx:0,NP:150};
+function mVal(){return MASS[state.mIdx]*AMU;}
+function fdist(v){
+  const m=mVal(),T=state.T;
+  return 4*Math.PI*v*v*Math.pow(m/(2*Math.PI*KB*T),1.5)*Math.exp(-m*v*v/(2*KB*T));
+}
+function calc(){
+  const m=mVal();
+  const vp=Math.sqrt(2*KB*state.T/m);
+  const vb=Math.sqrt(8*KB*state.T/(Math.PI*m));
+  const vr=Math.sqrt(3*KB*state.T/m);
+  return {vp:vp,vb:vb,vr:vr,fm:fdist(vp)};
+}
+const viewEl=document.getElementById('view');
+const chartCanvas=document.getElementById('chart');
+const chartCtx=chartCanvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const outVp=$('outVp'),outVb=$('outVb'),outVr=$('outVr'),outFm=$('outFm');
+const lblT=$('lblT'),lblM=$('lblM');
+const btnPlay=$('btnPlay'),btnReset=$('btnReset'),btnRec=$('btnRec'),recDot=$('recDot');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(800,600);
+renderer.domElement.style.cssText='position:absolute;left:0;top:0;display:block;';
+viewEl.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070b13);
+scene.fog=new THREE.Fog(0x070b13,50,160);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,500);
+camera.position.set(6,5,10);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.08;controls.target.set(0,2,0);
+controls.minDistance=3;controls.maxDistance=80;
+scene.add(new THREE.AmbientLight(0x9fc4ff,0.8));
+const dl1=new THREE.DirectionalLight(0xffffff,1.1);dl1.position.set(10,16,12);scene.add(dl1);
+const gndGlow=new THREE.Mesh(new THREE.CircleGeometry(9,48),new THREE.MeshBasicMaterial({color:0x0d1728,transparent:true,opacity:.9}));
+gndGlow.rotation.x=-Math.PI/2;gndGlow.position.y=-.02;scene.add(gndGlow);
+scene.add(new THREE.GridHelper(16,16,0x1e3a63,0x14243c));
+/* 容器盒（线框） */
+const box=new THREE.Mesh(new THREE.BoxGeometry(5,4,5),new THREE.MeshBasicMaterial({color:0x2a4f8f,wireframe:true,transparent:true,opacity:.5}));
+box.position.y=2.2;scene.add(box);
+/* 分子云：按麦克斯韦分布采样初速 */
+const parts=[];
+function sampleSpeed(){
+  /* 拒绝采样 */
+  const c=calc();
+  let v=0;
+  for(let i=0;i<200;i++){
+    v=Math.random()*c.vr*2.2;
+    if(Math.random()<fdist(v)/c.fm*0.98)break;
+  }
+  return Math.max(v,50);
+}
+const gGeo=new THREE.SphereGeometry(.06,8,6);
+for(let i=0;i<state.NP;i++){
+  const m=new THREE.Mesh(gGeo,new THREE.MeshBasicMaterial({color:0x3ddc84}));
+  scene.add(m);
+  parts.push({m:m,x:(Math.random()-0.5)*4.4,y:0.3+Math.random()*3.6,z:(Math.random()-0.5)*4.4,vx:0,vy:0,vz:0});
+}
+function resample(){
+  const c=calc();
+  for(const p of parts){
+    const v=sampleSpeed();
+    const th=Math.random()*Math.PI*2, ph2=Math.acos(2*Math.random()-1);
+    p.vx=v*Math.sin(ph2)*Math.cos(th);
+    p.vy=v*Math.sin(ph2)*Math.sin(th);
+    p.vz=v*Math.cos(ph2);
+    const s=v/c.vp;
+    p.m.material.color.setHex(s<0.7?0x63e8ff:(s<1.4?0x3ddc84:0xff4d5e));
+  }
+}
+function makeLabel(text,color,x,y,z,w){
+  const c=document.createElement('canvas');c.width=256;c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(w,w/4,1);sp.position.set(x,y,z);scene.add(sp);return sp;
+}
+function updateLabel(sp,text,color){
+  const c=sp.material.map.image,g=c.getContext('2d');
+  g.clearRect(0,0,256,64);
+  g.fillStyle='rgba(9,15,27,.82)';g.fillRect(0,0,256,64);
+  g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,60);
+  g.font='bold 28px "Microsoft YaHei",sans-serif';g.fillStyle=color;
+  g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
+  sp.material.map.needsUpdate=true;
+}
+function makeDim(color){
+  const g=new THREE.Group();scene.add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  g.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:color})));
+  const cm=new THREE.MeshBasicMaterial({color:color});
+  const cg=new THREE.ConeGeometry(.05,.16,10);
+  const c1=new THREE.Mesh(cg,cm),c2=new THREE.Mesh(cg,cm);g.add(c1);g.add(c2);
+  return {g:g,geo:lg,c1:c1,c2:c2};
+}
+function setDim(d,ax,ay,az,bx,by,bz){
+  const dir=new THREE.Vector3(bx-ax,by-ay,bz-az);const len=dir.length();
+  if(len<1e-4)return;dir.normalize();
+  const pos=d.geo.attributes.position;
+  pos.setXYZ(0,ax,ay,az);pos.setXYZ(1,bx,by,bz);pos.needsUpdate=true;
+  const up=Math.abs(dir.y)>.9?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(dir,up).normalize().multiplyScalar(.1);
+  d.c1.position.set(ax,ay,az).addScaledVector(dir,.08).add(side);
+  d.c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().negate());
+  d.c2.position.set(bx,by,bz).addScaledVector(dir,-.08).add(side);
+  d.c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+}
+const lblBox=makeLabel('理想气体（平衡态）','#7fb3ff',0,0,0,2.4);
+const lbTemp=makeLabel('','#ffa726',0,0,0,1.2);
+const tDim=makeDim('#ffa726');
+function updateDims(){
+  lblBox.position.set(0,4.8,0);
+  lbTemp.position.set(3.0,0.9,0);
+  updateLabel(lbTemp,'T='+state.T.toFixed(0)+' K','#ffa726');
+  setDim(tDim,2.8,0.3,2.8,2.8,4.3,2.8);
+  /* 分子运动 */
+  const c=calc();
+  const scl=0.00002;
+  for(const p of parts){
+    p.x+=p.vx*scl*16;p.y+=p.vy*scl*16;p.z+=p.vz*scl*16;
+    if(p.x>2.4){p.x=2.4;p.vx=-Math.abs(p.vx);}
+    if(p.x<-2.4){p.x=-2.4;p.vx=Math.abs(p.vx);}
+    if(p.y>4.2){p.y=4.2;p.vy=-Math.abs(p.vy);}
+    if(p.y<0.2){p.y=0.2;p.vy=Math.abs(p.vy);}
+    if(p.z>2.4){p.z=2.4;p.vz=-Math.abs(p.vz);}
+    if(p.z<-2.4){p.z=-2.4;p.vz=Math.abs(p.vz);}
+    p.m.position.set(p.x,p.y,p.z);
+  }
+}
+function updateReadouts(){
+  const c=calc();
+  outVp.innerHTML=(c.vp).toFixed(0)+' m/s';
+  outVb.innerHTML=(c.vb).toFixed(0)+' m/s';
+  outVr.innerHTML=(c.vr).toFixed(0)+' m/s';
+  outFm.innerHTML=(c.fm*1e3).toFixed(2)+' ×10⁻³ s/m';
+  lblT.textContent=state.T.toFixed(0)+' K';
+  lblM.textContent=GASES[state.mIdx];
+}
+function drawChartOn(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const padL=62,padR=22,padT=30,padB=26,x0=padL,y0=padT;
+  const w=Math.max(10,W-padL-padR),h=Math.max(10,H-padT-padB);
+  ctx.fillStyle='rgba(9,15,26,0.72)';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(46,90,150,0.28)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const Y=y0+h*i/4;ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  const c=calc();
+  const vMax=c.vp*3;
+  /* 当前温度曲线（红）与参照低温曲线（蓝虚） */
+  const drawCurve=(T,color,dash)=>{
+    ctx.setLineDash(dash?[4,4]:[]);
+    ctx.beginPath();
+    let fm=0;
+    for(let i=0;i<=140;i++){
+      const v=vMax*i/140;
+      const m=mVal();
+      const f=4*Math.PI*v*v*Math.pow(m/(2*Math.PI*KB*T),1.5)*Math.exp(-m*v*v/(2*KB*T));
+      fm=Math.max(fm,f);
+    }
+    for(let i=0;i<=140;i++){
+      const v=vMax*i/140;
+      const m=mVal();
+      const f=4*Math.PI*v*v*Math.pow(m/(2*Math.PI*KB*T),1.5)*Math.exp(-m*v*v/(2*KB*T));
+      const X=x0+i/140*w,Y=y0+h-4-f/fm*(h-8)*0.85;
+      i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=1.8;ctx.stroke();
+    ctx.setLineDash([]);
+    return fm;
+  };
+  drawCurve(state.T,'#ff4d5e',false);
+  drawCurve(Math.max(state.T-300,100),'#4a7dbd',true);
+  /* vp 竖线 */
+  const Xp=x0+c.vp/vMax*w;
+  ctx.strokeStyle='rgba(255,167,38,.7)';
+  ctx.beginPath();ctx.moveTo(Xp,y0);ctx.lineTo(Xp,y0+h);ctx.stroke();
+  ctx.fillStyle='#ffa726';ctx.font='10px Consolas,monospace';ctx.textAlign='center';
+  ctx.fillText('vp='+(c.vp/1000).toFixed(1)+'km/s',Xp,y0+12);
+  ctx.textAlign='left';
+  ctx.fillStyle='#ff4d5e';ctx.fillText('— T='+state.T.toFixed(0)+'K',x0+w-230,y0+12);
+  ctx.fillStyle='#4a7dbd';ctx.fillText('--- 低温参照',x0+w-130,y0+12);
+  ctx.fillStyle='#cfe0f8';ctx.font='12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('T↑：峰右移变矮（面积恒1）；vp:√v̄²:vp=1:1.128:1.225',x0,y0-10);
+}
+function drawDomChart(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=chartCanvas.clientWidth||(viewEl.clientWidth||800);
+  const cssH=chartCanvas.clientHeight||170;
+  const needW=Math.max(1,Math.round(cssW*dpr)),needH=Math.max(1,Math.round(cssH*dpr));
+  if(chartCanvas.width!==needW||chartCanvas.height!==needH){chartCanvas.width=needW;chartCanvas.height=needH;}
+  chartCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawChartOn(chartCtx,cssW,cssH);
+}
+function onResize(){
+  let w=viewEl.clientWidth;if(!w||w===0)w=window.innerWidth-340;
+  let h=viewEl.clientHeight;if(!h||h===0)h=window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  drawDomChart();
+}
+class WebMRecorder{
+  constructor(){this.cv=document.createElement('canvas');this.cv.width=1920;this.cv.height=1080;
+    this.ctx=this.cv.getContext('2d');this.rec=null;this.chunks=[];this.on=false;this.stream=null;}
+  start(){
+    if(this.on)return;
+    let mime='';for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)){mime=t;break;}}
+    if(!window.MediaRecorder){alert('当前浏览器不支持 MediaRecorder 录制。');return;}
+    this.stream=this.cv.captureStream(60);
+    try{this.rec=new MediaRecorder(this.stream,mime?{mimeType:mime,videoBitsPerSecond:9000000}:{});}
+    catch(e){this.rec=new MediaRecorder(this.stream);}
+    this.chunks=[];
+    this.rec.ondataavailable=e=>{if(e.data&&e.data.size>0)this.chunks.push(e.data);};
+    this.rec.onstop=()=>{
+      const blob=new Blob(this.chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='maxwell_'+Date.now()+'.webm';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),6000);
+      state.t=0;state.playing=true;btnPlay.textContent='暂停';
+      btnRec.classList.remove('on');btnRec.textContent='● 录制';recDot.classList.remove('active');btnRec.disabled=false;
+    };
+    this.rec.start();this.on=true;
+  }
+  drawFrame(){
+    if(!this.on)return;
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+    const bw=Math.round(W*0.70);
+    const src=renderer.domElement,sa=(src.width||1)/(src.height||1);
+    let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+    ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+    if(typeof chartCanvas!=='undefined'&&chartCanvas.width>0){
+      try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+    }
+    ctx.fillStyle='#e8eefc';ctx.font='bold 40px "Microsoft YaHei",sans-serif';
+    ctx.fillText('7.1 麦克斯韦速率分布 · vp=√(2kT/m)',36,64);
+    ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+    ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  }
+  stop(){if(!this.on)return;this.on=false;
+    try{if(this.rec&&this.rec.state!=='inactive')this.rec.stop();}catch(e){}
+    if(this.stream){this.stream.getTracks().forEach(t=>t.stop());this.stream=null;}}
+}
+const recorder=new WebMRecorder();
+function takeShot(){
+  const W=1920,H=1080;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#070b13';ctx.fillRect(0,0,W,H);
+  const src=renderer.domElement,bw=Math.round(W*0.72);
+  const sa=(src.width||1)/(src.height||1);
+  let dw=bw,dh=bw/sa;if(dh>H){dh=H;dw=H*sa;}
+  ctx.drawImage(src,(bw-dw)/2,(H-dh)/2,dw,dh);
+  try{ctx.drawImage(chartCanvas,0,0,chartCanvas.width,chartCanvas.height,0,H-170,bw,170);}catch(e){}
+  ctx.fillStyle='#e8eefc';ctx.font='bold 42px "Microsoft YaHei",sans-serif';
+  ctx.fillText(document.title||'物理仿真',36,66);
+  ctx.fillStyle='#8ea3c4';ctx.font='22px Consolas,monospace';
+  ctx.fillText(new Date().toLocaleString('zh-CN'),36,H-28);
+  const a=document.createElement('a');a.href=cv.toDataURL('image/png');
+  a.download=(document.title||'snapshot').replace(/[\\/:*?"<>|\s]/g,'_')+'_'+Date.now()+'.png';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  const bs=$('btnShot');bs.textContent='✓ 已保存';setTimeout(()=>{bs.textContent='✚ 截图';},1200);
+}
+$('btnShot').addEventListener('click',takeShot);
+function resetSim(){state.t=0;resample();updateReadouts();renderer.render(scene,camera);drawDomChart();}
+$('sldT').addEventListener('input',e=>{state.T=parseFloat(e.target.value);resetSim();});
+$('sldM').addEventListener('input',e=>{state.mIdx=Math.min(4,Math.max(0,parseInt(e.target.value)-1));resetSim();});
+btnPlay.addEventListener('click',()=>{state.playing=!state.playing;btnPlay.textContent=state.playing?'暂停':'播放';});
+btnReset.addEventListener('click',()=>{state.playing=true;btnPlay.textContent='暂停';resetSim();});
+btnRec.addEventListener('click',()=>{
+  if(!recorder.on){
+    state.t=0;state.playing=true;
+    recorder.start();btnRec.classList.add('on');btnRec.textContent='■ 停止';recDot.classList.add('active');
+  }else recorder.stop();
+});
+window.addEventListener('resize',onResize);
+let lastTime=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dt=(now-lastTime)/1000;lastTime=now;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  if(state.playing)state.t+=dt;
+  updateDims();
+  controls.update();
+  renderer.render(scene,camera);
+  drawDomChart();
+  if(recorder.on)recorder.drawFrame();
+}
+function init(){
+  updateReadouts();
+  onResize();
+  resample();
+  updateDims();
+  renderer.render(scene,camera);
+  drawDomChart();
+  lastTime=performance.now();
+  animate();
+}
+init();
+</script>
+</body>
+</html>
